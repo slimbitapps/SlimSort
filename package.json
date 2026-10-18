@@ -13,7 +13,7 @@
     "dist:mac": "vite build && electron-builder --mac",
     "dist:linux": "vite build && electron-builder --linux"
   },
-  "author": "Johannes",
+  "author": "SlimBit Apps",
   "license": "UNLICENSED",
   "devDependencies": {
     "@types/react": "^19.3.0",
@@ -136,5 +136,9 @@
         }
       ]
     }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/slimbitapps/fotosortierter.git"
   }
 }
