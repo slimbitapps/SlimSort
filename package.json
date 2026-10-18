@@ -1,6 +1,6 @@
 {
-  "name": "fotosortierer",
-  "version": "0.3.1",
+  "name": "slimsort",
+  "version": "0.4.0",
   "description": "Fotos und Videos per Tastendruck sortieren",
   "main": "electron/main.cjs",
   "scripts": {
@@ -31,11 +31,11 @@
     "heic-convert": "^2.1.0",
     "zustand": "^5.0.15"
   },
-  "productName": "Fotosortierer",
+  "productName": "SlimSort",
   "private": true,
   "build": {
-    "appId": "de.fotosortierer.app",
-    "productName": "Fotosortierer",
+    "appId": "app.slimbit.slimsort",
+    "productName": "SlimSort",
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -63,7 +63,7 @@
           ]
         }
       ],
-      "artifactName": "Fotosortierer-Windows-portable.${ext}"
+      "artifactName": "SlimSort-Windows-portable.${ext}"
     },
     "nsis": {
       "oneClick": true,
@@ -71,14 +71,14 @@
       "runAfterFinish": true,
       "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
-      "shortcutName": "Fotosortierer",
+      "shortcutName": "SlimSort",
       "installerLanguages": [
         "de_DE",
         "en_US"
       ],
       "multiLanguageInstaller": true,
       "deleteAppDataOnUninstall": false,
-      "artifactName": "Fotosortierer-Setup.${ext}"
+      "artifactName": "SlimSort-Setup.${ext}"
     },
     "mac": {
       "target": [
@@ -95,7 +95,7 @@
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "artifactName": "Fotosortierer-Mac-${arch}.${ext}"
+      "artifactName": "SlimSort-Mac-${arch}.${ext}"
     },
     "linux": {
       "target": [
@@ -104,20 +104,20 @@
       "category": "Graphics"
     },
     "appx": {
-      "identityName": "FOTOSORTIERER.PLATZHALTER",
+      "identityName": "SLIMSORT.PLATZHALTER",
       "publisher": "CN=PLATZHALTER-PUBLISHER-ID",
       "publisherDisplayName": "Hersteller-Name",
-      "displayName": "Fotosortierer",
-      "applicationId": "Fotosortierer",
+      "displayName": "SlimSort",
+      "applicationId": "SlimSort",
       "languages": [
         "de-DE",
         "en-US"
       ],
       "backgroundColor": "#14161a",
-      "artifactName": "Fotosortierer-Store.${ext}"
+      "artifactName": "SlimSort-Store.${ext}"
     },
     "dmg": {
-      "title": "Fotosortierer",
+      "title": "SlimSort",
       "background": "build/background.png",
       "iconSize": 110,
       "window": {
@@ -151,6 +151,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/slimbitapps/fotosortierter.git"
+    "url": "https://github.com/slimbitapps/slimsort.git"
   }
 }

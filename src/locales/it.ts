@@ -1,7 +1,7 @@
 import type { Dict } from '../i18n';
 
 export const it: Dict = {
-  'app.name': 'Smista Foto',
+  'app.name': 'SlimSort',
   'app.tagline': 'Smista foto e video in un lampo con un solo tasto',
 
   'common.back': 'Indietro',

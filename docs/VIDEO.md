@@ -38,7 +38,7 @@ in das KI-Sprach-Tool kopieren. Alles andere (Bild, Schnitt) ist auf Deutsch erk
 | `G_grid.mp4` | Übersicht/Raster, Mehrfachauswahl, eine Taste für alle | 12 s |
 | `H_nas.mp4` | Zielordner auf NAS, Meldung „not reachable – photo stays where it is“ | 10 s |
 | `I_result.mp4` | Finder/Explorer: die Zielordner sind gefüllt, der Import-Ordner ist leer | 8 s |
-| `J_website.mp4` | Browser: `slimbitapps.github.io` → Fotosortierer → Download-Knopf | 8 s |
+| `J_website.mp4` | Browser: `slimbitapps.github.io` → SlimSort → Download-Knopf | 8 s |
 
 Tipp: Lieber zu lang aufnehmen. Rausschneiden ist leicht, nachdrehen nervt.
 
@@ -46,7 +46,7 @@ Tipp: Lieber zu lang aufnehmen. Rausschneiden ist leicht, nachdrehen nervt.
 
 ## 2. Intro-Video (ca. 1:45 Min., Querformat 16:9)
 
-**Titel:** `Sort 1,000 Photos in 10 Minutes – Free App for Windows & Mac (Fotosortierer)`
+**Titel:** `Sort 1,000 Photos in 10 Minutes – Free App for Windows & Mac (SlimSort)`
 
 Stimme in einzelnen Absätzen erzeugen (eine Audiodatei pro Abschnitt). Dann kannst du im Schnitt
 leichter Pausen setzen.
@@ -66,10 +66,10 @@ Most of us just give up – and the memories stay buried.
 
 ### Abschnitt 3 – Lösung (0:20–0:32) · Bild: Logo-Animation, dann `B_start`
 ```
-That's why I built Fotosortierer. A small, free app with one simple idea:
+That's why I built SlimSort. A small, free app with one simple idea:
 one key press per photo.
 ```
-Texteinblendung: **Fotosortierer – free for Windows & Mac**
+Texteinblendung: **SlimSort – free for Windows & Mac**
 
 ### Abschnitt 4 – So funktioniert's (0:32–0:58) · Bild: `C_targets`, dann `D_sorting`
 ```
@@ -91,7 +91,7 @@ Texteinblendung: **Never overwrites · Unlimited undo · NAS-safe**
 
 ### Abschnitt 6 – Serien (1:12–1:30) · Bild: `F_series`
 ```
-Took ten shots of the same moment? Fotosortierer finds those bursts automatically
+Took ten shots of the same moment? SlimSort finds those bursts automatically
 and suggests the sharpest one. Zoom in on all of them at once,
 keep your favorite, and clear out the rest – in one go.
 ```
@@ -115,7 +115,7 @@ Endkarte (letzte 10 s): Logo, `slimbitapps.github.io`, Abo-Knopf, Video-Element 
 ## 3. Schnittplan in DaVinci Resolve (Schritt für Schritt)
 
 ### 3.1 Projekt anlegen
-1. DaVinci starten → **New Project** → Name `Fotosortierer Intro`.
+1. DaVinci starten → **New Project** → Name `SlimSort Intro`.
 2. Unten rechts Zahnrad (**Project Settings**) → **Master Settings**:
    - Timeline resolution: **1920 × 1080 HD**
    - Timeline frame rate: **30** (genauso wie deine OBS-Aufnahme! In OBS: Einstellungen → Video → 30 FPS)
@@ -185,7 +185,7 @@ Endkarte (letzte 10 s): Logo, `slimbitapps.github.io`, Abo-Knopf, Video-Element 
 ```
 Sort thousands of photos into folders with one key press per picture – free for Windows & Mac.
 
-⬇️ Download (free): https://slimbitapps.github.io/fotosortierer/
+⬇️ Download (free): https://slimbitapps.github.io/slimsort/
 🌐 All apps: https://slimbitapps.github.io
 
 ✅ One key per target folder – sort 1,000 photos in about 10 minutes
@@ -195,7 +195,7 @@ Sort thousands of photos into folders with one key press per picture – free fo
 ✅ No ads, no account, no data collection – works offline
 
 0:00 The problem
-0:20 Fotosortierer
+0:20 SlimSort
 0:32 How it works
 0:58 Safe: undo & NAS
 1:12 Burst photos

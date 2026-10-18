@@ -5,7 +5,7 @@
  * Prüft danach, wo die Dateien wirklich liegen.
  *
  *   xvfb-run -a node test/e2e/run.cjs [screenshot-ordner]
- *   FOTOSORT_EXE=release/linux-unpacked/fotosortierer …   (fertig gebaute App testen)
+ *   FOTOSORT_EXE=release/linux-unpacked/slimsort …   (fertig gebaute App testen)
  */
 const path = require('node:path');
 const fs = require('node:fs');

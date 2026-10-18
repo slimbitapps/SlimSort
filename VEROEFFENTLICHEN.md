@@ -17,13 +17,13 @@ Das ist der einzige Teil, den die Technik nicht allein lösen kann – du brauch
 
 Hier liegt der Code, hier werden die Installer automatisch gebaut, hier liegt die Download-Seite.
 
-1. Konto auf github.com anlegen, neues Repository `fotosortierer` erstellen.
+1. Konto auf github.com anlegen, neues Repository `slimsort` erstellen.
 2. Code hochladen (das kann Claude für dich machen).
 3. **Settings → Pages → Source: „GitHub Actions“** einstellen.
-   → Die Download-Seite ist dann unter `https://slimbitapps.github.io/fotosortierter` erreichbar.
-4. In `website/index.html` ganz unten `REPO = 'slimbitapps/fotosortierter'` eintragen.
+   → Die Download-Seite ist dann unter `https://slimbitapps.github.io/slimsort` erreichbar.
+4. In `website/index.html` ganz unten `REPO = 'slimbitapps/slimsort'` eintragen.
 5. Neue Version veröffentlichen: Tag `v0.1.0` anlegen (Releases → „Draft a new release“ → Tag `v0.1.0` → Publish).
-   GitHub baut dann `Fotosortierer-Setup.exe` und `Fotosortierer-Mac.dmg` und hängt sie an.
+   GitHub baut dann `SlimSort-Setup.exe` und `SlimSort-Mac.dmg` und hängt sie an.
    Die Download-Seite zeigt automatisch immer auf die neueste Version.
 
 ## 2. Mac ohne Warnung (Apple, 99 USD/Jahr)
@@ -45,14 +45,14 @@ Ab dann ist jede neue Mac-Version automatisch signiert und notarisiert.
 ## 3. Windows ohne Warnung (Microsoft Store, kostenlos)
 
 1. Auf storedeveloper.microsoft.com als **Einzelentwickler** registrieren.
-2. Im Partner Center **neue App** anlegen, Namen „Fotosortierer“ reservieren.
+2. Im Partner Center **neue App** anlegen, Namen „SlimSort“ reservieren.
 3. Unter **Produktidentität** stehen drei Werte. Diese in `package.json` im Abschnitt `"appx"` eintragen:
    `identityName`, `publisher` (beginnt mit `CN=`), `publisherDisplayName`.
-4. GitHub baut dann zusätzlich `Fotosortierer-Store.appx` – diese Datei im Partner Center hochladen.
+4. GitHub baut dann zusätzlich `SlimSort-Store.appx` – diese Datei im Partner Center hochladen.
 5. Nach der Prüfung durch Microsoft: Store-Link in `website/index.html` bei `STORE_URL` eintragen
    und `WIN_SIGNED = true` setzen.
 
-Der direkte Download (`Fotosortierer-Setup.exe`) bleibt zusätzlich bestehen. Ohne eigenes
+Der direkte Download (`SlimSort-Setup.exe`) bleibt zusätzlich bestehen. Ohne eigenes
 Zertifikat zeigt Windows dort weiterhin „Weitere Informationen → Trotzdem ausführen“.
 Wer das auch wegbekommen will, braucht ein Code-Signing-Zertifikat und trägt es als
 `WIN_CERT_P12_BASE64` / `WIN_CERT_PASSWORD` bei GitHub ein.
@@ -62,6 +62,6 @@ Wer das auch wegbekommen will, braucht ein Code-Signing-Zertifikat und trägt es
 ## Was Nutzer dann erleben
 
 **Windows (Store):** Store-Link → „Installieren“ → fertig.
-**Windows (Download):** `Fotosortierer-Setup.exe` doppelklicken → installiert sich ohne Fragen, startet sofort,
+**Windows (Download):** `SlimSort-Setup.exe` doppelklicken → installiert sich ohne Fragen, startet sofort,
 Symbol auf dem Desktop und im Startmenü.
 **Mac:** `.dmg` öffnen → ein Fenster mit Pfeil zeigt „Symbol auf Programme ziehen“ → aus Programme starten.

@@ -17,6 +17,23 @@ const { scan } = require('./core/scanner.cjs');
 const isDev = !!process.env.VITE_DEV_SERVER_URL;
 const isTest = !!process.env.FOTOSORT_TEST;
 if (process.env.FOTOSORT_USERDATA) app.setPath('userData', process.env.FOTOSORT_USERDATA);
+else migrateOldUserData();
+
+/** Die App hieß früher "Fotosortierer": Einstellungen und Protokoll einmalig übernehmen. */
+function migrateOldUserData() {
+  try {
+    const dir = app.getPath('userData');
+    const old = path.join(app.getPath('appData'), 'Fotosortierer');
+    if (old === dir || fs.existsSync(path.join(dir, 'einstellungen.json'))) return;
+    if (!fs.existsSync(path.join(old, 'einstellungen.json'))) return;
+    fs.mkdirSync(dir, { recursive: true });
+    for (const f of ['einstellungen.json', 'protokoll.log']) {
+      if (fs.existsSync(path.join(old, f))) fs.copyFileSync(path.join(old, f), path.join(dir, f));
+    }
+  } catch {
+    /* Neustart ohne alte Einstellungen ist kein Problem */
+  }
+}
 
 protocol.registerSchemesAsPrivileged(
   ['media', 'thumb', 'preview'].map((scheme) => ({
@@ -71,7 +88,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     backgroundColor: colors.bg,
-    title: 'Fotosortierer',
+    title: 'SlimSort',
     show: false,
     autoHideMenuBar: true,
     // Moderne Fensterleiste: Inhalt reicht bis oben, Fensterknöpfe bleiben nativ.

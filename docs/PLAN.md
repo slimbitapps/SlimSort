@@ -1,6 +1,6 @@
-# Veröffentlichungs- & Werbeplan – SlimBit Apps / Fotosortierer
+# Veröffentlichungs- & Werbeplan – SlimBit Apps / SlimSort
 
-So bringst du den Fotosortierer **kostenlos, professionell und ohne Gewerbe** raus – und so,
+So bringst du SlimSort **kostenlos, professionell und ohne Gewerbe** raus – und so,
 dass jede weitere App später genauso einfach dazukommt.
 
 > Arbeite den Plan **von oben nach unten** ab. Jeder Schritt hat ein ☐ zum Abhaken.
@@ -18,11 +18,11 @@ Ich habe alles geprüft. **Kurz gesagt: Die App selbst ist fertig.** Was fehlt, 
 | Funktionen (Sortieren, Rückgängig, NAS, Serien, Vergleich) | ✅ fertig, automatische Tests bestehen |
 | Installer für Windows und Mac | ✅ werden bei jedem Hochladen automatisch gebaut |
 | Download-Seite | ✅ fertig, erkennt automatisch Windows/Mac |
-| Startseite „SlimBit Apps“ | ✅ fertig gebaut (Ordner `brand-site/`), muss noch online (Schritt A2) |
+| Startseite „SlimBit Apps“ | ✅ online unter https://slimbitapps.github.io (Pages einschalten: Schritt A2) |
 | Link zur Startseite in der App (Einstellungen → Über die App) | ✅ eingebaut |
 | Impressum & Datenschutz | ✅ fertig, nur mit E-Mail-Adresse (Hinweis in Schritt A4) |
 | Test auf einem echten Windows-PC | ⚠️ noch offen (Schritt A5) |
-| Name des Repositorys | ⚠️ Tippfehler `fotosortierter` (Schritt A3) |
+| Name der App | ✅ jetzt **SlimSort** (englisch, passt zur Marke) – Repository umbenennen: Schritt A3 |
 | Microsoft-Store-Daten in der App | ⚠️ Platzhalter, kommen aus Schritt B2 |
 | Warnung beim ersten Öffnen auf dem Mac | ℹ️ bleibt ohne Apple-Konto (99 $/Jahr). Die Download-Seite erklärt das Wegklicken. |
 | Versionsnummer | ℹ️ steht auf 0.3 → wird zum Start **1.0** (Schritt A6) |
@@ -36,7 +36,7 @@ Für alle Konten (Store, YouTube, Reddit …) und als Kontakt-Adresse auf der We
 1. ✅ Erledigt: `SlimBitApps@gmail.com`
 2. Diese Adresse überall verwenden – so bleibt dein privates Postfach getrennt.
 
-### ☐ A2. Startseite online stellen (`https://slimbitapps.github.io`)
+### ✅ A2. Startseite online stellen (`https://slimbitapps.github.io`)
 1. Auf github.com einloggen → oben rechts **+** → **New repository**.
 2. Bei **Repository name** genau eingeben: `slimbitapps.github.io`
 3. **Public** auswählen → **Create repository**.
@@ -45,17 +45,16 @@ Für alle Konten (Store, YouTube, Reddit …) und als Kontakt-Adresse auf der We
 6. Nach 1–2 Minuten ist die Seite unter `https://slimbitapps.github.io` erreichbar.
 
 > Warum ein eigenes Repository? Die Startseite gehört zu **allen** deinen Apps, nicht nur zum
-> Fotosortierer. Jede App bekommt später ihr eigenes Repository mit eigener Download-Seite unter
+> SlimSort. Jede App bekommt später ihr eigenes Repository mit eigener Download-Seite unter
 > `slimbitapps.github.io/<app-name>` – die Startseite verlinkt sie alle.
 
-### ☐ A3. Tippfehler im Repository-Namen beheben
-Der Name ist `fotosortierter` (mit „t“ zu viel). Sobald Links im Internet verteilt sind, lässt sich
-das kaum noch ändern – also **jetzt**.
+### ☐ A3. Repository in `slimsort` umbenennen
+Die App heißt jetzt **SlimSort**. Das Repository soll genauso heißen, damit alle Links stimmen.
 1. Repository `fotosortierter` öffnen → **Settings** → ganz oben **Repository name**.
-2. `fotosortierer` eintragen → **Rename**.
-3. Mir schreiben: „umbenannt“. → **Claude** passt alle Links an (App, Download-Seite, Startseite).
+2. `slimsort` eintragen → **Rename**.
+3. Fertig. Alle Links in App, Download-Seite und Startseite zeigen schon auf den neuen Namen.
 
-Danach heißt die Download-Seite `https://slimbitapps.github.io/fotosortierer/`.
+Danach heißt die Download-Seite `https://slimbitapps.github.io/slimsort/`.
 
 ### ✅ A4. Impressum & Datenschutz (nur E-Mail)
 Wie gewünscht stehen in Impressum und Datenschutz **nur die E-Mail-Adresse**
@@ -128,17 +127,17 @@ Warnung, automatische Updates, man findet dich in der Store-Suche.
    Selfie zur Bestätigung. Keine Kreditkarte nötig.
    *Achtung:* Der „Publisher display name“ ist öffentlich → **SlimBit Apps** eintragen.
 2. **Name reservieren:** Im Partner Center → **Apps und Spiele → Neues Produkt → MSIX- oder PWA-App** →
-   Name `Fotosortierer` reservieren. (Ist er vergeben, z. B. `Fotosortierer – Fotos sortieren`.)
+   Name `SlimSort` reservieren. (Ist er vergeben, z. B. `SlimSort – Photo Sorter`.)
 3. **Drei Werte kopieren:** Links **Produktverwaltung → Produktidentität**. Dort stehen
    `Package/Identity/Name`, `Package/Identity/Publisher` (beginnt mit `CN=`) und
    `Package/Properties/PublisherDisplayName`. → **An Claude schicken.** Ich trage sie ein, GitHub baut
-   dann die Datei `Fotosortierer-Store.appx`.
+   dann die Datei `SlimSort-Store.appx`.
 4. **Einreichung ausfüllen** (Partner Center → „Einreichung starten“):
    - *Preise:* **Kostenlos**, Märkte: alle
    - *Eigenschaften:* Kategorie **Fotos & Videos**, Datenschutz-URL:
      `https://slimbitapps.github.io/datenschutz.html`, Website: `https://slimbitapps.github.io`
    - *Altersfreigabe:* Fragebogen ausfüllen (keine Gewalt, keine Käufe, kein Chat → „ab 3“)
-   - *Pakete:* `Fotosortierer-Store.appx` aus dem neuesten GitHub-Release hochladen
+   - *Pakete:* `SlimSort-Store.appx` aus dem neuesten GitHub-Release hochladen
    - *Store-Einträge:* Deutsch **und** Englisch. Beschreibung, Stichworte und Screenshots → **Claude**
      schreibt dir die Texte fertig zum Einfügen.
 5. **Einreichen.** Die Prüfung dauert meist ein paar Tage. Bei Ablehnung schickt Microsoft einen
@@ -147,13 +146,13 @@ Warnung, automatische Updates, man findet dich in der Store-Suche.
    die Download-Seite.
 
 > Bonus: Apps aus dem Microsoft Store lassen sich automatisch auch über den Windows-Paketmanager
-> installieren (`winget install --source msstore Fotosortierer`).
+> installieren (`winget install --source msstore SlimSort`).
 
 ### ☐ B3. winget (optional, nach B2)
 Der Windows-Paketmanager (eine Art App-Store für die Kommandozeile). Technik-Leute lieben das.
 1. Auf einem Windows-PC PowerShell öffnen: `winget install wingetcreate`
-2. `wingetcreate new <Link zur Fotosortierer-Setup.exe aus GitHub Releases>`
-3. Fragen beantworten (Publisher: `SlimBit Apps`, Name: `Fotosortierer`, Lizenz: `Freeware`).
+2. `wingetcreate new <Link zur SlimSort-Setup.exe aus GitHub Releases>`
+3. Fragen beantworten (Publisher: `SlimBit Apps`, Name: `SlimSort`, Lizenz: `Freeware`).
 4. Am Ende „Submit“ wählen. Ein GitHub-Token wird abgefragt; die Anleitung dazu zeigt wingetcreate an.
 5. Ein Prüf-Roboter testet die App, Menschen schauen drüber. Dauert ein paar Tage.
 
@@ -175,7 +174,7 @@ Englischsprachig:
 
 Was du immer angeben musst:
 - Name, Version, Kurz- und Langbeschreibung → **Claude** schreibt dir eine Textvorlage in Deutsch und Englisch
-- **Download-Link:** immer deine Website (`slimbitapps.github.io/fotosortierer`), *nicht* direkt die .exe
+- **Download-Link:** immer deine Website (`slimbitapps.github.io/slimsort`), *nicht* direkt die .exe
 - Lizenz: **Freeware**, Systeme: Windows 10/11, macOS 12+
 - Screenshots (aus A7), Logo
 
@@ -183,13 +182,13 @@ Was du immer angeben musst:
 „Download-Manager“ verpackt oder Werbung einbaut. Das schadet deinem Ruf.
 
 ### ☐ B5. App-Verzeichnisse & Launch-Seiten (international)
-- **AlternativeTo** (`alternativeto.net`): Konto anlegen → „Add application“. Den Fotosortierer als
+- **AlternativeTo** (`alternativeto.net`): Konto anlegen → „Add application“. SlimSort als
   **Alternative** zu *Adobe Bridge*, *Photo Mechanic*, *FastRawViewer*, *XnView* und *FastStone Image
   Viewer* eintragen. Dort suchen Leute genau nach so etwas.
 - **Product Hunt** (`producthunt.com`): Ein „Launch“ an einem Dienstag oder Mittwoch. Vorher Konto
   anlegen und ein paar Tage aktiv sein (kommentieren, upvoten). → **Claude** schreibt Tagline,
   Beschreibung und ersten Kommentar.
-- **Hacker News** (`news.ycombinator.com`): Beitrag „Show HN: Fotosortierer – sort photos into
+- **Hacker News** (`news.ycombinator.com`): Beitrag „Show HN: SlimSort – sort photos into
   folders with one key press“. Ehrlich und technisch schreiben, auf jeden Kommentar antworten.
 - **SourceForge**: Kann GitHub-Releases automatisch spiegeln („Import project from GitHub“). Bringt
   zusätzliche Downloads ohne Aufwand.
@@ -285,7 +284,7 @@ Vorlage:
 > Betreff: Kostenloses Tool: Fotos per Tastendruck in Ordner sortieren
 >
 > Hallo [Name],
-> ich bin Hobby-Entwickler und habe den **Fotosortierer** gebaut – ein kostenloses Programm für
+> ich bin Hobby-Entwickler und habe **SlimSort** gebaut – ein kostenloses Programm für
 > Windows und Mac, mit dem man tausende Fotos per Tastendruck in Ordner sortiert. Es überschreibt nie
 > etwas, alles ist rückgängig machbar, es funktioniert mit NAS-Laufwerken und erkennt Serienbilder.
 > Kein Konto, keine Werbung, keine Datensammlung.
@@ -307,7 +306,7 @@ bestimmten Tagen erlaubt → Regeln lesen. Das Short-Video funktioniert dort seh
 | **Impressum?** | Eigentlich mit Name und Anschrift. Du nutzt vorerst nur die E-Mail – Risiko und Alternative siehe A4. |
 | **Datenschutzerklärung?** | Ja, ist fertig. Bleibt richtig, solange du **keine** Tracker, kein Google Analytics, keine Google-Fonts und keine eingebetteten YouTube-Videos einbaust. Willst du so etwas, frag mich vorher. |
 | **Lizenz?** | Empfehlung: **Freeware** (kostenlos nutzbar, Code bleibt deins). Das trägst du in Stores und Portalen so ein. |
-| **Name „Fotosortierer“?** | Kurz im DPMA-Register (`register.dpma.de`) nach dem Namen suchen. Ist er als Marke für Software eingetragen, lieber umbenennen, solange es noch geht. |
+| **Name „SlimSort“?** | Kurz im DPMA-Register (`register.dpma.de`) nach dem Namen suchen. Ist er als Marke für Software eingetragen, lieber umbenennen, solange es noch geht. |
 | **Fotos in Videos/Screenshots?** | Nur **eigene** Fotos zeigen (oder lizenzfreie, z. B. von Unsplash/Pexels). Keine erkennbaren fremden Personen ohne Einverständnis. |
 | **Musik in Videos?** | Nur aus der **YouTube Audio-Mediathek** (YouTube Studio → Audio-Mediathek) oder ausdrücklich lizenzfreie Musik. |
 | **KI-Stimme?** | Eine allgemeine KI-Stimme ist in Ordnung. **Keine** echte Person nachmachen (Voice-Cloning von Promis). Nutzungsbedingungen des KI-Tools lesen: Gratis-Tarife verlangen oft, dass man das Tool in der Beschreibung nennt. |
@@ -318,7 +317,7 @@ bestimmten Tagen erlaubt → Regeln lesen. Das Short-Video funktioniert dort seh
 
 Wenn App Nr. 2 kommt, läuft es genauso – nur schneller:
 1. Neues GitHub-Repository `<app-name>` → **Claude** richtet automatische Builds und die Download-Seite ein
-   (wie beim Fotosortierer).
+   (wie bei SlimSort).
 2. Neue App in die Startseite eintragen (`index.html` → Liste `APPS`, einen Block kopieren).
 3. In jeder App unter „Über“ der gleiche Link zur Startseite.
 4. Gleiches Logo-Schema, gleiche Farben, gleicher Kanal.
@@ -330,8 +329,8 @@ profitiert von den Fans der vorherigen.
 ---
 
 ## Deine nächsten 3 Schritte
-1. ☐ Repository `slimbitapps.github.io` anlegen (A2)
-2. ☐ `fotosortierter` → `fotosortierer` umbenennen (A3)
+1. ☐ Bei `slimbitapps.github.io`: Settings → Pages → Branch `main` / `(root)` → Save (A2, Schritt 5)
+2. ☐ `fotosortierter` → `slimsort` umbenennen (A3)
 3. ☐ Die neue Version auf Windows und Mac testen (A5)
 
 Dann erledige ich: Startseite hochladen, alle Links anpassen, Version 1.0, Store-Texte, Screenshots.

@@ -1,4 +1,4 @@
-# Fotosortierer
+# SlimSort
 
 Fotos und Videos blitzschnell per Tastendruck in Ordner sortieren – für Windows und Mac (Android folgt).
 
@@ -11,8 +11,8 @@ Fotos und Videos blitzschnell per Tastendruck in Ordner sortieren – für Windo
 **Am einfachsten über die Download-Seite** (Ordner `website/`): Sie erkennt dein System,
 zeigt einen Download-Knopf und erklärt die Installation mit Bildern.
 
-- **Windows:** `Fotosortierer-Setup.exe` doppelklicken. Es installiert sich ohne Fragen und startet sofort.
-- **Mac:** `Fotosortierer-Mac.dmg` öffnen und das Symbol auf „Programme“ ziehen. Ein Pfeil im Fenster zeigt, wohin.
+- **Windows:** `SlimSort-Setup.exe` doppelklicken. Es installiert sich ohne Fragen und startet sofort.
+- **Mac:** `SlimSort-Mac.dmg` öffnen und das Symbol auf „Programme“ ziehen. Ein Pfeil im Fenster zeigt, wohin.
 
 Wie die App ohne Warnmeldungen von Windows/macOS veröffentlicht wird: siehe **[VEROEFFENTLICHEN.md](VEROEFFENTLICHEN.md)**.
 

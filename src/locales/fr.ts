@@ -1,7 +1,7 @@
 import type { Dict } from '../i18n';
 
 export const fr: Dict = {
-  'app.name': 'Tri Photo',
+  'app.name': 'SlimSort',
   'app.tagline': 'Triez photos et vidéos en un éclair, d’une seule touche',
 
   'common.back': 'Retour',

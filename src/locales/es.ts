@@ -1,7 +1,7 @@
 import type { Dict } from '../i18n';
 
 export const es: Dict = {
-  'app.name': 'Ordena Fotos',
+  'app.name': 'SlimSort',
   'app.tagline': 'Ordena fotos y vídeos en un instante con una sola tecla',
 
   'common.back': 'Atrás',

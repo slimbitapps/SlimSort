@@ -1,6 +1,6 @@
 /** Deutsch – Quelle aller Texte. Neue Texte zuerst hier ergänzen. */
 export const de = {
-  'app.name': 'Fotosortierer',
+  'app.name': 'SlimSort',
   'app.tagline': 'Fotos und Videos blitzschnell per Tastendruck sortieren',
 
   'common.back': 'Zurück',
