@@ -54,7 +54,7 @@ Die App heißt jetzt **SlimSort**. Das Repository soll genauso heißen, damit al
 2. `slimsort` eintragen → **Rename**.
 3. Fertig. Alle Links in App, Download-Seite und Startseite zeigen schon auf den neuen Namen.
 
-Danach heißt die Download-Seite `https://slimbitapps.github.io/slimsort/`.
+Danach heißt die Download-Seite `https://slimbitapps.github.io/SlimSort/`.
 
 ### ✅ A4. Impressum & Datenschutz (nur E-Mail)
 Wie gewünscht stehen in Impressum und Datenschutz **nur die E-Mail-Adresse**
@@ -174,7 +174,7 @@ Englischsprachig:
 
 Was du immer angeben musst:
 - Name, Version, Kurz- und Langbeschreibung → **Claude** schreibt dir eine Textvorlage in Deutsch und Englisch
-- **Download-Link:** immer deine Website (`slimbitapps.github.io/slimsort`), *nicht* direkt die .exe
+- **Download-Link:** immer deine Website (`slimbitapps.github.io/SlimSort`), *nicht* direkt die .exe
 - Lizenz: **Freeware**, Systeme: Windows 10/11, macOS 12+
 - Screenshots (aus A7), Logo
 

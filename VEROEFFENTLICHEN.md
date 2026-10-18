@@ -20,8 +20,8 @@ Hier liegt der Code, hier werden die Installer automatisch gebaut, hier liegt di
 1. Konto auf github.com anlegen, neues Repository `slimsort` erstellen.
 2. Code hochladen (das kann Claude für dich machen).
 3. **Settings → Pages → Source: „GitHub Actions“** einstellen.
-   → Die Download-Seite ist dann unter `https://slimbitapps.github.io/slimsort` erreichbar.
-4. In `website/index.html` ganz unten `REPO = 'slimbitapps/slimsort'` eintragen.
+   → Die Download-Seite ist dann unter `https://slimbitapps.github.io/SlimSort` erreichbar.
+4. In `website/index.html` ganz unten `REPO = 'slimbitapps/SlimSort'` eintragen.
 5. Neue Version veröffentlichen: Tag `v0.1.0` anlegen (Releases → „Draft a new release“ → Tag `v0.1.0` → Publish).
    GitHub baut dann `SlimSort-Setup.exe` und `SlimSort-Mac.dmg` und hängt sie an.
    Die Download-Seite zeigt automatisch immer auf die neueste Version.

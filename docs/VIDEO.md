@@ -185,7 +185,7 @@ Endkarte (letzte 10 s): Logo, `slimbitapps.github.io`, Abo-Knopf, Video-Element 
 ```
 Sort thousands of photos into folders with one key press per picture – free for Windows & Mac.
 
-⬇️ Download (free): https://slimbitapps.github.io/slimsort/
+⬇️ Download (free): https://slimbitapps.github.io/SlimSort/
 🌐 All apps: https://slimbitapps.github.io
 
 ✅ One key per target folder – sort 1,000 photos in about 10 minutes

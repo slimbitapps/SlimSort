@@ -114,7 +114,7 @@ jobs:
             **Windows:** SlimSort-Setup.exe herunterladen und doppelklicken.
             **Mac (Apple-Chip M1–M4):** SlimSort-Mac.dmg öffnen und die App auf „Programme“ ziehen.
             **Älterer Mac mit Intel-Prozessor:** SlimSort-Mac-Intel.dmg
-            Anleitung mit Bildern: https://slimbitapps.github.io/slimsort
+            Anleitung mit Bildern: https://slimbitapps.github.io/SlimSort
           files: |
             out/SlimSort-Setup.exe
             out/SlimSort-Mac.dmg
