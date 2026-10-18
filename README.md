@@ -8,21 +8,13 @@ Fotos und Videos blitzschnell per Tastendruck in Ordner sortieren – für Windo
 
 ## Installieren
 
-### Windows
-1. `Fotosortierer-Setup-x.y.z.exe` herunterladen und doppelklicken.
-2. Windows warnt eventuell („Der Computer wurde durch Windows geschützt“), weil die App (noch) nicht
-   kostenpflichtig signiert ist: **Weitere Informationen → Trotzdem ausführen**.
+**Am einfachsten über die Download-Seite** (Ordner `website/`): Sie erkennt dein System,
+zeigt einen Download-Knopf und erklärt die Installation mit Bildern.
 
-Ohne Installation: `Fotosortierer-x.y.z-Windows-portable.zip` entpacken und `Fotosortierer.exe` starten.
+- **Windows:** `Fotosortierer-Setup.exe` doppelklicken. Es installiert sich ohne Fragen und startet sofort.
+- **Mac:** `Fotosortierer-Mac.dmg` öffnen und das Symbol auf „Programme“ ziehen. Ein Pfeil im Fenster zeigt, wohin.
 
-### Mac
-1. `Fotosortierer-x.y.z.dmg` öffnen und die App in den Ordner **Programme** ziehen.
-2. Beim ersten Start meldet macOS „Entwickler nicht verifiziert“:
-   **Systemeinstellungen → Datenschutz & Sicherheit → ganz unten „Dennoch öffnen“**.
-   (Nur einmal nötig. Ohne kostenpflichtigen Apple-Entwickler-Account geht es leider nicht anders.)
-
-Tipp für HEIC-Fotos unter Windows: Die kostenlose „HEIF-Bilderweiterung“ aus dem Microsoft Store
-macht die Vorschau schneller. Ohne sie funktioniert es auch, nur langsamer.
+Wie die App ohne Warnmeldungen von Windows/macOS veröffentlicht wird: siehe **[VEROEFFENTLICHEN.md](VEROEFFENTLICHEN.md)**.
 
 ---
 

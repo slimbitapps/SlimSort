@@ -1,6 +1,12 @@
 # Baut automatisch die Installer für Windows und Mac.
-# Ergebnis: unter "Actions" -> letzter Lauf -> "Artifacts" herunterladen.
-# Bei einem Versions-Tag (z. B. v0.2.0) entsteht zusätzlich ein Release.
+# Ergebnis: unter "Actions" -> letzter Lauf -> "Artifacts".
+# Bei einem Versions-Tag (z. B. v0.2.0) entsteht ein Release, von dem die
+# Download-Seite immer die neueste Version verlinkt.
+#
+# Optionale Geheimnisse (Settings -> Secrets -> Actions), siehe VEROEFFENTLICHEN.md:
+#   Mac:     MAC_CERT_P12_BASE64, MAC_CERT_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID
+#   Windows: WIN_CERT_P12_BASE64, WIN_CERT_PASSWORD
+# Ohne sie wird trotzdem gebaut, aber unsigniert (dann warnen Windows/macOS beim Öffnen).
 name: Installer bauen
 
 on:
@@ -10,29 +16,58 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+  windows:
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
+        with: { node-version: 22, cache: npm }
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-
-      - name: Windows-Installer
-        if: runner.os == 'Windows'
+      - name: Installer (Setup.exe) + portable ZIP
+        shell: bash
+        env:
+          CSC_LINK: ${{ secrets.WIN_CERT_P12_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
         run: npx electron-builder --win nsis zip --x64 --publish never
+      - name: Microsoft-Store-Paket (.appx)
+        continue-on-error: true
+        run: npx electron-builder --win appx --x64 --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Fotosortierer-Windows
+          path: |
+            release/*.exe
+            release/*.zip
+            release/*.appx
+          if-no-files-found: error
 
-      - name: Mac-App (ad-hoc signiert) und DMG
-        if: runner.os == 'macOS'
+  mac:
+    runs-on: macos-latest
+    env:
+      HAS_APPLE: ${{ secrets.APPLE_ID != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+      - name: Signiert + notarisiert (wenn Apple-Zugang hinterlegt)
+        if: env.HAS_APPLE == 'true'
+        env:
+          CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npx electron-builder --mac dmg --universal -c.mac.notarize=true --publish never
+
+      - name: Unsigniert (ohne Apple-Zugang)
+        if: env.HAS_APPLE != 'true'
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: |
@@ -42,24 +77,40 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Fotosortierer-${{ runner.os }}
-          path: |
-            release/*.exe
-            release/*.zip
-            release/*.dmg
+          name: Fotosortierer-Mac
+          path: release/*.dmg
           if-no-files-found: error
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    needs: [windows, mac]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/download-artifact@v4
-        with:
-          path: out
-          merge-multiple: true
+        with: { path: out, merge-multiple: true }
       - uses: softprops/action-gh-release@v2
         with:
-          files: out/*
+          files: |
+            out/Fotosortierer-Setup.exe
+            out/Fotosortierer-Mac.dmg
+            out/Fotosortierer-Windows-portable.zip
+
+  # Download-Seite (Ordner "website") auf GitHub Pages veröffentlichen
+  pages:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+        continue-on-error: true
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: website }
+      - uses: actions/deploy-pages@v4
+        continue-on-error: true
