@@ -18,20 +18,20 @@ Ich habe alles geprüft. **Kurz gesagt: Die App selbst ist fertig.** Was fehlt, 
 | Funktionen (Sortieren, Rückgängig, NAS, Serien, Vergleich) | ✅ fertig, automatische Tests bestehen |
 | Installer für Windows und Mac | ✅ werden bei jedem Hochladen automatisch gebaut |
 | Download-Seite | ✅ fertig, erkennt automatisch Windows/Mac |
-| Startseite „SlimBit Apps“ | ✅ online unter https://slimbitapps.github.io (Pages einschalten: Schritt A2) |
+| Startseite „SlimBit Apps“ | ✅ online unter https://slimbitapps.github.io |
 | Link zur Startseite in der App (Einstellungen → Über die App) | ✅ eingebaut |
 | Impressum & Datenschutz | ✅ fertig, nur mit E-Mail-Adresse (Hinweis in Schritt A4) |
-| Test auf einem echten Windows-PC | ⚠️ noch offen (Schritt A5) |
-| Name der App | ✅ jetzt **SlimSort** (englisch, passt zur Marke) – Repository umbenennen: Schritt A3 |
+| Test auf echten Rechnern | ✅ erledigt |
+| Name der App | ✅ **SlimSort**, Download-Seite: https://slimbitapps.github.io/SlimSort/ |
 | Microsoft-Store-Daten in der App | ⚠️ Platzhalter, kommen aus Schritt B2 |
 | Warnung beim ersten Öffnen auf dem Mac | ℹ️ bleibt ohne Apple-Konto (99 $/Jahr). Die Download-Seite erklärt das Wegklicken. |
-| Versionsnummer | ℹ️ steht auf 0.3 → wird zum Start **1.0** (Schritt A6) |
+| Versionsnummer | ✅ **1.0** |
 
 ---
 
 ## Teil A – Vorbereitung (ca. 1–2 Abende)
 
-### ☐ A1. Eine eigene E-Mail-Adresse für SlimBit Apps
+### ✅ A1. Eine eigene E-Mail-Adresse für SlimBit Apps
 Für alle Konten (Store, YouTube, Reddit …) und als Kontakt-Adresse auf der Website.
 1. ✅ Erledigt: `SlimBitApps@gmail.com`
 2. Diese Adresse überall verwenden – so bleibt dein privates Postfach getrennt.
@@ -48,7 +48,7 @@ Für alle Konten (Store, YouTube, Reddit …) und als Kontakt-Adresse auf der We
 > SlimSort. Jede App bekommt später ihr eigenes Repository mit eigener Download-Seite unter
 > `slimbitapps.github.io/<app-name>` – die Startseite verlinkt sie alle.
 
-### ☐ A3. Repository in `slimsort` umbenennen
+### ✅ A3. Repository in `slimsort` umbenennen
 Die App heißt jetzt **SlimSort**. Das Repository soll genauso heißen, damit alle Links stimmen.
 1. Repository `fotosortierter` öffnen → **Settings** → ganz oben **Repository name**.
 2. `slimsort` eintragen → **Rename**.
@@ -75,7 +75,7 @@ Name und diese Adresse ein. Das dauert 2 Minuten.
 > Die Datenschutzerklärung passt, weil weder die Website noch die App Daten sammeln: keine Cookies,
 > kein Tracking, keine Google-Schriften.
 
-### ☐ A5. Echter Test auf Windows und Mac (je 15 Minuten)
+### ✅ A5. Echter Test auf Windows und Mac (je 15 Minuten)
 Am besten auf einem fremden Rechner, auf dem die App noch nie lief. Hake ab:
 - ☐ Download-Seite öffnen → richtiger Knopf (Windows/Mac) wird angezeigt
 - ☐ Installieren klappt mit der Anleitung auf der Seite
@@ -88,13 +88,14 @@ Am besten auf einem fremden Rechner, auf dem die App noch nie lief. Hake ab:
 
 Fehler? Screenshot machen und mir schicken.
 
-### ☐ A6. Version 1.0 → Claude
+### ✅ A6. Version 1.0 → Claude
 Sobald A2–A5 erledigt sind, sag „Mach Version 1.0“. Ich setze die Versionsnummer und GitHub baut
 automatisch die fertigen Installer.
 
-### ☐ A7. Screenshots & Bilder → Claude
-Für Store, Download-Portale und Social Media erstelle ich dir einheitliche Screenshots
-(1920×1080, hell und dunkel) mit Beispielfotos. Schon fertig in `brand-site/`:
+### ✅ A7. Screenshots & Bilder → Claude
+Fertig: 16 Screenshots (1920×1080, Deutsch/Englisch, hell/dunkel) mit Beispielfotos in
+`marketing/screenshots/`. Alle Store- und Portal-Texte zum Kopieren: **`docs/STORE-TEXTE.md`**.
+Außerdem in `brand-site/`:
 - `logo-mark.png` – dein Logo-Zeichen (transparent), `logo-icon.png` – als App-Symbol, `logo-full.png` – mit Schriftzug
 - `youtube-avatar.png` – Profilbild (800×800)
 - `youtube-banner.jpg` – Kanalbanner (2560×1440, Text liegt im sicheren Bereich)
@@ -138,8 +139,8 @@ Warnung, automatische Updates, man findet dich in der Store-Suche.
      `https://slimbitapps.github.io/datenschutz.html`, Website: `https://slimbitapps.github.io`
    - *Altersfreigabe:* Fragebogen ausfüllen (keine Gewalt, keine Käufe, kein Chat → „ab 3“)
    - *Pakete:* `SlimSort-Store.appx` aus dem neuesten GitHub-Release hochladen
-   - *Store-Einträge:* Deutsch **und** Englisch. Beschreibung, Stichworte und Screenshots → **Claude**
-     schreibt dir die Texte fertig zum Einfügen.
+   - *Store-Einträge:* Deutsch **und** Englisch. Alle Texte stehen fertig in `docs/STORE-TEXTE.md`,
+     Screenshots in `marketing/screenshots/`.
 5. **Einreichen.** Die Prüfung dauert meist ein paar Tage. Bei Ablehnung schickt Microsoft einen
    Bericht → an Claude weitergeben.
 6. **Nach der Freigabe:** Store-Link an Claude schicken → kommt als „Im Microsoft Store holen“ auf
