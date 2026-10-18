@@ -3,6 +3,10 @@
 Alles, was gesprochen wird, steht **auf Englisch** in den grauen Kästen. Die kannst du direkt
 in das KI-Sprach-Tool kopieren. Alles andere (Bild, Schnitt) ist auf Deutsch erklärt.
 
+
+> **Sprechtexte zum Kopieren** (aktuelle Fassung, ohne Regieanweisungen): **`docs/SPRECHTEXT.md`**.
+> **KI-Stimme:** Clipchamp (kostenlos, von Microsoft, ab 13) oder TTSMaker (kostenlos, ohne Konto).
+> ElevenLabs erst ab 18.
 ---
 
 ## 1. Vorbereitung: Aufnahmen machen
