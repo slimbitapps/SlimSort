@@ -14,6 +14,8 @@ export interface SeriesInput {
 }
 
 export interface Scores {
+  /** Analyse abgeschlossen (auch wenn sie scheiterte) */
+  analyzed?: boolean;
   hash?: Hash;
   sharp?: number;
   expo?: number;
@@ -98,7 +100,7 @@ export function rankSeries(ids: number[], get: (id: number) => Scores | undefine
   const score = new Map<number, number>();
   const different = new Set<number>();
   const analyzed = ids.filter((id) => get(id)?.sharp !== undefined);
-  const complete = analyzed.length === ids.length;
+  const complete = ids.every((id) => get(id)?.analyzed || get(id)?.sharp !== undefined);
 
   // "Mittelpunkt" der Serie: Foto mit der kleinsten Summe der Abstände zu allen anderen
   const hashed = ids.filter((id) => get(id)?.hash).slice(0, MAX_SERIES);

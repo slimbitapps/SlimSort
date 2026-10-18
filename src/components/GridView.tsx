@@ -1,7 +1,7 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
 import { useStore, clickSelect, goTo, setView, type SessionState } from '../store';
-import { thumbUrl } from '../util';
+import { browserCanShow, mediaUrl, thumbUrl } from '../util';
 import { IconCheck, IconImage, IconVideo } from '../icons';
 import type { Item } from '../types';
 
@@ -109,8 +109,10 @@ const Tile = memo(function Tile({
   skipped: boolean;
   series: number;
 }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [it.path]);
+  // 0 = Vorschaubild, 1 = Original als Ersatz, 2 = keine Anzeige möglich
+  const [stage, setStage] = useState(0);
+  useEffect(() => setStage(0), [it.path]);
+  const failed = stage === 2;
   return (
     <div
       className={`grid-tile ${selected ? 'selected' : ''} ${current ? 'current' : ''}`}
@@ -131,13 +133,13 @@ const Tile = memo(function Tile({
           </div>
         ) : (
           <img
-            key={it.path}
-            src={thumbUrl(it.path, px)}
+            key={it.path + stage}
+            src={stage === 0 ? thumbUrl(it.path, px) : mediaUrl(it.path)}
             loading="lazy"
             decoding="async"
             draggable={false}
             alt=""
-            onError={() => setFailed(true)}
+            onError={() => setStage(stage === 0 && it.kind === 'image' && browserCanShow(it.ext) ? 1 : 2)}
           />
         )}
       </div>

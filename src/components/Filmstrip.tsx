@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { goTo, currentIndex, step, type SessionState } from '../store';
-import { thumbUrl } from '../util';
+import { browserCanShow, mediaUrl, thumbUrl } from '../util';
 import { IconVideo } from '../icons';
 
 const ITEM_W = 46;
@@ -46,7 +46,14 @@ export function Filmstrip({ s }: { s: SessionState }) {
         style={{ left: x }}
         title={it.name}
       >
-        <img src={thumbUrl(it.path, 256)} loading="lazy" decoding="async" alt="" draggable={false} onError={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+        <img src={thumbUrl(it.path, 256)} loading="lazy" decoding="async" alt="" draggable={false} onError={(e) => {
+            // Ersatz: Original (der Browser verkleinert selbst), sonst ausblenden
+            const im = e.currentTarget;
+            if (!im.dataset.fb && it.kind === 'image' && browserCanShow(it.ext)) {
+              im.dataset.fb = '1';
+              im.src = mediaUrl(it.path);
+            } else im.style.visibility = 'hidden';
+          }} />
         {it.kind === 'video' && <IconVideo size={12} className="vid" />}
       </div>
     );

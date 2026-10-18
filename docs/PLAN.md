@@ -20,7 +20,7 @@ Ich habe alles geprüft. **Kurz gesagt: Die App selbst ist fertig.** Was fehlt, 
 | Download-Seite | ✅ fertig, erkennt automatisch Windows/Mac |
 | Startseite „SlimBit Apps“ | ✅ fertig gebaut (Ordner `brand-site/`), muss noch online (Schritt A2) |
 | Link zur Startseite in der App (Einstellungen → Über die App) | ✅ eingebaut |
-| Impressum & Datenschutz | ⚠️ Vorlage fertig, **deine Daten fehlen noch** (Schritt A4) |
+| Impressum & Datenschutz | ✅ fertig, nur mit E-Mail-Adresse (Hinweis in Schritt A4) |
 | Test auf einem echten Windows-PC | ⚠️ noch offen (Schritt A5) |
 | Name des Repositorys | ⚠️ Tippfehler `fotosortierter` (Schritt A3) |
 | Microsoft-Store-Daten in der App | ⚠️ Platzhalter, kommen aus Schritt B2 |
@@ -33,7 +33,7 @@ Ich habe alles geprüft. **Kurz gesagt: Die App selbst ist fertig.** Was fehlt, 
 
 ### ☐ A1. Eine eigene E-Mail-Adresse für SlimBit Apps
 Für alle Konten (Store, YouTube, Reddit …) und als Kontakt-Adresse auf der Website.
-1. Kostenloses Postfach anlegen, z. B. `slimbitapps@gmail.com` (oder ähnlich).
+1. ✅ Erledigt: `SlimBitApps@gmail.com`
 2. Diese Adresse überall verwenden – so bleibt dein privates Postfach getrennt.
 
 ### ☐ A2. Startseite online stellen (`https://slimbitapps.github.io`)
@@ -57,21 +57,24 @@ das kaum noch ändern – also **jetzt**.
 
 Danach heißt die Download-Seite `https://slimbitapps.github.io/fotosortierer/`.
 
-### ☐ A4. Impressum & Datenschutz ausfüllen
-In Deutschland braucht eine Website, die nicht rein privat ist, ein Impressum – auch wenn alles
-kostenlos ist. Du bewirbst Apps öffentlich, also solltest du eins haben.
+### ✅ A4. Impressum & Datenschutz (nur E-Mail)
+Wie gewünscht stehen in Impressum und Datenschutz **nur die E-Mail-Adresse**
+`SlimBitApps@gmail.com` und der Hinweis „privates, nicht-kommerzielles Hobby-Projekt“.
 
-1. Mir diese Daten geben (oder selbst in `brand-site/impressum.html` und `datenschutz.html` die
-   gelb markierten Stellen ersetzen):
-   - Vor- und Nachname
-   - Anschrift (Straße, PLZ, Ort) – **ein Postfach reicht nicht**
-   - E-Mail-Adresse aus A1
-2. Du willst deine Wohnadresse nicht zeigen? Es gibt **Impressum-Dienste**, die dir eine
-   ladungsfähige Adresse („c/o“) stellen. Das kostet meist ein paar Euro im Monat. Das ist der
-   einzige Punkt im Plan, der eventuell Geld kostet. Ob es nötig ist, entscheidest du.
+⚠️ **Ehrlicher Hinweis (keine Rechtsberatung):** Ein vollständiges deutsches Impressum
+(§ 5 DDG) verlangt eigentlich **Name und ladungsfähige Anschrift**. Eine reine E-Mail-Adresse
+erfüllt das nicht. Wie hoch das Risiko ist:
+- **Gering, solange alles kostenlos ist:** keine Einnahmen, keine Werbung, keine Spenden.
+  Abmahnungen kommen meist von Konkurrenten, und ein kostenloses Hobby-Projekt ist kein Wettbewerber.
+- **Es steigt**, sobald Geld im Spiel ist (Spenden, Werbung, Verkäufe) oder der Kanal groß wird.
+  Dann bitte nachrüsten.
 
-> Die Datenschutzerklärung ist schon fertig formuliert. Sie passt, weil weder die Website noch die
-> App Daten sammeln: keine Cookies, kein Tracking, keine Google-Schriften.
+Wenn du später auf Nummer sicher gehen willst, ohne deine Wohnadresse zu zeigen: Ein
+**Impressum-Service** stellt eine „c/o“-Adresse, meist für ein paar Euro im Monat. Dann trage ich
+Name und diese Adresse ein. Das dauert 2 Minuten.
+
+> Die Datenschutzerklärung passt, weil weder die Website noch die App Daten sammeln: keine Cookies,
+> kein Tracking, keine Google-Schriften.
 
 ### ☐ A5. Echter Test auf Windows und Mac (je 15 Minuten)
 Am besten auf einem fremden Rechner, auf dem die App noch nie lief. Hake ab:
@@ -93,9 +96,9 @@ automatisch die fertigen Installer.
 ### ☐ A7. Screenshots & Bilder → Claude
 Für Store, Download-Portale und Social Media erstelle ich dir einheitliche Screenshots
 (1920×1080, hell und dunkel) mit Beispielfotos. Schon fertig in `brand-site/`:
-- `logo.svg` / `logo.png` – SlimBit-Apps-Logo
+- `logo-mark.png` – dein Logo-Zeichen (transparent), `logo-icon.png` – als App-Symbol, `logo-full.png` – mit Schriftzug
 - `youtube-avatar.png` – Profilbild (800×800)
-- `youtube-banner.png` – Kanalbanner (2560×1440, Text liegt im sicheren Bereich)
+- `youtube-banner.jpg` – Kanalbanner (2560×1440, Text liegt im sicheren Bereich)
 
 ---
 
@@ -215,7 +218,7 @@ Was du immer angeben musst:
 
 ### ☐ C1. YouTube-Kanal einrichten
 1. **Name:** SlimBit Apps · **Handle:** `@slimbitapps`
-2. **Profilbild:** `brand-site/youtube-avatar.png` · **Banner:** `brand-site/youtube-banner.png`
+2. **Profilbild:** `brand-site/youtube-avatar.png` · **Banner:** `brand-site/youtube-banner.jpg`
 3. **Beschreibung** (Kanal anpassen → Allgemeine Informationen):
    > Small, free apps that do one thing really well – no ads, no account, no data collection.
    > Kleine, kostenlose Apps, die eine Sache richtig gut machen.
@@ -301,7 +304,7 @@ bestimmten Tagen erlaubt → Regeln lesen. Das Short-Video funktioniert dort seh
 | Frage | Kurze Antwort |
 |---|---|
 | **Brauche ich ein Gewerbe?** | Nein, solange du **kein Geld einnimmst** und es auch nicht vorhast: keine Preise, keine Werbung in der App, keine Spenden-Links. Willst du später Spenden (z. B. Ko-fi) oder Einnahmen, vorher beim Finanzamt nachfragen. Software-Entwicklung ist oft „freiberuflich“, dann reicht eine Meldung beim Finanzamt. |
-| **Impressum?** | Ja, für Website und YouTube-Kanal (siehe A4). Fehlt es, drohen teure Abmahnungen. |
+| **Impressum?** | Eigentlich mit Name und Anschrift. Du nutzt vorerst nur die E-Mail – Risiko und Alternative siehe A4. |
 | **Datenschutzerklärung?** | Ja, ist fertig. Bleibt richtig, solange du **keine** Tracker, kein Google Analytics, keine Google-Fonts und keine eingebetteten YouTube-Videos einbaust. Willst du so etwas, frag mich vorher. |
 | **Lizenz?** | Empfehlung: **Freeware** (kostenlos nutzbar, Code bleibt deins). Das trägst du in Stores und Portalen so ein. |
 | **Name „Fotosortierer“?** | Kurz im DPMA-Register (`register.dpma.de`) nach dem Namen suchen. Ist er als Marke für Software eingetragen, lieber umbenennen, solange es noch geht. |
@@ -327,8 +330,8 @@ profitiert von den Fans der vorherigen.
 ---
 
 ## Deine nächsten 3 Schritte
-1. ☐ E-Mail-Adresse anlegen (A1)
-2. ☐ Repository `slimbitapps.github.io` anlegen und `fotosortierter` → `fotosortierer` umbenennen (A2, A3)
-3. ☐ Mir Name, Adresse und E-Mail fürs Impressum geben (A4)
+1. ☐ Repository `slimbitapps.github.io` anlegen (A2)
+2. ☐ `fotosortierter` → `fotosortierer` umbenennen (A3)
+3. ☐ Die neue Version auf Windows und Mac testen (A5)
 
 Dann erledige ich: Startseite hochladen, alle Links anpassen, Version 1.0, Store-Texte, Screenshots.

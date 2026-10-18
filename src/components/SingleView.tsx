@@ -3,7 +3,7 @@ import { t } from '../i18n';
 import {
   useStore, currentItem, currentIndex, step, setView, openSeriesOf, openCompare, type SessionState,
 } from '../store';
-import { displayUrl, fullUrl, mediaUrl, fmtBytes, fmtDate, fmtNum, itemTime, clamp, previewSize } from '../util';
+import { browserCanShow, displayUrl, fullUrl, mediaUrl, fmtBytes, fmtDate, fmtNum, itemTime, clamp, previewSize } from '../util';
 import { IconChevronLeft, IconChevronRight, IconFolderOut, IconLive, IconMaximize, IconLayers } from '../icons';
 import { tip } from './Tooltip';
 
@@ -31,6 +31,8 @@ export function SingleView({ s }: { s: SessionState }) {
   const [livePlaying, setLivePlaying] = useState(false);
   const [panning, setPanning] = useState(false);
   const [hiRes, setHiRes] = useState(false);
+  // Ein Ladeweg (Vorschau oder Original) ist schon gescheitert → nicht endlos hin- und herwechseln
+  const [oneFailed, setOneFailed] = useState(false);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<{
     startX: number;
@@ -73,6 +75,7 @@ export function SingleView({ s }: { s: SessionState }) {
     setFitMode(true);
     setLivePlaying(false);
     setHiRes(false);
+    setOneFailed(false);
   }, [it?.id, it?.path]);
 
   useEffect(() => {
@@ -81,8 +84,8 @@ export function SingleView({ s }: { s: SessionState }) {
 
   // Beim Hineinzoomen über die Vorschau-Auflösung hinaus: Original laden
   useEffect(() => {
-    if (!hiRes && nat && it?.kind === 'image' && view.scale * (window.devicePixelRatio || 1) > 1.05 && !fitMode) setHiRes(true);
-  }, [view.scale, nat, hiRes, fitMode, it?.kind]);
+    if (!hiRes && !oneFailed && nat && it?.kind === 'image' && view.scale * (window.devicePixelRatio || 1) > 1.05 && !fitMode) setHiRes(true);
+  }, [view.scale, nat, hiRes, oneFailed, fitMode, it?.kind]);
 
   useEffect(() => {
     if (it?.live && liveAuto && nat) setLivePlaying(true);
@@ -263,7 +266,14 @@ export function SingleView({ s }: { s: SessionState }) {
               if (nat && hiRes && nw !== nat.w) setViewState((v) => ({ ...v, scale: (v.scale * nat.w) / nw }));
               setNat({ w: nw, h: nh });
             }}
-            onError={() => (hiRes ? setHiRes(false) : setError(true))}
+            onError={() => {
+              // Vorschau kaputt → Original versuchen (und umgekehrt); erst wenn beides scheitert: Hinweis
+              if (oneFailed) return setError(true);
+              setOneFailed(true);
+              if (hiRes) setHiRes(false);
+              else if (browserCanShow(it.ext)) setHiRes(true);
+              else setError(true);
+            }}
           />
           {livePlaying && it.live && nat && (
             <video

@@ -12,7 +12,7 @@ export interface AnalysisResult {
   expo: number;
 }
 
-type Job = { id: number; url: string };
+type Job = { id: number; url: string; fallback?: string };
 
 const POOL = Math.max(1, Math.min(2, (navigator.hardwareConcurrency || 4) - 2));
 let workers: Worker[] = [];
@@ -56,7 +56,7 @@ function pump() {
     if (!best) return;
     queue.delete(best.id);
     busy.add(w);
-    w.postMessage({ id: best.id, url: best.url, gen: generation });
+    w.postMessage({ id: best.id, url: best.url, fallback: best.fallback, gen: generation });
   }
 }
 

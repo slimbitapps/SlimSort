@@ -4,26 +4,26 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>SlimBit Apps</title>
-<meta name="description" content="SlimBit Apps – kleine, kostenlose Apps, die eine Sache richtig gut machen. Ohne Werbung, ohne Konto, ohne Datensammlung." />
+<meta name="description" content="SlimBit Apps – Mehr können. Weniger verbrauchen. Schlanke, kostenlose Apps für Windows und Mac. Ohne Werbung, ohne Konto, ohne Datensammlung." />
 <meta property="og:title" content="SlimBit Apps" />
-<meta property="og:description" content="Kleine, kostenlose Apps, die eine Sache richtig gut machen." />
-<meta property="og:image" content="logo.png" />
-<link rel="icon" href="logo.svg" type="image/svg+xml" />
-<link rel="apple-touch-icon" href="logo.png" />
+<meta property="og:description" content="Mehr können. Weniger verbrauchen. Schlanke, kostenlose Apps für Windows und Mac." />
+<meta property="og:image" content="logo-icon.png" />
+<link rel="icon" href="favicon.png" type="image/png" />
+<link rel="apple-touch-icon" href="logo-icon.png" />
 <style>
   :root {
     --bg: #f5f6fa; --panel: #ffffff; --text: #171a21; --muted: #5b6272; --faint: #8a91a0; --border: #e3e6ec;
-    --accent: #5b6cff; --accent-2: #8a5cff; --soft: rgba(91,108,255,.10); --shadow: 0 10px 30px rgba(23,26,33,.07);
+    --accent: #1560f0; --accent-2: #0fb37a; --soft: rgba(21,96,240,.09); --grad: linear-gradient(90deg, #1560f0, #0a9fd0 55%, #11b86e); --shadow: 0 10px 30px rgba(23,26,33,.07);
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #0f1115; --panel: #181b22; --text: #eceef3; --muted: #a3aab8; --faint: #747c8b; --border: #2a2f39;
-      --accent: #7b8bff; --accent-2: #a27dff; --soft: rgba(123,139,255,.14); --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --accent: #3b8bff; --accent-2: #3ee089; --soft: rgba(59,139,255,.14); --grad: linear-gradient(90deg, #2f7bff, #1ec8f0 55%, #3ee089); --shadow: 0 10px 30px rgba(0,0,0,.35);
     }
   }
   :root[data-theme="dark"] {
     --bg: #0f1115; --panel: #181b22; --text: #eceef3; --muted: #a3aab8; --faint: #747c8b; --border: #2a2f39;
-    --accent: #7b8bff; --accent-2: #a27dff; --soft: rgba(123,139,255,.14); --shadow: 0 10px 30px rgba(0,0,0,.35);
+    --accent: #3b8bff; --accent-2: #3ee089; --soft: rgba(59,139,255,.14); --grad: linear-gradient(90deg, #2f7bff, #1ec8f0 55%, #3ee089); --shadow: 0 10px 30px rgba(0,0,0,.35);
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
@@ -39,6 +39,7 @@
   .bar { display: flex; align-items: center; gap: 12px; height: 64px; }
   .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 750; font-size: 18px; letter-spacing: -.01em; flex: 1; }
   .brand img { width: 34px; height: 34px; }
+  .brand .bit, .hero h1 span { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
   nav { display: flex; gap: 4px; align-items: center; }
   nav a { text-decoration: none; color: var(--muted); padding: 6px 10px; border-radius: 8px; font-size: 15px; }
   nav a:hover { color: var(--text); background: var(--soft); }
@@ -47,14 +48,13 @@
 
   /* Hero */
   .hero { text-align: center; padding: 72px 0 56px; }
-  .hero .mark { width: 88px; height: 88px; margin-bottom: 22px; filter: drop-shadow(0 12px 28px rgba(91,108,255,.35)); }
+  .hero .mark { width: 120px; height: 120px; margin-bottom: 18px; filter: drop-shadow(0 14px 30px rgba(30,150,255,.30)); }
   .hero h1 { font-size: clamp(30px, 5.4vw, 52px); line-height: 1.1; letter-spacing: -.025em; margin: 0 0 16px; }
-  .hero h1 span { background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
   .hero p { color: var(--muted); font-size: 19px; max-width: 620px; margin: 0 auto 30px; }
   .cta { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
   .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; border-radius: 12px; text-decoration: none;
     font-weight: 650; border: 1px solid var(--border); background: var(--panel); color: var(--text); }
-  .btn.primary { background: linear-gradient(90deg, var(--accent), var(--accent-2)); color: #fff; border: 0; box-shadow: 0 8px 22px rgba(91,108,255,.35); }
+  .btn.primary { background: linear-gradient(90deg, #1560f0, #0a9fd0); color: #fff; border: 0; box-shadow: 0 8px 22px rgba(21,96,240,.30); }
   .btn:hover { transform: translateY(-1px); }
   .btn svg { flex: none; }
 
@@ -101,7 +101,7 @@
 <body>
 <header id="hdr">
   <div class="wrap bar">
-    <a class="brand" href="#top"><img src="logo.svg" alt="" />SlimBit Apps</a>
+    <a class="brand" href="#top"><img src="logo-mark.png" alt="" /><span>Slim<span class="bit">Bit</span> Apps</span></a>
     <nav>
       <a href="#apps" data-i="navApps">Apps</a>
       <a href="#about" class="hide-sm" data-i="navAbout">Über</a>
@@ -112,9 +112,9 @@
 
 <main id="top" class="wrap">
   <section class="hero">
-    <img class="mark" src="logo.svg" alt="SlimBit Apps Logo" />
-    <h1 data-i="h1">Kleine Apps, die eine Sache <span>richtig gut</span> machen.</h1>
-    <p data-i="sub">Kostenlos, ohne Werbung, ohne Konto und ohne Datensammlung. Für Windows und Mac – Android folgt.</p>
+    <img class="mark" src="logo-mark.png" alt="SlimBit Apps Logo" />
+    <h1 data-i="h1">Mehr können.<br /><span>Weniger verbrauchen.</span></h1>
+    <p data-i="sub">Schlanke Apps für Windows und Mac – kostenlos, ohne Werbung, ohne Konto und ohne Datensammlung. Android folgt.</p>
     <div class="cta">
       <a class="btn primary" href="#apps" data-i="ctaApps">Alle Apps ansehen</a>
       <a class="btn" id="yt" href="#" target="_blank" rel="noopener">
@@ -134,14 +134,14 @@
     <div class="label" data-i="valLabel">Versprechen</div>
     <h2 data-i="valH">Das gilt für jede App</h2>
     <div class="values">
-      <div class="v"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v8H4v-8M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg></div>
-        <b data-i="v1h">Kostenlos</b><span data-i="v1p">Keine Abos, keine Testphase, keine versteckten Kosten.</span></div>
-      <div class="v"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
-        <b data-i="v2h">Privat</b><span data-i="v2p">Keine Datensammlung, kein Konto. Deine Dateien bleiben auf deinem Gerät.</span></div>
-      <div class="v"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
-        <b data-i="v3h">Einfach</b><span data-i="v3p">Startet sofort und erklärt sich selbst – mit Einführung und Hilfe zu jedem Knopf.</span></div>
-      <div class="v"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div>
-        <b data-i="v4h">Sicher</b><span data-i="v4p">Nichts wird ungefragt gelöscht oder überschrieben. Fast alles lässt sich rückgängig machen.</span></div>
+      <div class="v"><div class="ic" style="color:#1fbf6a;background:rgba(31,191,106,.12)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.5 19 2c1 2 2 4.2 2 8 0 5.5-4.8 10-10 10z"/><path d="M2 21c0-3 1.9-5.4 5.2-6.1 2.3-.5 4.5-1.6 5.8-3.9"/></svg></div>
+        <b data-i="v1h">Ressourcenschonend</b><span data-i="v1p">Wenig Speicher, wenig Akku, schneller Start – auch auf älteren Rechnern.</span></div>
+      <div class="v"><div class="ic" style="color:#2f7bff;background:rgba(47,123,255,.12)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+        <b data-i="v2h">Leistungsstark &amp; effizient</b><span data-i="v2p">Zehntausende Dateien? Kein Problem. Alles läuft flüssig.</span></div>
+      <div class="v"><div class="ic" style="color:#8b5cf6;background:rgba(139,92,246,.12)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg></div>
+        <b data-i="v3h">Einfach zu bedienen</b><span data-i="v3p">Startet sofort und erklärt sich selbst – mit Einführung und Hilfe zu jedem Knopf.</span></div>
+      <div class="v"><div class="ic" style="color:#0ea5c9;background:rgba(14,165,201,.12)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
+        <b data-i="v4h">Großer Funktionsumfang</b><span data-i="v4p">Schlank heißt nicht abgespeckt: alles, was man wirklich braucht – und mehr.</span></div>
     </div>
   </section>
 
@@ -162,7 +162,7 @@
   <div class="wrap">
     <span>© <span id="year"></span> SlimBit Apps</span>
     <span class="sp"></span>
-    <a href="impressum.html" data-i="imprint">Impressum</a>
+    <a href="impressum.html" data-i="imprint">Impressum &amp; Kontakt</a>
     <a href="datenschutz.html" data-i="privacy">Datenschutz</a>
   </div>
 </footer>
@@ -170,7 +170,7 @@
 <script>
   // ============ EINSTELLUNGEN – hier anpassen ============
   const YOUTUBE = 'https://www.youtube.com/@slimbitapps'; // Link zu deinem YouTube-Kanal
-  const EMAIL = 'kontakt@example.com';                    // deine Kontakt-Adresse (auch im Impressum ändern!)
+  const EMAIL = 'SlimBitApps@gmail.com';                  // Kontakt-Adresse
 
   // Jede App ein Eintrag. Neue App? Einfach einen Block kopieren und anpassen.
   // url leer lassen = Karte "Bald verfügbar".
@@ -191,18 +191,18 @@
   // ============ Texte ============
   const en = {
     navApps: 'Apps', navAbout: 'About',
-    h1: 'Small apps that do <span>one thing really well</span>.',
-    sub: 'Free, no ads, no account and no data collection. For Windows and Mac – Android coming soon.',
+    h1: 'Do more.<br /><span>Use less.</span>',
+    sub: 'Lean apps for Windows and Mac – free, no ads, no account and no data collection. Android coming soon.',
     ctaApps: 'See all apps',
     appsLabel: 'Apps', appsH: 'What I have built so far',
     valLabel: 'Promise', valH: 'True for every app',
-    v1h: 'Free', v1p: 'No subscriptions, no trials, no hidden costs.',
-    v2h: 'Private', v2p: 'No data collection, no account. Your files stay on your device.',
-    v3h: 'Simple', v3p: 'Starts right away and explains itself – with a tour and help for every button.',
-    v4h: 'Safe', v4p: 'Nothing is deleted or overwritten without asking. Almost everything can be undone.',
+    v1h: 'Resource-friendly', v1p: 'Little memory, little battery, fast start – even on older computers.',
+    v2h: 'Powerful &amp; efficient', v2p: 'Tens of thousands of files? No problem. Everything stays smooth.',
+    v3h: 'Easy to use', v3p: 'Starts right away and explains itself – with a tour and help for every button.',
+    v4h: 'Feature-rich', v4p: 'Lean doesn’t mean stripped down: everything you really need – and more.',
     aboutLabel: 'About', aboutH: 'Who is behind this?',
     aboutP: 'SlimBit Apps is a private hobby project. I build tools I was missing in my own everyday life – slim, fast and without clutter. All apps are free. Ideas, bugs or wishes? Get in touch!',
-    contact: 'Contact', imprint: 'Imprint', privacy: 'Privacy',
+    contact: 'Contact', imprint: 'Imprint &amp; contact', privacy: 'Privacy',
     open: 'Open download page', soonT: 'New app in the works', soonP: 'Subscribe on YouTube so you don’t miss it.', soonChip: 'soon',
   };
   const de = {

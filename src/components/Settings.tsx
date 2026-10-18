@@ -5,6 +5,7 @@ import {
   toast, previewSeriesCount,
 } from '../store';
 import { tip } from './Tooltip';
+import slimbitMark from '../assets/slimbit-mark.png';
 import type { AppInfo, Prefs, Profile } from '../types';
 import { Help, KeyCap, Logo, Switch, MenuPopup, useMenu } from './ui';
 import {
@@ -616,9 +617,7 @@ function AboutTab() {
         {...tip(t('about.website'), WEBSITE_URL)}
       >
         <div className="row" style={{ gap: 12 }}>
-          <div className="ic">
-            <IconGlobe size={18} />
-          </div>
+          <img src={slimbitMark} alt="" width={36} height={36} />
           <div className="grow">
             <div style={{ fontWeight: 620 }}>{t('about.website')}</div>
             <div className="small faint">{t('about.website.desc')}</div>

@@ -308,7 +308,7 @@ app.whenReady().then(() => {
   settings.load();
   log('start', app.getVersion(), process.platform, process.arch);
   nativeTheme.on('updated', () => send('win:systemTheme', nativeTheme.shouldUseDarkColors));
-  media = createMediaServer({ nativeImage, cacheDir: path.join(app.getPath('userData'), 'cache') });
+  media = createMediaServer({ nativeImage, cacheDir: path.join(app.getPath('userData'), 'cache'), log });
   protocol.handle('media', media.handleMedia);
   protocol.handle('thumb', media.handleThumb);
   protocol.handle('preview', media.handlePreview);

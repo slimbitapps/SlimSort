@@ -9,6 +9,7 @@
 interface Req {
   id: number;
   url: string;
+  fallback?: string;
   gen: number;
 }
 
@@ -86,9 +87,15 @@ async function analyze(url: string) {
 }
 
 self.onmessage = async (e: MessageEvent<Req>) => {
-  const { id, url, gen } = e.data;
+  const { id, url, fallback, gen } = e.data;
   try {
-    const r = await analyze(url);
+    let r;
+    try {
+      r = await analyze(url);
+    } catch (err) {
+      if (!fallback) throw err;
+      r = await analyze(fallback);
+    }
     (self as unknown as Worker).postMessage({ id, gen, ok: true, ...r });
   } catch (err) {
     (self as unknown as Worker).postMessage({ id, gen, ok: false, error: String(err) });

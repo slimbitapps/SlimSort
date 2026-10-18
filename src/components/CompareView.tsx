@@ -125,6 +125,7 @@ const Cell = memo(function Cell(p: {
   const [box, setBox] = useState({ w: 400, h: 300 });
   const [nat, setNat] = useState<{ w: number; h: number } | null>(null);
   const [hi, setHi] = useState(false);
+  const failedOnce = useRef(false);
   const drag = useRef<{ x: number; y: number; moved: boolean; sh: Shared } | null>(null);
 
   useLayoutEffect(() => {
@@ -146,7 +147,7 @@ const Cell = memo(function Cell(p: {
   const y = box.h / 2 - cy * h;
 
   useEffect(() => {
-    if (!hi && nat && shared.z > 1.4 && browserCanShow(it.ext)) setHi(true);
+    if (!hi && !failedOnce.current && nat && shared.z > 1.4 && browserCanShow(it.ext)) setHi(true);
   }, [shared.z, nat, hi, it.ext]);
 
   const onWheel = (e: React.WheelEvent) => {
@@ -206,7 +207,13 @@ const Cell = memo(function Cell(p: {
           // Seitenverhältnis bleibt gleich – nur die Pixelgröße ändert sich beim Original
           setNat({ w: im.naturalWidth, h: im.naturalHeight });
         }}
-        onError={() => hi && setHi(false)}
+        onError={() => {
+          // Original kaputt → Vorschau; Vorschau kaputt → Original (falls möglich)
+          if (failedOnce.current) return;
+          failedOnce.current = true;
+          if (hi) setHi(false);
+          else if (browserCanShow(it.ext)) setHi(true);
+        }}
       />
       <div className="cmp-badges">
         <span className="cmp-num">

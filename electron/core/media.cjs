@@ -21,7 +21,12 @@ const MIME = {
   '.mkv': 'video/x-matroska', '.avi': 'video/x-msvideo', '.3gp': 'video/3gpp',
 };
 
-function createMediaServer({ nativeImage, cacheDir }) {
+function createMediaServer({ nativeImage, cacheDir, log = () => {} }) {
+  // Fehler ins Protokoll schreiben (begrenzt, damit app.log nicht vollläuft)
+  let logged = 0;
+  const logErr = (what, file, e) => {
+    if (logged++ < 50) log('media', what, file, e && e.message ? e.message : String(e));
+  };
   const thumbDir = path.join(cacheDir, 'thumbs');
   const previewDir = path.join(cacheDir, 'previews');
   fs.mkdirSync(thumbDir, { recursive: true });
@@ -182,7 +187,16 @@ function createMediaServer({ nativeImage, cacheDir }) {
   }
 
   async function serveFile(file, request) {
-    const st = await fsp.stat(file);
+    // Datei zuerst öffnen: So landen Fehler (z. B. fehlende Zugriffsrechte unter macOS)
+    // hier im catch und nicht unbemerkt mitten im Datenstrom.
+    const fh = await fsp.open(file, 'r');
+    let st;
+    try {
+      st = await fh.stat();
+    } catch (e) {
+      await fh.close().catch(() => {});
+      throw e;
+    }
     const type = MIME[path.extname(file).toLowerCase()] || 'application/octet-stream';
     const range = request.headers.get('range');
     const m = range && /bytes=(\d*)-(\d*)/.exec(range);
@@ -190,8 +204,11 @@ function createMediaServer({ nativeImage, cacheDir }) {
       let start = m[1] ? Number(m[1]) : Math.max(0, st.size - Number(m[2]));
       let end = m[1] && m[2] ? Number(m[2]) : st.size - 1;
       end = Math.min(end, st.size - 1);
-      if (start > end) return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${st.size}` } });
-      return new Response(Readable.toWeb(fs.createReadStream(file, { start, end })), {
+      if (start > end) {
+        await fh.close().catch(() => {});
+        return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${st.size}` } });
+      }
+      return new Response(Readable.toWeb(fh.createReadStream({ start, end })), {
         status: 206,
         headers: {
           'Access-Control-Allow-Origin': '*',
@@ -202,7 +219,7 @@ function createMediaServer({ nativeImage, cacheDir }) {
         },
       });
     }
-    return new Response(Readable.toWeb(fs.createReadStream(file)), {
+    return new Response(Readable.toWeb(fh.createReadStream()), {
       status: 200,
       headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': type, 'Content-Length': String(st.size), 'Accept-Ranges': 'bytes' },
     });
@@ -213,42 +230,61 @@ function createMediaServer({ nativeImage, cacheDir }) {
   async function handleMedia(request) {
     try {
       return await serveFile(fileFromUrl(request.url).file, request);
-    } catch {
+    } catch (e) {
+      logErr('media', request.url, e);
       return notFound();
     }
   }
 
+  // Nur für Tests: kaputte Vorschauen simulieren, um die Ersatzwege zu prüfen
+  const breakPreviews = !!process.env.FOTOSORT_TEST && !!process.env.FOTOSORT_BREAK_PREVIEWS;
+
   async function handleThumb(request) {
+    if (breakPreviews) return notFound();
     try {
       const { file, size } = fileFromUrl(request.url);
       const ext = path.extname(file).toLowerCase();
       // Auf Linux (nur Entwicklung) und für einfache Formate ohne OS-Vorschau:
       // Original liefern – der Browser verkleinert und dreht selbst richtig.
       if (!osThumbs && BROWSER_IMAGE_EXT.has(ext)) return serveFile(file, request);
-      const out = await schedule(() => cached(thumbDir, file, size, () => makeThumb(file, size)));
-      if (out) return serveFile(out, request);
-      if (BROWSER_IMAGE_EXT.has(ext)) return serveFile(file, request);
+      let out = null;
+      try {
+        out = await schedule(() => cached(thumbDir, file, size, () => makeThumb(file, size)));
+        if (out) return await serveFile(out, request);
+      } catch (e) {
+        logErr('thumb', file, e);
+      }
+      // Kein Vorschaubild möglich: Original liefern, wenn der Browser es selbst anzeigen kann
+      if (BROWSER_IMAGE_EXT.has(ext)) return await serveFile(file, request);
       return notFound();
-    } catch {
+    } catch (e) {
+      logErr('thumb-original', request.url, e);
       return notFound();
     }
   }
 
   async function handlePreview(request) {
+    if (breakPreviews) return notFound();
     try {
       const { file, size } = fileFromUrl(request.url);
       const ext = path.extname(file).toLowerCase();
-      const key = await cacheKey(file, 'p' + size);
-      let buf = memGet(key);
-      if (!buf) {
-        if (!previewInflight.has(key)) {
-          previewInflight.set(
-            key,
-            schedule(() => makePreview(file, size)).finally(() => previewInflight.delete(key))
-          );
+      let buf = null;
+      try {
+        const key = await cacheKey(file, 'p' + size);
+        buf = memGet(key);
+        if (!buf) {
+          if (!previewInflight.has(key)) {
+            previewInflight.set(
+              key,
+              schedule(() => makePreview(file, size)).finally(() => previewInflight.delete(key))
+            );
+          }
+          buf = await previewInflight.get(key);
+          if (buf) memPut(key, buf);
         }
-        buf = await previewInflight.get(key);
-        if (buf) memPut(key, buf);
+      } catch (e) {
+        logErr('preview', file, e);
+        buf = null;
       }
       if (buf) {
         return new Response(buf, {
@@ -256,9 +292,10 @@ function createMediaServer({ nativeImage, cacheDir }) {
           headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'image/jpeg', 'Content-Length': String(buf.length) },
         });
       }
-      if (BROWSER_IMAGE_EXT.has(ext)) return serveFile(file, request);
+      if (BROWSER_IMAGE_EXT.has(ext)) return await serveFile(file, request);
       return notFound();
-    } catch {
+    } catch (e) {
+      logErr('preview-original', request.url, e);
       return notFound();
     }
   }
@@ -274,7 +311,7 @@ function createMediaServer({ nativeImage, cacheDir }) {
           const p = path.join(d, f);
           try {
             const st = await fsp.stat(p);
-            files.push({ p, size: st.size, t: st.atimeMs || st.mtimeMs });
+            files.push({ p, size: st.size, t: Math.max(st.atimeMs || 0, st.mtimeMs) });
           } catch {
             /* ignorieren */
           }
@@ -283,8 +320,9 @@ function createMediaServer({ nativeImage, cacheDir }) {
     }
     let total = files.reduce((a, f) => a + f.size, 0);
     files.sort((a, b) => a.t - b.t);
+    const fresh = Date.now() - 5 * 60 * 1000; // gerade erzeugte (evtl. noch angezeigte) behalten
     for (const f of files) {
-      if (total <= maxBytes) break;
+      if (total <= maxBytes || f.t > fresh) break;
       await fsp.unlink(f.p).catch(() => {});
       total -= f.size;
     }

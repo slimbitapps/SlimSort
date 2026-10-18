@@ -3,7 +3,7 @@ import { setLang, t, errText } from './i18n';
 import type {
   Item, Prefs, Profile, QuickStart, SettingsData, Target, OpDoneEvent, ProgressEvent, Filter,
 } from './types';
-import { basename, COLORS, itemTime, sortItems, uid, isAssignableKey, thumbUrl } from './util';
+import { basename, COLORS, itemTime, sortItems, uid, isAssignableKey, thumbUrl, browserCanShow, mediaUrl } from './util';
 import { computeSeries, rankSeries, MOTIF_DIST } from './series';
 import { configureAnalysis, requestAnalysis, resetAnalysis } from './analysis';
 
@@ -652,17 +652,24 @@ function scheduleSeriesRefresh() {
 }
 
 /** Fotos, die zu Serien gehören könnten, im Hintergrund analysieren lassen. */
+// Klappt das Vorschaubild nicht, wird das Original analysiert (falls der Browser es lesen kann)
+const analysisJob = (it: Item) => ({
+  id: it.id,
+  url: thumbUrl(it.path, 512),
+  fallback: browserCanShow(it.ext) ? mediaUrl(it.path) : undefined,
+});
+
 function queueAnalysis(s: SessionState) {
   if (!prefs().seriesEnabled) return;
   // Kandidaten: Fotos mit einem zeitlichen Nachbarn innerhalb des Abstands
   const gap = prefs().seriesGapSec * 1000;
   const imgs = s.items.filter((i) => i.kind === 'image' && i.t !== undefined).sort((a, b) => a.t! - b.t!);
-  const jobs: { id: number; url: string }[] = [];
+  const jobs: { id: number; url: string; fallback?: string }[] = [];
   for (let i = 0; i < imgs.length; i++) {
     const it = imgs[i];
     if (it.analyzed) continue;
     const near = (i > 0 && it.t! - imgs[i - 1].t! <= gap) || (i < imgs.length - 1 && imgs[i + 1].t! - it.t! <= gap);
-    if (near) jobs.push({ id: it.id, url: thumbUrl(it.path, 512) });
+    if (near) jobs.push(analysisJob(it));
   }
   if (jobs.length) requestAnalysis(jobs);
 }
@@ -673,7 +680,7 @@ export function analysisFor(ids: number[]) {
   const jobs = ids
     .map((id) => s.byId.get(id))
     .filter((it): it is Item => !!it && !it.analyzed && it.kind === 'image')
-    .map((it) => ({ id: it.id, url: thumbUrl(it.path, 512) }));
+    .map(analysisJob);
   if (jobs.length) requestAnalysis(jobs);
 }
 
