@@ -1,14 +1,42 @@
-# SlimSort
+# SlimSort – free photo sorter for Windows & Mac
+
+**Sort thousands of photos into folders with one key press per picture.**
+Free · no ads · no account · works offline · never overwrites anything.
+
+⬇️ **[Download SlimSort](https://slimbitapps.github.io/SlimSort/)** · by [SlimBit Apps](https://slimbitapps.github.io/)
+
+![SlimSort sorting photos with number keys](marketing/screenshots/en-dark-1-sort.png)
+
+## Why SlimSort?
+
+- **One key per folder** – press 1 for Family, 2 for Holiday … the photo moves, the next one appears. About 1,000 photos in 10 minutes.
+- **Safe** – never overwrites files (duplicates get a number), unlimited undo, every copy is verified before the original is removed.
+- **NAS-friendly** – target folders can be on a network drive; if it goes offline, the photo simply stays where it is.
+- **Burst shots** – finds series of similar photos, compares them side by side with synchronized zoom and suggests the sharpest one.
+- **Real-world libraries** – tens of thousands of photos stay smooth; JPG, PNG, HEIC, WebP, TIFF, RAW (DNG, CR2, CR3, NEF, ARW, RAF, ORF, RW2) and videos; Live Photos and sidecar files (.xmp, .aae) move along.
+- **Private** – no telemetry, no cloud. Your photos never leave your computer.
+- English, German, French, Spanish, Italian · light & dark theme · simple and expert mode.
+
+![Compare burst shots side by side](marketing/screenshots/en-dark-2-compare.png)
+
+## Install
+
+- **Windows 10/11:** download `SlimSort-Setup.exe` and double-click it.
+- **Mac (macOS 12+):** open `SlimSort-Mac.dmg` (Intel: `SlimSort-Mac-Intel.dmg`) and drag SlimSort into Applications.
+
+The [download page](https://slimbitapps.github.io/SlimSort/) picks the right file and explains the first start step by step.
+
+---
+
+# SlimSort (Deutsch)
 
 Fotos und Videos blitzschnell per Tastendruck in Ordner sortieren – für Windows und Mac (Android folgt).
 
 **Alles bleibt lokal.** Keine Datensammlung, kein Internet nötig.
 
----
-
 ## Installieren
 
-**Am einfachsten über die Download-Seite** (Ordner `website/`): Sie erkennt dein System,
+**Am einfachsten über die [Download-Seite](https://slimbitapps.github.io/SlimSort/)**: Sie erkennt dein System,
 zeigt einen Download-Knopf und erklärt die Installation mit Bildern.
 
 - **Windows:** `SlimSort-Setup.exe` doppelklicken. Es installiert sich ohne Fragen und startet sofort.
@@ -61,6 +89,8 @@ Zuletzt verwendete Sortierungen erscheinen auf der Startseite und starten per Kl
 
 ## Stand der Entwicklung
 
+**Version 1.0** – erste offizielle Version unter dem Namen SlimSort.
+
 **Version 0.3** – Serien erkennen & vergleichen (gemeinsames Zoomen, Empfehlung des schärfsten Fotos,
 Shift + Zahl / Shift + Ordner-Taste), mehrere Quellordner, Erklärungen beim Darüberfahren, aufgeräumter
 Einfach-Modus, schneller und sparsamer (bildschirmgroße Vorschauen, kleinere Downloads).
@@ -75,7 +105,7 @@ Verschieben/Kopieren, unbegrenztes Rückgängig, Filter & Reihenfolge, Profile, 
 Live Photos, Zielvorschlag, Fortschritt mit Restzeit, Bilanz, NAS-Überwachung,
 „Verlorene Ordner suchen“, Hell/Dunkel, Deutsch/Englisch, Hilfe-„?“.
 
-**Als Nächstes:** Serien erkennen & vergleichen (mit Bewertung von Schärfe/Belichtung), danach Android.
+**Als Nächstes:** Version 2 mit neuen Funktionen, danach Android.
 
 ---
 

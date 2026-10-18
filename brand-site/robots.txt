@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://slimbitapps.github.io/sitemap.xml

@@ -119,7 +119,11 @@ Außerdem in `brand-site/`:
 Ist erledigt. Jede neue Version landet automatisch dort. **Alle anderen Plattformen verlinken auf
 deine Website** – so landen Besucher immer bei dir und sehen auch deine anderen Apps.
 
-### ☐ B2. Microsoft Store (wichtigster Schritt für Windows)
+### ⏸ B2. Microsoft Store – verschoben
+> Die Anmeldung verlangt Ausweis + Selfie einer volljährigen Person. Erst wieder angehen, wenn du
+> 18 bist (oder gemeinsam mit deinen Eltern). Alle Texte und Screenshots liegen bis dahin bereit.
+
+#### Ablauf für später
 Für Einzelpersonen seit 2025 **kostenlos**. Vorteil: Keine blaue „Windows hat den PC geschützt“-
 Warnung, automatische Updates, man findet dich in der Store-Suche.
 
@@ -299,10 +303,45 @@ bestimmten Tagen erlaubt → Regeln lesen. Das Short-Video funktioniert dort seh
 
 ---
 
+### ☐ C7. Von ChatGPT, Gemini & Co. empfohlen werden
+KI-Assistenten empfehlen, was sie **im Internet oft und eindeutig beschrieben** finden. Es gibt
+keinen Trick und nichts zu kaufen – aber man kann es ihnen leicht machen.
+
+Wie die KIs suchen:
+- **ChatGPT** sucht live über **Bing** · **Gemini** über **Google** · **Perplexity** über eigene Suche + Bing/Google.
+- Dazu kommt ihr „Gedächtnis“ aus dem Training (das hinkt Monate hinterher).
+
+Schon erledigt (→ Claude):
+- ✅ Download-Seite: Titel und Beschreibung auf Englisch, **Fragen & Antworten** (genau so formuliert,
+  wie Leute fragen), maschinenlesbare Infos für Suchmaschinen (`SoftwareApplication`, `FAQPage`).
+- ✅ Startseite: `sitemap.xml`, `robots.txt` und `llms.txt` (eine Kurzbeschreibung extra für KIs).
+- ✅ GitHub-README auf Englisch mit Screenshots (GitHub wird von KIs sehr viel gelesen).
+
+Deine Schritte:
+1. ☐ **Bing Webmaster Tools** (`bing.com/webmasters`) – mit Microsoft-Konto anmelden, Website
+   `https://slimbitapps.github.io/` hinzufügen. Bestätigen per **HTML-Datei** (die Datei an Claude
+   schicken, ich lade sie hoch). Dann Sitemap `https://slimbitapps.github.io/sitemap.xml` einreichen.
+   **Wichtigster Schritt für ChatGPT.**
+2. ☐ **Google Search Console** (`search.google.com/search-console`) – „URL-Präfix“
+   `https://slimbitapps.github.io/` → Bestätigen per HTML-Datei (an Claude schicken) → Sitemap einreichen.
+3. ☐ **GitHub-Beschreibung setzen:** Repository SlimSort → rechts bei „About“ auf das Zahnrad →
+   - Description: `Free photo sorter for Windows & Mac – sort thousands of photos into folders with one key press. Never overwrites, unlimited undo, NAS-safe, finds burst shots.`
+   - Website: `https://slimbitapps.github.io/SlimSort/`
+   - Topics: `photo-sorter photo-organizer photo-culling sort-photos windows macos nas burst-photos freeware`
+4. ☐ **Erwähnt werden** – das zählt am meisten: AlternativeTo (B5), Reddit (C3), Foren (C4),
+   YouTube-Beschreibungen (C1). Immer **dieselbe Ein-Satz-Beschreibung** verwenden
+   (steht in `docs/STORE-TEXTE.md`), damit die KI SlimSort eindeutig zuordnen kann.
+5. ☐ **Testen** (alle 2–4 Wochen): ChatGPT mit Websuche fragen
+   *„Free app to quickly sort thousands of photos into folders with keyboard shortcuts?“*
+   Am Anfang taucht SlimSort noch nicht auf – das braucht Wochen bis Monate und Erwähnungen auf anderen Seiten.
+
+---
+
 ## Teil D – Rechtliches in einfach (keine Rechtsberatung!)
 
 | Frage | Kurze Antwort |
 |---|---|
+| **Unter 18?** | Konten (YouTube, Reddit …) nur, wenn du das Mindestalter der Plattform erfüllst. Sobald irgendwo Geld, Verträge oder Ausweise ins Spiel kommen: **immer mit deinen Eltern** – Minderjährige brauchen dafür deren Zustimmung. |
 | **Brauche ich ein Gewerbe?** | Nein, solange du **kein Geld einnimmst** und es auch nicht vorhast: keine Preise, keine Werbung in der App, keine Spenden-Links. Willst du später Spenden (z. B. Ko-fi) oder Einnahmen, vorher beim Finanzamt nachfragen. Software-Entwicklung ist oft „freiberuflich“, dann reicht eine Meldung beim Finanzamt. |
 | **Impressum?** | Eigentlich mit Name und Anschrift. Du nutzt vorerst nur die E-Mail – Risiko und Alternative siehe A4. |
 | **Datenschutzerklärung?** | Ja, ist fertig. Bleibt richtig, solange du **keine** Tracker, kein Google Analytics, keine Google-Fonts und keine eingebetteten YouTube-Videos einbaust. Willst du so etwas, frag mich vorher. |

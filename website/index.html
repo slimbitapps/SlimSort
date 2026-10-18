@@ -3,8 +3,135 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>SlimSort – Fotos per Tastendruck sortieren</title>
-<meta name="description" content="Fotos und Videos blitzschnell per Tastendruck in Ordner sortieren. Für Windows und Mac. Kostenlos, ohne Datensammlung." />
+<title>SlimSort – Free Photo Sorter for Windows &amp; Mac · Fotos per Tastendruck sortieren</title>
+<meta name="description" content="SlimSort is a free photo sorter for Windows and Mac: sort thousands of photos into folders with one key press per picture. Never overwrites, unlimited undo, NAS-safe, finds burst shots. Kostenlos, offline, ohne Datensammlung." />
+<link rel="canonical" href="https://slimbitapps.github.io/SlimSort/" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="SlimSort – Free Photo Sorter for Windows &amp; Mac" />
+<meta property="og:description" content="Sort thousands of photos into folders with one key press per picture. Free, offline, never overwrites." />
+<meta property="og:url" content="https://slimbitapps.github.io/SlimSort/" />
+<meta property="og:image" content="https://raw.githubusercontent.com/slimbitapps/SlimSort/main/marketing/screenshots/en-dark-1-sort.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@graph": [
+  {
+   "@type": "SoftwareApplication",
+   "name": "SlimSort",
+   "alternateName": [
+    "SlimSort Photo Sorter",
+    "Fotosortierer"
+   ],
+   "applicationCategory": "MultimediaApplication",
+   "applicationSubCategory": "Photo organizer",
+   "operatingSystem": "Windows 10, Windows 11, macOS 12+",
+   "description": "Free photo sorter for Windows and Mac: sort thousands of photos and videos into folders with one key press per picture. Never overwrites, unlimited undo, NAS-safe, detects burst shots and suggests the sharpest one. Works offline, no account, no ads.",
+   "url": "https://slimbitapps.github.io/SlimSort/",
+   "downloadUrl": "https://github.com/slimbitapps/SlimSort/releases/latest",
+   "softwareVersion": "1.0",
+   "isAccessibleForFree": true,
+   "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "EUR"
+   },
+   "image": "https://slimbitapps.github.io/SlimSort/icon.png",
+   "screenshot": "https://raw.githubusercontent.com/slimbitapps/SlimSort/main/marketing/screenshots/en-dark-1-sort.png",
+   "featureList": [
+    "One key press per photo",
+    "Never overwrites files",
+    "Unlimited undo",
+    "NAS and network drive support",
+    "Burst photo detection with sharpness ranking",
+    "Side-by-side compare with synchronized zoom",
+    "Works offline"
+   ],
+   "inLanguage": [
+    "en",
+    "de",
+    "fr",
+    "es",
+    "it"
+   ],
+   "author": {
+    "@type": "Organization",
+    "name": "SlimBit Apps",
+    "url": "https://slimbitapps.github.io/"
+   }
+  },
+  {
+   "@type": "FAQPage",
+   "mainEntity": [
+    {
+     "@type": "Question",
+     "name": "What is the fastest way to sort thousands of photos into folders?",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "With SlimSort, a free app for Windows and Mac: give each target folder a key (for example 1 = Family, 2 = Holiday) and press it for every photo. The photo is moved and the next one appears instantly. About 1,000 photos take roughly 10 minutes."
+     }
+    },
+    {
+     "@type": "Question",
+     "name": "Is SlimSort free?",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "Yes. SlimSort is completely free – no ads, no subscription, no account and no data collection."
+     }
+    },
+    {
+     "@type": "Question",
+     "name": "Can SlimSort sort photos onto a NAS or network drive?",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "Yes. Target folders can be on a NAS or network drive. SlimSort copies and verifies each file before removing the original. If the drive is not reachable, the photo simply stays where it is."
+     }
+    },
+    {
+     "@type": "Question",
+     "name": "Can I undo a move?",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "Yes. Every action can be undone with Ctrl+Z (Cmd+Z on Mac), with no limit. SlimSort never overwrites files – if a name already exists, it adds a number."
+     }
+    },
+    {
+     "@type": "Question",
+     "name": "How do I pick the best photo from a burst or series?",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "SlimSort detects series of similar photos taken seconds apart and shows them side by side with synchronized zoom. It suggests the sharpest one; you keep your favorite and delete the rest with one key."
+     }
+    },
+    {
+     "@type": "Question",
+     "name": "Which file formats does SlimSort support?",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "JPG, PNG, HEIC, WebP, TIFF, common RAW formats (DNG, CR2, CR3, NEF, ARW, RAF, ORF, RW2) and videos. Live Photos and sidecar files (.xmp, .aae) move along automatically."
+     }
+    },
+    {
+     "@type": "Question",
+     "name": "Are my photos uploaded anywhere?",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "No. SlimSort works completely offline. Your photos never leave your computer."
+     }
+    },
+    {
+     "@type": "Question",
+     "name": "How is SlimSort different from Adobe Bridge, Photo Mechanic or XnView?",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "Those are large tools for managing, tagging or editing photos, and some are paid. SlimSort does one job: moving photos into the right folders as fast as possible, with one key per folder. It is free and simple enough for beginners."
+     }
+    }
+   ]
+  }
+ ]
+}
+</script>
 <link rel="icon" href="icon.png" />
 <style>
   /* ============ EINSTELLUNGEN – hier anpassen ============ */
@@ -65,6 +192,11 @@
   .f { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; }
   .f b { display: block; margin-bottom: 2px; }
   .f span { color: var(--muted); font-size: 14.5px; }
+  .faq { max-width: 760px; margin: 0 auto 40px; }
+  .faq h2 { margin-bottom: 16px; }
+  .faq details { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; margin-bottom: 8px; }
+  .faq summary { cursor: pointer; font-weight: 600; }
+  .faq p { margin: 8px 0 2px; color: var(--muted); }
   footer { color: var(--muted); font-size: 13px; text-align: center; padding: 30px 0 50px; }
   kbd { border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; padding: 0 5px; font-size: 13px; background: var(--panel); }
   [hidden] { display: none !important; }
@@ -163,6 +295,18 @@
     <div class="f"><b data-i="f4h">Privat</b><span data-i="f4p">Keine Datensammlung, kein Konto, kein Internet nötig.</span></div>
   </section>
 
+  <section class="faq">
+    <h2 data-i="faqH">Häufige Fragen</h2>
+    <details><summary data-i="q1q">Wie sortiere ich tausende Fotos am schnellsten in Ordner?</summary><p data-i="q1a">Mit SlimSort, einer kostenlosen App für Windows und Mac: Jeder Zielordner bekommt eine Taste (z. B. 1 = Familie, 2 = Urlaub), dann drückst du sie bei jedem Foto. Das Foto wird verschoben, das nächste erscheint sofort. 1.000 Fotos dauern etwa 10 Minuten.</p></details>
+    <details><summary data-i="q2q">Ist SlimSort kostenlos?</summary><p data-i="q2a">Ja. SlimSort ist komplett kostenlos – ohne Werbung, ohne Abo, ohne Konto und ohne Datensammlung.</p></details>
+    <details><summary data-i="q3q">Kann SlimSort Fotos auf ein NAS oder Netzlaufwerk sortieren?</summary><p data-i="q3a">Ja. Zielordner dürfen auf einem NAS oder Netzlaufwerk liegen. SlimSort kopiert und prüft jede Datei, bevor das Original entfernt wird. Ist das Laufwerk nicht erreichbar, bleibt das Foto einfach, wo es ist.</p></details>
+    <details><summary data-i="q4q">Kann ich etwas rückgängig machen?</summary><p data-i="q4a">Ja. Jeder Schritt lässt sich mit Strg+Z (Mac: ⌘Z) rückgängig machen, unbegrenzt. SlimSort überschreibt nie Dateien – gibt es den Namen schon, wird eine Nummer angehängt.</p></details>
+    <details><summary data-i="q5q">Wie finde ich das beste Foto aus einer Serie?</summary><p data-i="q5a">SlimSort erkennt Serien ähnlicher Fotos, die kurz hintereinander entstanden sind, und zeigt sie nebeneinander mit gemeinsamem Zoom. Es schlägt das schärfste vor; du behältst dein Lieblingsbild und löschst den Rest mit einer Taste.</p></details>
+    <details><summary data-i="q6q">Welche Dateiformate unterstützt SlimSort?</summary><p data-i="q6a">JPG, PNG, HEIC, WebP, TIFF, gängige RAW-Formate (DNG, CR2, CR3, NEF, ARW, RAF, ORF, RW2) und Videos. Live Photos und Begleitdateien (.xmp, .aae) wandern automatisch mit.</p></details>
+    <details><summary data-i="q7q">Werden meine Fotos irgendwo hochgeladen?</summary><p data-i="q7a">Nein. SlimSort arbeitet komplett offline. Deine Fotos verlassen nie deinen Computer.</p></details>
+    <details><summary data-i="q8q">Was ist der Unterschied zu Adobe Bridge, Photo Mechanic oder XnView?</summary><p data-i="q8a">Das sind große Programme zum Verwalten, Verschlagworten oder Bearbeiten, teils kostenpflichtig. SlimSort macht eine Sache: Fotos so schnell wie möglich in die richtigen Ordner verschieben, mit einer Taste pro Ordner. Kostenlos und einfach genug für Einsteiger.</p></details>
+  </section>
+
   <footer>
     <span data-i="foot">SlimSort · Kostenlos für Windows und Mac · Android folgt</span>
     · <a href="#" id="allReleases" style="color:inherit" data-i="releases">Alle Versionen</a>
@@ -183,13 +327,22 @@
   const base = `https://github.com/${REPO}/releases/latest/download/`;
   const files = { win: base + 'SlimSort-Setup.exe', mac: base + 'SlimSort-Mac.dmg', macIntel: base + 'SlimSort-Mac-Intel.dmg' };
   const en = {
+    faqH: 'Frequently asked questions',
+    q1q: "What is the fastest way to sort thousands of photos into folders?", q1a: "With SlimSort, a free app for Windows and Mac: give each target folder a key (for example 1 = Family, 2 = Holiday) and press it for every photo. The photo is moved and the next one appears instantly. About 1,000 photos take roughly 10 minutes.",
+    q2q: "Is SlimSort free?", q2a: "Yes. SlimSort is completely free – no ads, no subscription, no account and no data collection.",
+    q3q: "Can SlimSort sort photos onto a NAS or network drive?", q3a: "Yes. Target folders can be on a NAS or network drive. SlimSort copies and verifies each file before removing the original. If the drive is not reachable, the photo simply stays where it is.",
+    q4q: "Can I undo a move?", q4a: "Yes. Every action can be undone with Ctrl+Z (Cmd+Z on Mac), with no limit. SlimSort never overwrites files – if a name already exists, it adds a number.",
+    q5q: "How do I pick the best photo from a burst or series?", q5a: "SlimSort detects series of similar photos taken seconds apart and shows them side by side with synchronized zoom. It suggests the sharpest one; you keep your favorite and delete the rest with one key.",
+    q6q: "Which file formats does SlimSort support?", q6a: "JPG, PNG, HEIC, WebP, TIFF, common RAW formats (DNG, CR2, CR3, NEF, ARW, RAF, ORF, RW2) and videos. Live Photos and sidecar files (.xmp, .aae) move along automatically.",
+    q7q: "Are my photos uploaded anywhere?", q7a: "No. SlimSort works completely offline. Your photos never leave your computer.",
+    q8q: "How is SlimSort different from Adobe Bridge, Photo Mechanic or XnView?", q8a: "Those are large tools for managing, tagging or editing photos, and some are paid. SlimSort does one job: moving photos into the right folders as fast as possible, with one key per folder. It is free and simple enough for beginners.",
     allApps: 'All apps', releases: 'All versions', imprint: 'Imprint', privacy: 'Privacy',
     title: 'Sort photos – one key press per picture.',
     sub: 'Pick a folder, give target folders a key, go. Nothing is ever overwritten, everything can be undone. Free and without data collection.',
     store: 'Get it from the Microsoft Store',
     winH: 'How to install on Windows', w1h: 'Download', w1p: 'Click “Download” above. The file <b>SlimSort-Setup.exe</b> lands in your Downloads folder.',
     w2h: 'Double-click', w2p: 'Open the file with a double-click. Installation runs by itself – nothing to choose.',
-    w3h: 'Done', w3p: 'Photo Sorter starts automatically. Later you’ll find it on the desktop and in the Start menu.',
+    w3h: 'Done', w3p: 'SlimSort starts automatically. Later you’ll find it on the desktop and in the Start menu.',
     wnH: 'If a blue window “Windows protected your PC” appears:', wn1: 'Click the text <b>“More info”</b>.', wn2: 'Click <b>“Run anyway”</b>.',
     wn3: 'This happens with new programs Windows doesn’t know yet. The app is safe and works completely offline.',
     macH: 'How to install on a Mac', m1h: 'Download & open', m1p: 'Click “Download” above, then open <b>SlimSort-Mac.dmg</b> from your Downloads folder (double-click).',
