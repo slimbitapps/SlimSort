@@ -13,6 +13,8 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+    # Nur Texte/Webseiten geändert → keine neuen Installer bauen
+    paths-ignore: ['website/**', 'brand-site/**', 'docs/**', '*.md', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 jobs:
@@ -118,21 +120,3 @@ jobs:
             out/SlimSort-Mac.dmg
             out/SlimSort-Mac-Intel.dmg
             out/SlimSort-Windows-portable.zip
-
-  # Download-Seite (Ordner "website") auf GitHub Pages veröffentlichen
-  pages:
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
-        continue-on-error: true
-      - uses: actions/upload-pages-artifact@v3
-        with: { path: website }
-      - uses: actions/deploy-pages@v4
-        continue-on-error: true
