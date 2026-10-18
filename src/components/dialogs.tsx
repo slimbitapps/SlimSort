@@ -108,7 +108,7 @@ function SummaryDialog() {
           <div className="l">{t('summary.speed')}</div>
         </div>
         <div className="stat">
-          <div className="v">0</div>
+          <div className="v">{fmtNum(s.seriesCompared)}</div>
           <div className="l">{t('summary.series')}</div>
         </div>
       </div>

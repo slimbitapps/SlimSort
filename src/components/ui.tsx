@@ -28,19 +28,21 @@ export function Logo({ size = 28 }: { size?: number }) {
 }
 
 export function KeyCap({
-  k, size, className = '', onClick, title,
+  k, size, className = '', onClick, title, tipText,
 }: {
   k: string;
   size?: 'lg' | 'xl';
   className?: string;
   onClick?: () => void;
   title?: string;
+  tipText?: string;
 }) {
   return (
     <span
       className={`kbd ${size || ''} ${k ? '' : 'empty'} ${onClick ? 'clickable' : ''} ${className}`}
       onClick={onClick}
-      title={title}
+      data-tip={title}
+      data-tip-text={tipText}
       role={onClick ? 'button' : undefined}
     >
       {k || '+'}

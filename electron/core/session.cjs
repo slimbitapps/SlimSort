@@ -23,27 +23,49 @@ class Session extends EventEmitter {
     this.pending = 0;
     this.pendingBytes = 0;
     this.nextId = 1;
-    this.sourceDir = null;
+    this.sourceDirs = [];
+    this.trashDirs = [];
     this.trashDir = null;
   }
 
-  async open({ sourceDir, recursive = false, trashDir, onProgress }) {
-    this.sourceDir = sourceDir;
-    this.trashDir = trashDir || path.join(sourceDir, '_Gelöscht');
+  /**
+   * Öffnet einen oder mehrere Quellordner.
+   * Gelöschte Dateien kommen in den eigenen Ordner (trashDir) oder in
+   * "_Gelöscht" im jeweiligen Quellordner.
+   */
+  async open({ sourceDir, sourceDirs, recursive = false, trashDir, onProgress }) {
+    const dirs = (sourceDirs && sourceDirs.length ? sourceDirs : [sourceDir]).filter(Boolean);
+    this.sourceDirs = dirs;
+    this.sourceDir = dirs[0];
+    const trashFor = (dir) => trashDir || path.join(dir, '_Gelöscht');
+    this.trashDirs = [...new Set(dirs.map(trashFor))];
+    this.trashDir = this.trashDirs[0];
     this.items.clear();
     this.history.clear();
-    const list = await scan(sourceDir, { recursive, exclude: [this.trashDir], onProgress });
-    return list.map((it) => {
-      const id = this.nextId++;
-      this.items.set(id, {
-        id,
-        primary: it.path,
-        sidecars: it.sidecars.slice(),
-        live: it.live,
-        size: it.size + (it.liveSize || 0),
+    const out = [];
+    let found = 0;
+    for (const dir of dirs) {
+      const list = await scan(dir, {
+        recursive,
+        exclude: this.trashDirs,
+        onProgress: onProgress ? (n) => onProgress(found + n) : undefined,
       });
-      return { ...it, id };
-    });
+      found += list.length;
+      const prefix = dirs.length > 1 ? path.basename(dir) : '';
+      for (const it of list) {
+        const id = this.nextId++;
+        this.items.set(id, {
+          id,
+          primary: it.path,
+          sidecars: it.sidecars.slice(),
+          live: it.live,
+          size: it.size + (it.liveSize || 0),
+          trashDir: trashFor(dir),
+        });
+        out.push({ ...it, id, dir: prefix ? path.join(prefix, it.dir) : it.dir });
+      }
+    }
+    return out;
   }
 
   journal(entry) {
@@ -78,28 +100,30 @@ class Session extends EventEmitter {
   transfer({ opId, itemIds, destDir, action, liveVideo = 'move' }) {
     const items = itemIds.map((id) => this.items.get(id)).filter(Boolean);
     const bytes = items.reduce((a, it) => a + (it.size || 0), 0);
-    const target = action === 'trash' ? this.trashDir : destDir;
+    const targetOf = (it) => (action === 'trash' ? it.trashDir || this.trashDir : destDir);
     return this.enqueue(bytes, async () => {
       const results = [];
       const entries = [];
-      if (action === 'trash') {
-        try {
-          await fsp.mkdir(this.trashDir, { recursive: true });
-        } catch {
-          /* Fehlermeldung folgt über checkDir */
+      // Erreichbarkeit je Zielordner einmal prüfen
+      const reachCache = new Map();
+      const reachable = async (dir) => {
+        if (!reachCache.has(dir)) {
+          if (action === 'trash') await fsp.mkdir(dir, { recursive: true }).catch(() => {});
+          reachCache.set(dir, await checkDir(dir, this.timeout));
         }
-      }
-      const reach = await checkDir(target, this.timeout);
-      if (!reach.ok) {
-        for (const it of items) {
-          results.push({ id: it.id, ok: false, error: 'EUNREACHABLE', detail: reach.code });
-        }
-        this.emit('opDone', { opId, kind: 'transfer', results, destDir: target });
-        return results;
-      }
+        return reachCache.get(dir);
+      };
       const mode = action === 'copy' ? 'copy' : 'move';
       let bytesDone = 0;
+      let lastTarget = destDir;
       for (const it of items) {
+        const target = targetOf(it);
+        lastTarget = target;
+        const reach = await reachable(target);
+        if (!reach.ok) {
+          results.push({ id: it.id, ok: false, error: 'EUNREACHABLE', detail: reach.code });
+          continue;
+        }
         const groups = [];
         try {
           const files = [it.primary, ...it.sidecars];
@@ -125,8 +149,9 @@ class Session extends EventEmitter {
           });
           groups.push({ moves: plan, mode });
           if (liveTo === 'trash') {
-            await fsp.mkdir(this.trashDir, { recursive: true });
-            const p2 = await transferGroup([it.live], this.trashDir, { mode: 'move', timeout: this.timeout });
+            const td = it.trashDir || this.trashDir;
+            await fsp.mkdir(td, { recursive: true });
+            const p2 = await transferGroup([it.live], td, { mode: 'move', timeout: this.timeout });
             groups.push({ moves: p2, mode: 'move' });
           }
           this.applyMoves(it, groups);
@@ -147,7 +172,7 @@ class Session extends EventEmitter {
         }
       }
       if (entries.length) this.history.set(opId, { action, mode, entries });
-      this.emit('opDone', { opId, kind: 'transfer', results, destDir: target });
+      this.emit('opDone', { opId, kind: 'transfer', results, destDir: lastTarget });
       return results;
     });
   }
@@ -204,6 +229,7 @@ class Session extends EventEmitter {
   async trashInfo() {
     let count = 0;
     let bytes = 0;
+    const dirs = this.trashDirs.length ? this.trashDirs : [this.trashDir];
     const walk = async (dir) => {
       let ents;
       try {
@@ -224,15 +250,15 @@ class Session extends EventEmitter {
         }
       }
     };
-    await walk(this.trashDir);
-    return { dir: this.trashDir, count, bytes };
+    for (const d of dirs) if (d) await walk(d);
+    return { dir: dirs[0], dirs, count, bytes };
   }
 
   /** Löschordner endgültig leeren. Rückgängig ist danach für diese Dateien nicht mehr möglich. */
   emptyTrash() {
     return this.enqueue(0, async () => {
-      const trash = this.trashDir;
-      if (!trash) throw new FsOpError('NOTRASH', 'Kein Löschordner');
+      const trashes = (this.trashDirs.length ? this.trashDirs : [this.trashDir]).filter(Boolean);
+      if (!trashes.length) throw new FsOpError('NOTRASH', 'Kein Löschordner');
       let removed = 0;
       const walk = async (dir) => {
         let ents;
@@ -252,17 +278,17 @@ class Session extends EventEmitter {
           }
         }
       };
-      await walk(trash);
+      for (const trash of trashes) await walk(trash);
       // Rückgängig-Einträge, die in den Löschordner zeigen, sind nun ungültig.
       const pruned = [];
-      const inTrash = (p) => path.resolve(p).startsWith(path.resolve(trash) + path.sep);
+      const inTrash = (p) => trashes.some((trash) => path.resolve(p).startsWith(path.resolve(trash) + path.sep));
       for (const [opId, h] of this.history) {
         if (h.entries.some((e) => e.groups.some((g) => g.moves.some((m) => inTrash(m.to))))) {
           this.history.delete(opId);
           pruned.push(opId);
         }
       }
-      this.journal({ op: 'emptyTrash', dir: trash, removed });
+      this.journal({ op: 'emptyTrash', dirs: trashes, removed });
       return { removed, pruned };
     });
   }

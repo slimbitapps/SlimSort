@@ -1,13 +1,13 @@
 {
   "name": "fotosortierer",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Fotos und Videos per Tastendruck sortieren",
   "main": "electron/main.cjs",
   "scripts": {
     "start": "vite build && electron .",
     "build": "vite build",
     "typecheck": "tsc -p .",
-    "test": "node --test test/*.test.cjs",
+    "test": "node --test test/*.test.cjs && node --experimental-strip-types --no-warnings --test test/*.test.mjs",
     "test:e2e": "vite build && node test/e2e/run.cjs",
     "dist:win": "vite build && electron-builder --win",
     "dist:mac": "vite build && electron-builder --mac",
@@ -43,7 +43,8 @@
     "files": [
       "dist/**",
       "electron/**",
-      "package.json"
+      "package.json",
+      "!**/*.map"
     ],
     "asarUnpack": [
       "electron/core/heic-worker.cjs",
@@ -84,7 +85,8 @@
         {
           "target": "dmg",
           "arch": [
-            "universal"
+            "arm64",
+            "x64"
           ]
         }
       ],
@@ -93,7 +95,7 @@
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "artifactName": "Fotosortierer-Mac.${ext}"
+      "artifactName": "Fotosortierer-Mac-${arch}.${ext}"
     },
     "linux": {
       "target": [
@@ -135,7 +137,17 @@
           "path": "/Applications"
         }
       ]
-    }
+    },
+    "compression": "maximum",
+    "electronLanguages": [
+      "de",
+      "en",
+      "en-US",
+      "en-GB",
+      "fr",
+      "es",
+      "it"
+    ]
   },
   "repository": {
     "type": "git",

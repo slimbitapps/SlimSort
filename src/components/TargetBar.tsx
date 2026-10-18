@@ -1,14 +1,17 @@
 import { useMemo, useRef, useState } from 'react';
 import { t } from '../i18n';
 import {
-  useStore, activeProfile, sortToTarget, trashCurrent, skipCurrent, pickAndAddTarget, openDialog, updateTarget,
+  useStore, activeProfile, sortToTarget, trashCurrent, skipCurrent, otherFolder, pickAndAddTarget, openDialog, updateTarget,
   removeTarget, reorderTarget, groupTargets, updateGroup, dissolveGroup, moveTargetToEnd, suggestionFor, currentItem,
   type SessionState,
 } from '../store';
 import type { Group, Target } from '../types';
 import { COLORS, basename, fmtNum } from '../util';
-import { IconPlus, IconTrash, IconWarning, IconFolder, IconKeyboard, IconChevronDown, IconChevronRight, IconSkip } from '../icons';
+import {
+  IconPlus, IconTrash, IconWarning, IconFolder, IconKeyboard, IconChevronDown, IconChevronRight, IconSkip, IconFolderOut,
+} from '../icons';
 import { Floating, Help, KeyCap } from './ui';
+import { tip } from './Tooltip';
 
 type Menu =
   | { kind: 'target'; target: Target; x: number; y: number }
@@ -27,6 +30,8 @@ export function Dock({ s }: { s: SessionState }) {
   const longPress = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestion = suggestionFor(s, currentItem(s));
   const mac = window.api.platform === 'darwin';
+  const expert = useStore((st) => st.settings.prefs.mode === 'expert');
+  const inCompare = !!s.compare;
 
   // Gruppen an der Stelle ihres ersten Mitglieds einfügen
   const blocks = useMemo(() => {
@@ -74,9 +79,17 @@ export function Dock({ s }: { s: SessionState }) {
         style={{ ['--c' as string]: tg.color }}
         data-testid="target"
         data-name={tg.name}
-        title={`${tg.name}\n${tg.path}${offline ? '\n⚠ ' + t('ses.offline') : ''}`}
+        {...tip(
+          tg.name,
+          offline
+            ? t('ses.offline') + ' – ' + tg.path
+            : inCompare
+              ? t('tip.targetCompare')
+              : t('tip.target', { path: tg.path }),
+          tg.key || undefined
+        )}
         draggable
-        onClick={() => sortToTarget(tg.id)}
+        onClick={(e) => sortToTarget(tg.id, { wholeSeries: e.shiftKey })}
         onContextMenu={(e) => {
           e.preventDefault();
           setMenu({ kind: 'target', target: tg, x: e.clientX, y: e.clientY });
@@ -148,7 +161,7 @@ export function Dock({ s }: { s: SessionState }) {
             if (dragId) groupTargets(dragId, members[members.length - 1].id);
             setDragId(null);
           }}
-          title={members.map((m) => `${m.key || '–'}  ${m.name}`).join('\n')}
+          {...tip(g.name, members.map((m) => `${m.key || '–'} ${m.name}`).join(' · '))}
         >
           <div className="row" style={{ gap: 4 }}>
             {g.collapsed ? <IconChevronRight size={14} /> : <IconChevronDown size={14} />}
@@ -184,15 +197,25 @@ export function Dock({ s }: { s: SessionState }) {
   return (
     <div className="dock" data-testid="targetbar">
       <div className="dock-actions" data-coach="actions">
-        <button className="act" onClick={skipCurrent} data-testid="skip" title={`${t('ses.skip')} (${t('key.space')})`}>
+        <button className="act" onClick={skipCurrent} data-testid="skip" {...tip(t('ses.skip'), inCompare ? t('tip.cmpSingle') : t('tip.skip'), t('key.space'))}>
           <IconSkip size={18} />
           {t('ses.skip')}
           <KeyCap k={t('key.space')} />
         </button>
-        <button className="act delete" onClick={trashCurrent} data-testid="target-trash" title={t('ses.delete.tip')}>
+        <button
+          className="act delete"
+          onClick={trashCurrent}
+          data-testid="target-trash"
+          {...tip(t('ses.delete'), inCompare ? t('tip.cmpDone') : t('tip.delete'), mac ? '⌫' : t('key.del'))}
+        >
           <IconTrash size={18} />
           {t('ses.delete')}
           <KeyCap k={mac ? '⌫' : t('key.del')} />
+        </button>
+        <button className="act other" onClick={otherFolder} data-testid="other-folder" {...tip(t('ses.otherShort'), t('tip.other'), 'Enter')}>
+          <IconFolderOut size={18} />
+          {t('ses.otherShort')}
+          <KeyCap k="Enter" />
         </button>
       </div>
       <div className="dock-sep" />
@@ -208,14 +231,16 @@ export function Dock({ s }: { s: SessionState }) {
         }}
       >
         {blocks.map((b) => (b.type === 't' ? renderTarget(b.target) : renderGroup(b.group, b.members)))}
-        <button className="target add" onClick={pickAndAddTarget} data-testid="add-target">
+        <button className="target add" onClick={pickAndAddTarget} data-testid="add-target" {...tip(t('ses.addTarget'), t('tip.addTarget'))}>
           <IconPlus size={16} />
           {t('ses.addTarget')}
         </button>
         {profile.targets.length === 0 && <div className="target-hint">{t('ses.noTargets')}</div>}
-        <div className="row" style={{ alignSelf: 'center', padding: '0 6px', flex: 'none' }}>
-          <Help title={t('setup.targets.title')} text={t('targets.help')} />
-        </div>
+        {expert && (
+          <div className="row" style={{ alignSelf: 'center', padding: '0 6px', flex: 'none' }}>
+            <Help title={t('setup.targets.title')} text={t('targets.help')} />
+          </div>
+        )}
       </div>
 
       {menu && menu.kind === 'target' && <TargetMenu menu={menu} onClose={() => setMenu(null)} />}

@@ -3,7 +3,8 @@
  * Liefert Dateien, Vorschaubilder und große Vorschauen an die Oberfläche:
  *   media://f/?p=<Pfad>            Originaldatei (mit Range für Videos)
  *   thumb://f/?p=<Pfad>&s=256      Vorschaubild (zwischengespeichert)
- *   preview://f/?p=<Pfad>          große Ansicht für HEIC/RAW/TIFF
+ *   preview://f/?p=<Pfad>&s=3072   bildschirmgroße Ansicht (spart Rechenzeit
+ *                                  gegenüber dem Original, z. B. 48-MP-Fotos)
  */
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
@@ -24,11 +25,10 @@ function createMediaServer({ nativeImage, cacheDir }) {
   const thumbDir = path.join(cacheDir, 'thumbs');
   const previewDir = path.join(cacheDir, 'previews');
   fs.mkdirSync(thumbDir, { recursive: true });
-  fs.mkdirSync(previewDir, { recursive: true });
   const osThumbs = process.platform === 'win32' || process.platform === 'darwin';
 
   // --- Warteschlange: neueste Anfragen zuerst (sichtbare Bilder beim Scrollen) ---
-  const MAX_PARALLEL = 4;
+  const MAX_PARALLEL = Math.max(2, Math.min(4, require('node:os').cpus().length - 2));
   let active = 0;
   const waiting = [];
   function schedule(fn) {
@@ -81,6 +81,7 @@ function createMediaServer({ nativeImage, cacheDir }) {
   }
 
   const inflight = new Map();
+  let written = 0;
   async function cached(dir, file, extra, make) {
     const key = await cacheKey(file, extra);
     const out = path.join(dir, key.slice(0, 2), key + '.jpg');
@@ -98,6 +99,7 @@ function createMediaServer({ nativeImage, cacheDir }) {
       const tmp = out + '.' + process.pid + '.tmp';
       await fsp.writeFile(tmp, buf);
       await fsp.rename(tmp, out);
+      if (++written % 300 === 0) trimCache().catch(() => {});
       return out;
     })().finally(() => inflight.delete(out));
     inflight.set(out, p);
@@ -109,7 +111,7 @@ function createMediaServer({ nativeImage, cacheDir }) {
     if (osThumbs) {
       try {
         const img = await nativeImage.createThumbnailFromPath(file, { width: size, height: size });
-        if (img && !img.isEmpty()) return img.toJPEG(82);
+        if (img && !img.isEmpty()) return img.toJPEG(78);
       } catch {
         /* Fallback unten */
       }
@@ -119,42 +121,60 @@ function createMediaServer({ nativeImage, cacheDir }) {
       const img = nativeImage.createFromBuffer(jpg);
       const s = img.getSize();
       const scale = Math.min(1, size / Math.max(s.width, s.height));
-      return img.resize({ width: Math.round(s.width * scale), quality: 'good' }).toJPEG(82);
+      return img.resize({ width: Math.round(s.width * scale), quality: 'good' }).toJPEG(80);
     }
     return null;
   }
 
-  async function makePreview(file) {
+  async function makePreview(file, size) {
     const ext = path.extname(file).toLowerCase();
-    if (process.platform === 'darwin') {
+    // Schnellster Weg: Vorschau des Betriebssystems (macOS: Quick Look mit
+    // Hardware-Dekodierung, Windows: Explorer-Vorschau). Dreht korrekt, kann HEIC/RAW.
+    if (osThumbs) {
       try {
-        const img = nativeImage.createFromPath(file); // ImageIO: HEIC, RAW, TIFF
-        if (!img.isEmpty()) {
-          const s = img.getSize();
-          const scale = Math.min(1, 3200 / Math.max(s.width, s.height));
-          return (scale < 1 ? img.resize({ width: Math.round(s.width * scale), quality: 'best' }) : img).toJPEG(90);
-        }
+        const img = await nativeImage.createThumbnailFromPath(file, { width: size, height: size });
+        if (img && !img.isEmpty()) return img.toJPEG(86);
       } catch {
         /* weiter */
       }
     }
     if (ext === '.heic' || ext === '.heif') {
       try {
-        return await heicToJpeg(file);
-      } catch {
-        /* weiter */
-      }
-    }
-    if (osThumbs) {
-      try {
-        const img = await nativeImage.createThumbnailFromPath(file, { width: 2560, height: 2560 });
-        if (img && !img.isEmpty()) return img.toJPEG(90);
+        const jpg = await heicToJpeg(file);
+        const img = nativeImage.createFromBuffer(jpg);
+        const s = img.getSize();
+        const scale = Math.min(1, size / Math.max(s.width, s.height));
+        return scale < 1 ? img.resize({ width: Math.round(s.width * scale), quality: 'good' }).toJPEG(86) : jpg;
       } catch {
         /* weiter */
       }
     }
     return null;
   }
+
+  // Vorschauen nur im Arbeitsspeicher halten (kein Platzverbrauch auf der Platte)
+  const previewMem = new Map(); // key -> Buffer
+  let previewBytes = 0;
+  const PREVIEW_MEM_MAX = 160 * 1024 * 1024;
+  function memPut(key, buf) {
+    if (previewMem.has(key)) return;
+    previewMem.set(key, buf);
+    previewBytes += buf.length;
+    while (previewBytes > PREVIEW_MEM_MAX && previewMem.size > 1) {
+      const [k, v] = previewMem.entries().next().value;
+      previewMem.delete(k);
+      previewBytes -= v.length;
+    }
+  }
+  function memGet(key) {
+    const v = previewMem.get(key);
+    if (v) {
+      previewMem.delete(key); // zuletzt benutzt ans Ende
+      previewMem.set(key, v);
+    }
+    return v;
+  }
+  const previewInflight = new Map();
 
   function fileFromUrl(url) {
     const u = new URL(url);
@@ -174,6 +194,7 @@ function createMediaServer({ nativeImage, cacheDir }) {
       return new Response(Readable.toWeb(fs.createReadStream(file, { start, end })), {
         status: 206,
         headers: {
+          'Access-Control-Allow-Origin': '*',
           'Content-Type': type,
           'Content-Length': String(end - start + 1),
           'Content-Range': `bytes ${start}-${end}/${st.size}`,
@@ -183,7 +204,7 @@ function createMediaServer({ nativeImage, cacheDir }) {
     }
     return new Response(Readable.toWeb(fs.createReadStream(file)), {
       status: 200,
-      headers: { 'Content-Type': type, 'Content-Length': String(st.size), 'Accept-Ranges': 'bytes' },
+      headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': type, 'Content-Length': String(st.size), 'Accept-Ranges': 'bytes' },
     });
   }
 
@@ -215,18 +236,36 @@ function createMediaServer({ nativeImage, cacheDir }) {
 
   async function handlePreview(request) {
     try {
-      const { file } = fileFromUrl(request.url);
+      const { file, size } = fileFromUrl(request.url);
       const ext = path.extname(file).toLowerCase();
+      const key = await cacheKey(file, 'p' + size);
+      let buf = memGet(key);
+      if (!buf) {
+        if (!previewInflight.has(key)) {
+          previewInflight.set(
+            key,
+            schedule(() => makePreview(file, size)).finally(() => previewInflight.delete(key))
+          );
+        }
+        buf = await previewInflight.get(key);
+        if (buf) memPut(key, buf);
+      }
+      if (buf) {
+        return new Response(buf, {
+          status: 200,
+          headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'image/jpeg', 'Content-Length': String(buf.length) },
+        });
+      }
       if (BROWSER_IMAGE_EXT.has(ext)) return serveFile(file, request);
-      const out = await cached(previewDir, file, 'preview', () => makePreview(file));
-      return out ? serveFile(out, request) : notFound();
+      return notFound();
     } catch {
       return notFound();
     }
   }
 
   /** Zwischenspeicher begrenzen (älteste Dateien zuerst entfernen). */
-  async function trimCache(maxBytes = 1.5 * 1024 ** 3) {
+  async function trimCache(maxBytes = 300 * 1024 * 1024) {
+    await fsp.rm(previewDir, { recursive: true, force: true }).catch(() => {});
     const files = [];
     for (const base of [thumbDir, previewDir]) {
       for (const sub of await fsp.readdir(base).catch(() => [])) {
@@ -255,7 +294,6 @@ function createMediaServer({ nativeImage, cacheDir }) {
     await fsp.rm(thumbDir, { recursive: true, force: true });
     await fsp.rm(previewDir, { recursive: true, force: true });
     fs.mkdirSync(thumbDir, { recursive: true });
-    fs.mkdirSync(previewDir, { recursive: true });
   }
 
   return { handleMedia, handleThumb, handlePreview, trimCache, clearCache };

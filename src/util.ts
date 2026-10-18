@@ -1,14 +1,28 @@
-import { getLocale } from './i18n';
+import { getLocale, t } from './i18n';
 import type { Item, SortBy } from './types';
 
 const enc = encodeURIComponent;
 export const mediaUrl = (p: string) => `media://f/?p=${enc(p)}`;
 export const thumbUrl = (p: string, s = 256) => `thumb://f/?p=${enc(p)}&s=${s}`;
-export const previewUrl = (p: string) => `preview://f/?p=${enc(p)}`;
+export const previewUrl = (p: string, s = 2048) => `preview://f/?p=${enc(p)}&s=${s}`;
 
 const BROWSER_IMG = new Set(['.jpg', '.jpeg', '.jpe', '.png', '.gif', '.webp', '.avif', '.bmp']);
 export const browserCanShow = (ext: string) => BROWSER_IMG.has(ext);
-export const displayUrl = (it: Item) => (browserCanShow(it.ext) ? mediaUrl(it.path) : previewUrl(it.path));
+
+/**
+ * Passende Vorschaugröße für eine Fläche (in Gerätepixeln, auf 512 gerundet).
+ * Statt riesiger Originale (z. B. 48 MP) wird nur so viel geladen, wie man sieht.
+ */
+export function previewSize(cssW: number, cssH: number) {
+  const dpr = window.devicePixelRatio || 1;
+  const px = Math.max(cssW, cssH) * dpr;
+  return Math.min(4096, Math.max(1024, Math.ceil(px / 512) * 512));
+}
+
+/** Bildschirmgroße Vorschau; das Original lädt erst beim Hineinzoomen. */
+export const displayUrl = (it: Item, size = 2048) => previewUrl(it.path, size);
+/** Original in voller Auflösung (nur für Formate, die der Browser direkt kann) */
+export const fullUrl = (it: Item) => (browserCanShow(it.ext) ? mediaUrl(it.path) : previewUrl(it.path, 4096));
 
 export const isMac = () => window.api?.platform === 'darwin';
 export const modKey = () => (isMac() ? '⌘' : getLocale().startsWith('de') ? 'Strg' : 'Ctrl');
@@ -98,4 +112,11 @@ export function isTyping(e: Event) {
   if (!el) return false;
   const tag = el.tagName;
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+}
+
+/** "43 Fotos · 1 Video" – mit Einzahl/Mehrzahl, Videos nur wenn vorhanden */
+export function countLabel(images: number, videos: number) {
+  const ph = `${fmtNum(images)} ${t(images === 1 ? 'unit.photo' : 'unit.photos')}`;
+  if (!videos) return ph;
+  return `${ph} · ${fmtNum(videos)} ${t(videos === 1 ? 'unit.video' : 'unit.videos')}`;
 }

@@ -64,16 +64,23 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npx electron-builder --mac dmg --universal -c.mac.notarize=true --publish never
+        run: |
+          npx electron-builder --mac dmg --arm64 --x64 -c.mac.notarize=true --publish never
+          mv release/Fotosortierer-Mac-arm64.dmg release/Fotosortierer-Mac.dmg
+          mv release/Fotosortierer-Mac-x64.dmg release/Fotosortierer-Mac-Intel.dmg
 
       - name: Unsigniert (ohne Apple-Zugang)
         if: env.HAS_APPLE != 'true'
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: |
-          npx electron-builder --mac dir --universal -c.mac.identity=null --publish never
-          codesign --force --deep --sign - release/mac-universal/Fotosortierer.app
-          npx electron-builder --mac dmg --universal -c.mac.identity=null --prepackaged release/mac-universal/Fotosortierer.app --publish never
+          npx electron-builder --mac dir --arm64 --x64 -c.mac.identity=null --publish never
+          codesign --force --deep --sign - release/mac-arm64/Fotosortierer.app
+          codesign --force --deep --sign - release/mac/Fotosortierer.app
+          npx electron-builder --mac dmg --arm64 -c.mac.identity=null --prepackaged release/mac-arm64/Fotosortierer.app --publish never
+          npx electron-builder --mac dmg --x64 -c.mac.identity=null --prepackaged release/mac/Fotosortierer.app --publish never
+          mv release/Fotosortierer-Mac-arm64.dmg release/Fotosortierer-Mac.dmg
+          mv release/Fotosortierer-Mac-x64.dmg release/Fotosortierer-Mac-Intel.dmg
 
       - uses: actions/upload-artifact@v4
         with:
@@ -103,11 +110,13 @@ jobs:
           make_latest: true
           body: |
             **Windows:** Fotosortierer-Setup.exe herunterladen und doppelklicken.
-            **Mac:** Fotosortierer-Mac.dmg öffnen und die App auf „Programme“ ziehen.
+            **Mac (Apple-Chip M1–M4):** Fotosortierer-Mac.dmg öffnen und die App auf „Programme“ ziehen.
+            **Älterer Mac mit Intel-Prozessor:** Fotosortierer-Mac-Intel.dmg
             Anleitung mit Bildern: https://slimbitapps.github.io/fotosortierter
           files: |
             out/Fotosortierer-Setup.exe
             out/Fotosortierer-Mac.dmg
+            out/Fotosortierer-Mac-Intel.dmg
             out/Fotosortierer-Windows-portable.zip
 
   # Download-Seite (Ordner "website") auf GitHub Pages veröffentlichen

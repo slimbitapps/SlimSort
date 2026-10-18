@@ -3,8 +3,10 @@ import { t } from './i18n';
 import {
   useStore, init, closeDialog, setZen, clearSelection, openDialog, undo, selectAll, toggleFullscreen, toggleView,
   step, jumpEdge, skipCurrent, trashCurrent, otherFolder, findTargetByKey, sortToTarget, runQuickStart, toast,
-  dismissToast, sortedRecents, coachNext, coachEnd, goHome,
+  dismissToast, sortedRecents, coachNext, coachEnd, goHome, compareSkip, compareConfirm, compareKeepOnly, compareIdAt,
+  comparePage,
 } from './store';
+import { TooltipLayer } from './components/Tooltip';
 import { Header } from './components/Header';
 import { Onboarding } from './components/Onboarding';
 import { Home } from './components/Home';
@@ -36,6 +38,7 @@ function onKeyDown(e: KeyboardEvent) {
     if (st.fullscreen) window.api.setFullscreen(false);
     if (st.dialog) closeDialog();
     else if (st.zen) setZen(false);
+    else if (st.session?.compare) compareSkip();
     else clearSelection();
     return;
   }
@@ -65,6 +68,58 @@ function onKeyDown(e: KeyboardEvent) {
 
   const s = st.session;
   if (st.screen !== 'session' || !s) return;
+
+  // ---- Vergleich einer Serie
+  if (s.compare && !mod) {
+    if (e.code && /^(Digit|Numpad)[1-9]$/.test(e.code) && e.shiftKey) {
+      // Shift + Zahl: nur dieses Foto behalten
+      e.preventDefault();
+      const id = compareIdAt(Number(e.code.slice(-1)));
+      if (id !== null) compareKeepOnly(id);
+      return;
+    }
+    switch (e.key) {
+      case 'Escape':
+      case ' ':
+        e.preventDefault();
+        if (!e.repeat) compareSkip();
+        return;
+      case 'Enter':
+      case 'Delete':
+      case 'Backspace':
+        e.preventDefault();
+        if (!e.repeat) compareConfirm();
+        return;
+      case 'ArrowRight':
+        e.preventDefault();
+        comparePage(1);
+        return;
+      case 'ArrowLeft':
+        e.preventDefault();
+        comparePage(-1);
+        return;
+      case '+':
+      case '=':
+        zoomCommand('in');
+        return;
+      case '-':
+        zoomCommand('out');
+        return;
+      case 'Tab':
+      case 'F10':
+        e.preventDefault();
+        return;
+    }
+    const k = keyFromEvent(e);
+    if (k && !e.altKey) {
+      e.preventDefault();
+      if (e.repeat) return;
+      const target = findTargetByKey(k);
+      if (target) compareConfirm(target.id);
+      else toast('info', t('toast.noTargetKey', { key: k }), { timeout: 1800 });
+    }
+    return;
+  }
 
   if (mod) {
     const k = e.key.toLowerCase();
@@ -150,7 +205,8 @@ function onKeyDown(e: KeyboardEvent) {
     e.preventDefault();
     if (e.repeat) return;
     const target = findTargetByKey(k);
-    if (target) sortToTarget(target.id);
+    // Shift + Ordner-Taste: die ganze Serie auf einmal
+    if (target) sortToTarget(target.id, { wholeSeries: e.shiftKey });
     else toast('info', t('toast.noTargetKey', { key: k }), { timeout: 1800 });
   }
 }
@@ -290,6 +346,7 @@ export function App() {
       )}
       <Dialogs />
       <Coach />
+      <TooltipLayer />
       <Toasts />
       <Flash />
       <Loading />

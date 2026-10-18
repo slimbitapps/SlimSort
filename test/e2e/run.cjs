@@ -43,6 +43,8 @@ async function waitFor(fn, ms = 6000, label = '') {
   const userData = path.join(base, 'userdata');
   fs.mkdirSync(userData, { recursive: true });
   execFileSync('python3', [path.join(ROOT, 'scripts', 'make-fixtures.py'), src]);
+  const src2 = path.join(base, 'Handy');
+  execFileSync('python3', [path.join(ROOT, 'scripts', 'make-fixtures.py'), src2, '--simple', '3', 'DSC']);
   const urlaub = path.join(base, 'Fotos', 'Urlaub');
   const familie = path.join(base, 'Fotos', 'Familie');
 
@@ -60,7 +62,7 @@ async function waitFor(fn, ms = 6000, label = '') {
   const app = await electron.launch({
     executablePath: process.env.FOTOSORT_EXE || require('electron'),
     args: process.env.FOTOSORT_EXE ? ['--no-sandbox'] : [ROOT, '--no-sandbox'],
-    env: { ...process.env, FOTOSORT_TEST: '1', FOTOSORT_USERDATA: userData, FOTOSORT_PICK: src, LANG: 'de_DE.UTF-8' },
+    env: { ...process.env, FOTOSORT_TEST: '1', FOTOSORT_USERDATA: userData, FOTOSORT_PICK: `${src}|${src2}`, LANG: 'de_DE.UTF-8' },
   });
   const win = await app.firstWindow();
   const errors = [];
@@ -91,6 +93,10 @@ async function waitFor(fn, ms = 6000, label = '') {
   await win.click('[data-testid="pick-source"]');
   await win.waitForSelector('[data-testid="setup"]');
   await win.waitForFunction(() => /40 Fotos/.test(document.querySelector('[data-testid="source-count"]').textContent));
+  // Zweiten Quellordner hinzufügen
+  await win.click('[data-testid="add-source"]');
+  await win.waitForFunction(() => /43 Fotos/.test(document.querySelector('[data-testid="source-count"]').textContent));
+  assert.equal((await win.$$('[data-testid="source-row"]')).length, 2);
   console.log('Zählung:', await win.textContent('[data-testid="source-count"]'));
   await shot('06-setup-source');
   await win.click('[data-testid="setup-next"]');
@@ -113,7 +119,7 @@ async function waitFor(fn, ms = 6000, label = '') {
   await win.waitForSelector('[data-testid="coach"]');
   await sleep(600);
   await shot('09-coach');
-  for (let i = 0; i < 4; i++) await win.click('[data-testid="coach-next"]');
+  for (let i = 0; i < 5; i++) await win.click('[data-testid="coach-next"]');
   await sleep(300);
   assert.equal(await win.$('[data-testid="coach"]'), null, 'Einführung beendet');
   await win.waitForSelector('[data-testid="single"] img.media');
@@ -121,7 +127,64 @@ async function waitFor(fn, ms = 6000, label = '') {
   await shot('10-single');
 
   const status = () => win.textContent('[data-testid="status"]');
-  assert.match(await status(), /0 von 41/);
+  assert.match(await status(), /0 von 44/);
+  const mod = process.platform === 'darwin' ? 'Meta' : 'Control';
+
+  // Zweiter Quellordner: Löschen landet im Papierkorb DIESES Ordners
+  assert.match(await win.textContent('[data-testid="single-info"]'), /DSC_0001/);
+  await win.keyboard.press('Delete');
+  await waitFor(() => exists(path.join(src2, '_Gelöscht', 'DSC_0001.JPG')), 6000, 'Papierkorb im zweiten Ordner');
+  await win.keyboard.press(`${mod}+z`);
+  await waitFor(() => exists(path.join(src2, 'DSC_0001.JPG')), 6000, 'DSC zurück');
+
+  // ---------------------------------------------------------------- Serien & Vergleich
+  await win.keyboard.press('End');
+  await win.keyboard.press('Home');
+  for (let i = 0; i < 3; i++) await win.keyboard.press('ArrowRight');
+  await win.waitForSelector('[data-testid="compare"]');
+  await win.waitForFunction(() => !/Bewertung/.test(document.querySelector('[data-testid="cmp-status"]').textContent), null, { timeout: 20000 });
+  await sleep(500);
+  await shot('10b-compare');
+  // Erklärung beim Darüberfahren
+  await win.hover('[data-testid="cmp-confirm"]');
+  await win.waitForSelector('.tooltip', { timeout: 3000 });
+  await win.screenshot({ path: path.join(SHOTS, '10c-tooltip.png') });
+  await win.mouse.move(5, 300);
+  const cells = await win.$$eval('[data-testid="cmp-cell"]', (els) => els.map((e) => ({ name: e.dataset.name, keep: e.dataset.keep, best: e.dataset.best })));
+  console.log('Vergleich:', JSON.stringify(cells));
+  assert.equal(cells.length, 5);
+  const best = cells.find((c) => c.best === '1');
+  assert.ok(best && best.name !== 'IMG_0002.JPG', 'unscharfes Foto wird nicht empfohlen');
+  assert.equal(cells.filter((c) => c.keep === '1').length, 1, 'nur das beste ist vorausgewählt');
+  // Shift+3: nur Foto 3 behalten, dann Taste 1 (Urlaub)
+  await win.keyboard.press('Shift+Digit3');
+  await sleep(150);
+  assert.match(await win.textContent('[data-testid="cmp-status"]'), /1 behalten, 4 werden gelöscht/);
+  await win.keyboard.press('1');
+  await waitFor(() => exists(path.join(urlaub, 'IMG_0003.JPG')) && exists(path.join(urlaub, 'IMG_0003.xmp')), 6000, 'Behaltenes in Urlaub');
+  await waitFor(
+    () => ['IMG_0001.JPG', 'IMG_0002.JPG', 'IMG_0004.JPG', 'IMG_0005.JPG', 'IMG_0005.MOV'].every((n) => exists(path.join(src, '_Gelöscht', n))),
+    8000,
+    'Rest im Papierkorb'
+  );
+  // Ein Rückgängig nimmt den ganzen Vergleich zurück
+  await win.keyboard.press(`${mod}+z`);
+  await waitFor(() => ['IMG_0001.JPG', 'IMG_0002.JPG', 'IMG_0003.JPG', 'IMG_0004.JPG', 'IMG_0005.JPG'].every((n) => exists(path.join(src, n))), 8000, 'Vergleich rückgängig');
+  await win.waitForSelector('[data-testid="compare"]');
+  // Leertaste: einzeln ansehen
+  await win.keyboard.press(' ');
+  await win.waitForSelector('[data-testid="single"]');
+  assert.match(await win.textContent('[data-testid="single-info"]'), /IMG_0001/);
+  assert.ok(await win.$('[data-testid="series-chip"]'), 'Hinweis auf Serie');
+  // Shift + Ordner-Taste: ganze Serie verschieben
+  await win.keyboard.press('Shift+Digit2');
+  await waitFor(() => ['IMG_0001.JPG', 'IMG_0002.JPG', 'IMG_0003.JPG', 'IMG_0004.JPG', 'IMG_0005.JPG'].every((n) => exists(path.join(familie, n))), 8000, 'Serie nach Familie');
+  await win.keyboard.press(`${mod}+z`);
+  await waitFor(() => ['IMG_0001.JPG', 'IMG_0002.JPG', 'IMG_0003.JPG', 'IMG_0004.JPG', 'IMG_0005.JPG'].every((n) => exists(path.join(src, n))), 8000, 'Serie zurück');
+  // Für die weiteren Prüfungen: Serien ausschalten
+  await win.click('[data-testid="series-toggle"]');
+  await sleep(200);
+  assert.match(await win.textContent('[data-testid="single-info"]'), /IMG_0001/);
 
   // Tastenbelegung: Urlaub=1, Familie=2 (3 = NAS)
   await win.keyboard.press('1');
@@ -154,7 +217,6 @@ async function waitFor(fn, ms = 6000, label = '') {
   await waitFor(() => fs.readdirSync(nas).length === 1, 6000, 'Datei auf NAS');
 
   // Rückgängig x4
-  const mod = process.platform === 'darwin' ? 'Meta' : 'Control';
   await win.keyboard.press(`${mod}+z`);
   await waitFor(() => fs.readdirSync(nas).length === 0, 6000, 'NAS rückgängig');
   await win.keyboard.press(`${mod}+z`);
@@ -177,7 +239,13 @@ async function waitFor(fn, ms = 6000, label = '') {
   await win.keyboard.press('2');
   await waitFor(() => names.every((n) => exists(path.join(familie, n))), 8000, 'Mehrfachauswahl');
   await win.keyboard.press(`${mod}+z`);
-  await waitFor(() => names.every((n) => exists(path.join(src, n))), 8000, 'Mehrfach rückgängig');
+  await waitFor(() => names.every((n) => exists(path.join(src, n)) || exists(path.join(src2, n))), 8000, 'Mehrfach rückgängig');
+  // Auswahl vergleichen
+  await win.click('[data-testid="compare-selection"]');
+  await win.waitForSelector('[data-testid="compare"]');
+  assert.equal((await win.$$('[data-testid="cmp-cell"]')).length, 4);
+  await win.keyboard.press('Escape');
+  await win.waitForSelector('[data-testid="grid"]');
 
   // Nur Bild
   await win.keyboard.press('Tab');
@@ -218,6 +286,15 @@ async function waitFor(fn, ms = 6000, label = '') {
   await win.click('text=Einstellungen');
   await win.waitForSelector('[data-testid="settings"]');
   await shot('16-settings');
+  await win.click('[data-testid="settings-series"]');
+  if (!(await win.$('[data-testid="series-gap"]'))) await win.click('.settings-main .switch');
+  await win.fill('[data-testid="series-gap"]', '0,1');
+  await sleep(200);
+  console.log('Serien-Vorschau:', await win.textContent('[data-testid="series-preview"]'));
+  assert.match(await win.textContent('[data-testid="series-preview"]'), /0 Serien/);
+  await win.fill('[data-testid="series-gap"]', '3');
+  await sleep(200);
+  await shot('16b-settings-series');
   await win.click('[data-testid="settings-help"]');
   await shot('17-settings-help');
   await win.click('[data-testid="settings-about"]');

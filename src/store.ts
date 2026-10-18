@@ -3,7 +3,9 @@ import { setLang, t, errText } from './i18n';
 import type {
   Item, Prefs, Profile, QuickStart, SettingsData, Target, OpDoneEvent, ProgressEvent, Filter,
 } from './types';
-import { basename, COLORS, itemTime, sortItems, uid, isAssignableKey } from './util';
+import { basename, COLORS, itemTime, sortItems, uid, isAssignableKey, thumbUrl } from './util';
+import { computeSeries, rankSeries, MOTIF_DIST } from './series';
+import { configureAnalysis, requestAnalysis, resetAnalysis } from './analysis';
 
 // ---------------------------------------------------------------- Typen
 
@@ -25,17 +27,23 @@ export type Dialog =
   | { type: 'lost' }
   | { type: 'profiles' }
   | { type: 'keyCapture'; targetId: string }
-  | { type: 'prompt'; title: string; value: string; onOk: (v: string) => void }
-  | { type: 'quickEdit'; id: string };
+  | { type: 'prompt'; title: string; value: string; onOk: (v: string) => void };
+
+/** Ein Dateiauftrag (Verschieben/Kopieren/Löschen) für mehrere Einträge */
+interface OpRec {
+  opId: number;
+  ids: number[];
+  targetId: string | null;
+  trash: boolean;
+}
 
 interface UndoEntry {
   kind: 'transfer' | 'skip';
-  opId?: number;
-  ids: number[];
-  targetId?: string | null;
-  trash?: boolean;
+  ops: OpRec[];
+  skipIds?: number[];
   prevCurrent: number | null;
-  prevView?: 'grid' | 'single';
+  /** Gehört zu einem Serien-Vergleich – Rückgängig öffnet ihn wieder */
+  seriesKey?: number;
 }
 
 interface DoneInfo {
@@ -44,9 +52,20 @@ interface DoneInfo {
   trash: boolean;
 }
 
+export interface CompareState {
+  ids: number[];
+  /** Serie (kleinste ID) oder null bei manuell ausgewählten Fotos */
+  key: number | null;
+  page: number;
+  keep: Set<number>;
+  /** Hat der Nutzer die Auswahl selbst verändert? */
+  touched: boolean;
+}
+
 export interface SessionState {
+  sources: string[];
+  /** erster Quellordner (für Anzeige/Kompatibilität) */
   source: string;
-  trashDir: string;
   profileId: string;
   items: Item[];
   byId: Map<number, Item>;
@@ -65,6 +84,12 @@ export interface SessionState {
   lastSorted: { targetId: string; t: number }[];
   view: 'grid' | 'single';
   summaryShown: boolean;
+  /** Serien (zeitlich sortierte IDs) */
+  series: number[][];
+  seriesOf: Map<number, number>;
+  seriesDone: Set<number>;
+  seriesCompared: number;
+  compare: CompareState | null;
   rev: number;
 }
 
@@ -80,9 +105,9 @@ export interface Progress {
 
 export interface SetupState {
   step: 0 | 1 | 2;
-  source: string;
+  sources: string[];
   recursive: boolean;
-  count: { images: number; videos: number; total: number; sample: string[] } | null;
+  count: { images: number; videos: number; total: number; sample: string[]; perDir?: number[] } | null;
   counting: boolean;
   startView: 'grid' | 'single';
   trashDir: string | null;
@@ -129,6 +154,11 @@ export const defaultPrefs: Prefs = {
   activeProfileId: 'default',
   zenFlash: true,
   showFilmstrip: true,
+  seriesEnabled: true,
+  seriesGapSec: 3,
+  seriesStrict: 'normal',
+  autoCompare: true,
+  preselectBest: true,
 };
 
 function defaultSettings(): SettingsData {
@@ -222,8 +252,12 @@ export function updatePrefs(p: Partial<Prefs>) {
   if (p.theme) api().setTheme(p.theme);
   set({ settings: { ...s, prefs: { ...s.prefs, ...p } } });
   persist();
-  if (('sortBy' in p || 'sortDir' in p || 'filter' in p) && get().session) {
-    resortSession();
+  const ses = get().session;
+  if (!ses) return;
+  if ('sortBy' in p || 'sortDir' in p || 'filter' in p) resortSession();
+  if ('seriesGapSec' in p || 'seriesStrict' in p || 'seriesEnabled' in p) {
+    if (p.seriesEnabled === false) ses.compare = null;
+    rebuildSeries(ses, true);
   }
 }
 
@@ -258,9 +292,9 @@ function watchDirs() {
   const s = get().settings;
   const dirs = new Set<string>();
   for (const p of s.profiles) for (const tg of p.targets) dirs.add(tg.path);
-  for (const q of s.quickStarts) dirs.add(q.source);
+  for (const q of s.quickStarts) for (const d of q.sources || [q.source]) dirs.add(d);
   const ses = get().session;
-  if (ses) dirs.add(ses.source);
+  if (ses) for (const d of ses.sources) dirs.add(d);
   api()
     .setWatchedDirs([...dirs])
     .then((r) => set({ reach: { ...get().reach, ...r } }));
@@ -305,11 +339,37 @@ function wireEvents() {
   a.on('exif:batch', onExif);
   a.on('exif:done', () => {
     const s = get().session;
-    if (s && prefs().sortBy === 'date') resortSession();
+    if (!s) return;
+    if (prefs().sortBy === 'date') resortSession();
+    rebuildSeries(s, true);
+    queueAnalysis(s);
   });
   a.on('reach:change', onReach);
   a.on('win:fullscreen', (on: boolean) => set({ fullscreen: on }));
   a.on('app:quitting', (n: number) => toast('info', t('toast.quitting', { n }), { timeout: 0 }));
+
+  configureAnalysis({
+    priority: (id) => {
+      const s = get().session;
+      if (!s) return 0;
+      const i = s.viewIds.indexOf(id);
+      const c = s.currentId === null ? 0 : s.viewIds.indexOf(s.currentId);
+      const inCompare = s.compare?.ids.includes(id) ? -1e9 : 0;
+      return inCompare + (i < 0 ? 1e7 : Math.abs(i - c) + (i < c ? 5 : 0));
+    },
+    onResult: (id, r) => {
+      const s = get().session;
+      const it = s?.byId.get(id);
+      if (!s || !it) return;
+      it.analyzed = true;
+      if (r) {
+        it.hash = r.hash;
+        it.sharp = r.sharp;
+        it.expo = r.expo;
+      }
+      scheduleSeriesRefresh();
+    },
+  });
 }
 
 let lastProg = { opId: -1, bytes: 0, time: 0 };
@@ -345,28 +405,33 @@ function onExif(batch: [number, number][]) {
   }
 }
 
+/** Einträge eines (teilweise) fehlgeschlagenen Auftrags zurückholen. */
+function revertDone(s: SessionState, id: number, opId: number) {
+  const d = s.done.get(id);
+  if (!d || d.opId !== opId) return false;
+  s.done.delete(id);
+  if (d.trash) s.deleted--;
+  else if (d.targetId) {
+    s.counts[d.targetId] = Math.max(0, (s.counts[d.targetId] || 1) - 1);
+    s.sorted--;
+  } else s.other--;
+  return true;
+}
+
 function onOpDone(e: OpDoneEvent) {
   const s = get().session;
   if (!s) return;
   if (e.kind === 'transfer') {
     const failed = e.results.filter((r) => !r.ok);
     if (!failed.length) return;
-    for (const r of failed) {
-      const d = s.done.get(r.id);
-      if (d && d.opId === e.opId) {
-        s.done.delete(r.id);
-        if (d.trash) s.deleted--;
-        else if (d.targetId) {
-          s.counts[d.targetId] = Math.max(0, (s.counts[d.targetId] || 1) - 1);
-          s.sorted--;
-        } else s.other--;
-      }
-    }
-    // Rückgängig-Eintrag anpassen
+    for (const r of failed) revertDone(s, r.id, e.opId);
     const failedIds = new Set(failed.map((r) => r.id));
     s.undo = s.undo
-      .map((u) => (u.opId === e.opId ? { ...u, ids: u.ids.filter((id) => !failedIds.has(id)) } : u))
-      .filter((u) => u.kind !== 'transfer' || u.ids.length);
+      .map((u) => ({
+        ...u,
+        ops: u.ops.map((o) => (o.opId === e.opId ? { ...o, ids: o.ids.filter((id) => !failedIds.has(id)) } : o)).filter((o) => o.ids.length),
+      }))
+      .filter((u) => u.kind !== 'transfer' || u.ops.length);
     const first = failed[0];
     if (first.error === 'EUNREACHABLE') {
       if (e.destDir) set({ reach: { ...get().reach, [e.destDir]: false } });
@@ -394,7 +459,7 @@ function onOpDone(e: OpDoneEvent) {
 // ---------------------------------------------------------------- Sitzung starten
 
 export interface StartOptions {
-  source: string;
+  sources: string[];
   profileId: string;
   trashDir: string | null;
   startView: 'grid' | 'single';
@@ -406,8 +471,8 @@ export async function startSession(o: StartOptions) {
   scanActive = true;
   set({ scanning: 0 });
   try {
-    const { items, trashDir } = await api().openSession({
-      sourceDir: o.source,
+    const { items } = await api().openSession({
+      sourceDirs: o.sources,
       recursive: o.recursive,
       trashDir: o.trashDir,
     });
@@ -417,11 +482,12 @@ export async function startSession(o: StartOptions) {
       toast('info', t('start.empty'), { timeout: 5000 });
       return false;
     }
+    resetAnalysis();
     const p = prefs();
     const sorted = sortItems(items, p.sortBy, p.sortDir);
     const session: SessionState = {
-      source: o.source,
-      trashDir,
+      sources: o.sources,
+      source: o.sources[0],
       profileId: o.profileId,
       items: sorted,
       byId: new Map(items.map((i) => [i.id, i])),
@@ -440,15 +506,21 @@ export async function startSession(o: StartOptions) {
       lastSorted: [],
       view: o.startView,
       summaryShown: false,
+      series: [],
+      seriesOf: new Map(),
+      seriesDone: new Set(),
+      seriesCompared: 0,
+      compare: null,
       rev: 0,
     };
     if (p.filter === 'skipped') updatePrefs({ filter: 'all' });
     updateSettings((st) => ({
       ...st,
       prefs: { ...st.prefs, activeProfileId: o.profileId },
-      recentSources: [o.source, ...st.recentSources.filter((x) => x !== o.source)].slice(0, 8),
+      recentSources: [o.sources[0], ...st.recentSources.filter((x) => x !== o.sources[0])].slice(0, 8),
       quickStarts: upsertRecent(st.quickStarts, o),
     }));
+    rebuildSeries(session, false);
     recompute(session, {});
     set({
       screen: 'session',
@@ -457,6 +529,7 @@ export async function startSession(o: StartOptions) {
       zen: false,
       coach: get().settings.tutorialDone ? null : 0,
     });
+    queueAnalysis(session);
     if (o.fullscreen) api().setFullscreen(true);
     watchDirs();
     return true;
@@ -471,6 +544,7 @@ export async function startSession(o: StartOptions) {
 
 export function goHome() {
   scanActive = false;
+  resetAnalysis();
   set({ screen: 'home', session: null, setup: null, zen: false, dialog: null, scanning: null, coach: null });
   api().pending().then((n) => n === 0 && set({ progress: null }));
   api().setFullscreen(false);
@@ -485,6 +559,12 @@ function matchesFilter(it: Item, f: Filter, s: SessionState) {
   return true;
 }
 
+/** Sitzung neu zeichnen (und ggf. Vergleich automatisch öffnen). */
+function commit(s: SessionState) {
+  maybeOpenCompare(s);
+  set({ session: { ...s, rev: s.rev + 1 } });
+}
+
 /**
  * Berechnet die sichtbare Liste neu und hält die Position:
  * Ist das aktuelle Bild weg, rückt das nächste nach.
@@ -495,16 +575,18 @@ function recompute(s: SessionState, o: { keepId?: number | null; preferId?: numb
   const view: number[] = [];
   for (const it of s.items) if (!s.done.has(it.id) && matchesFilter(it, f, s)) view.push(it.id);
   s.viewIds = view;
+  const inView = new Set(view);
   let cur: number | null = null;
-  if (o.preferId !== undefined && view.includes(o.preferId)) cur = o.preferId;
-  else if (o.keepId !== undefined && o.keepId !== null && view.includes(o.keepId)) cur = o.keepId;
+  if (o.preferId !== undefined && inView.has(o.preferId)) cur = o.preferId;
+  else if (o.keepId !== undefined && o.keepId !== null && inView.has(o.keepId)) cur = o.keepId;
   else if (view.length) cur = view[Math.max(0, Math.min(oldIdx, view.length - 1))];
   s.currentId = cur;
-  if (s.selection.size) {
-    const inView = new Set(view);
-    for (const id of [...s.selection]) if (!inView.has(id)) s.selection.delete(id);
+  if (s.selection.size) for (const id of [...s.selection]) if (!inView.has(id)) s.selection.delete(id);
+  if (s.compare) {
+    s.compare.ids = s.compare.ids.filter((id) => !s.done.has(id));
+    if (s.compare.ids.length < 2) s.compare = null;
   }
-  set({ session: { ...s, rev: s.rev + 1 } });
+  commit(s);
   maybeFinished(s);
 }
 
@@ -529,6 +611,228 @@ export const currentItem = (s: SessionState | null) =>
   s && s.currentId !== null ? s.byId.get(s.currentId) || null : null;
 export const currentIndex = (s: SessionState) => (s.currentId === null ? -1 : s.viewIds.indexOf(s.currentId));
 
+// ---------------------------------------------------------------- Serien
+
+/**
+ * Nur Fotos mit echter Aufnahmezeit aus den Fotodaten zählen für Serien.
+ * (Das Dateidatum ist nach dem Kopieren oft bei allen Dateien gleich.)
+ */
+function seriesInput(s: SessionState) {
+  const out: { id: number; t: number; kind: 'image' | 'video'; hash?: [number, number] }[] = [];
+  for (const it of s.items) if (it.t !== undefined && it.kind === 'image') out.push({ id: it.id, t: it.t, kind: it.kind, hash: it.hash });
+  return out;
+}
+
+/** Serien neu berechnen (nach Zeit und – sobald analysiert – nach Motiv). */
+function rebuildSeries(s: SessionState, publish: boolean) {
+  const p = prefs();
+  if (!p.seriesEnabled) {
+    s.series = [];
+    s.seriesOf = new Map();
+  } else {
+    s.series = computeSeries(seriesInput(s), p.seriesGapSec * 1000, MOTIF_DIST[p.seriesStrict]);
+    s.seriesOf = new Map();
+    s.series.forEach((ids, i) => ids.forEach((id) => s.seriesOf.set(id, i)));
+  }
+  if (publish) commit(s);
+}
+
+let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleSeriesRefresh() {
+  if (refreshTimer) return;
+  refreshTimer = setTimeout(() => {
+    refreshTimer = null;
+    const s = get().session;
+    if (!s) return;
+    rebuildSeries(s, false);
+    // Vorauswahl im offenen Vergleich aktualisieren, solange nichts angefasst wurde
+    if (s.compare && !s.compare.touched) s.compare.keep = defaultKeep(s.compare.ids);
+    set({ session: { ...s, rev: s.rev + 1 } });
+  }, 250);
+}
+
+/** Fotos, die zu Serien gehören könnten, im Hintergrund analysieren lassen. */
+function queueAnalysis(s: SessionState) {
+  if (!prefs().seriesEnabled) return;
+  // Kandidaten: Fotos mit einem zeitlichen Nachbarn innerhalb des Abstands
+  const gap = prefs().seriesGapSec * 1000;
+  const imgs = s.items.filter((i) => i.kind === 'image' && i.t !== undefined).sort((a, b) => a.t! - b.t!);
+  const jobs: { id: number; url: string }[] = [];
+  for (let i = 0; i < imgs.length; i++) {
+    const it = imgs[i];
+    if (it.analyzed) continue;
+    const near = (i > 0 && it.t! - imgs[i - 1].t! <= gap) || (i < imgs.length - 1 && imgs[i + 1].t! - it.t! <= gap);
+    if (near) jobs.push({ id: it.id, url: thumbUrl(it.path, 512) });
+  }
+  if (jobs.length) requestAnalysis(jobs);
+}
+
+export function analysisFor(ids: number[]) {
+  const s = get().session;
+  if (!s) return;
+  const jobs = ids
+    .map((id) => s.byId.get(id))
+    .filter((it): it is Item => !!it && !it.analyzed && it.kind === 'image')
+    .map((it) => ({ id: it.id, url: thumbUrl(it.path, 512) }));
+  if (jobs.length) requestAnalysis(jobs);
+}
+
+export const seriesKey = (ids: number[]) => Math.min(...ids);
+
+/** Offene (noch nicht einsortierte) Mitglieder der Serie des Eintrags */
+export function openSeriesOf(s: SessionState, id: number | null): number[] {
+  if (id === null) return [];
+  const idx = s.seriesOf.get(id);
+  if (idx === undefined) return [];
+  return s.series[idx].filter((x) => !s.done.has(x));
+}
+
+export function seriesCount(s: SessionState) {
+  return s.series.filter((ids) => ids.filter((x) => !s.done.has(x)).length >= 2).length;
+}
+
+/** Wie viele Serien ergäben sich mit diesem Abstand? (Vorschau in den Einstellungen) */
+export function previewSeriesCount(gapSec: number) {
+  const s = get().session;
+  if (!s) return null;
+  const p = prefs();
+  return computeSeries(seriesInput(s), gapSec * 1000, MOTIF_DIST[p.seriesStrict]).length;
+}
+
+export function rankingFor(ids: number[]) {
+  const s = get().session;
+  return rankSeries(ids, (id) => s?.byId.get(id), MOTIF_DIST[prefs().seriesStrict]);
+}
+
+function defaultKeep(ids: number[]): Set<number> {
+  const r = rankingFor(ids);
+  if (!prefs().preselectBest || r.best === null) return new Set(ids);
+  // Bestes Foto behalten – und alles mit anderem Motiv (nie automatisch löschen)
+  return new Set([r.best, ...r.different]);
+}
+
+function maybeOpenCompare(s: SessionState) {
+  const p = prefs();
+  if (!p.seriesEnabled || !p.autoCompare || s.compare || s.view !== 'single' || get().coach !== null) return;
+  const open = openSeriesOf(s, s.currentId);
+  if (open.length < 2) return;
+  const key = seriesKey(s.series[s.seriesOf.get(s.currentId!)!]);
+  if (s.seriesDone.has(key)) return;
+  s.compare = { ids: open, key, page: 0, keep: defaultKeep(open), touched: false };
+  analysisFor(open);
+}
+
+/** Vergleich öffnen: aktuelle Serie oder die Auswahl in der Übersicht. */
+export function openCompare() {
+  const s = get().session;
+  if (!s) return;
+  let ids: number[] = [];
+  let key: number | null = null;
+  if (s.view === 'grid' && s.selection.size >= 2) ids = s.viewIds.filter((id) => s.selection.has(id));
+  else {
+    ids = openSeriesOf(s, s.currentId);
+    if (ids.length >= 2) key = seriesKey(s.series[s.seriesOf.get(s.currentId!)!]);
+  }
+  if (ids.length < 2) return;
+  ids = ids.filter((id) => s.byId.get(id)?.kind === 'image');
+  if (ids.length < 2) return;
+  s.compare = { ids, key, page: 0, keep: defaultKeep(ids), touched: false };
+  analysisFor(ids);
+  set({ session: { ...s, rev: s.rev + 1 } });
+}
+
+function closeCompare(s: SessionState, markDone: boolean) {
+  const c = s.compare;
+  if (!c) return;
+  if (markDone && c.key !== null) s.seriesDone.add(c.key);
+  s.compare = null;
+}
+
+/** Vergleich überspringen: Fotos einzeln weiter ansehen. */
+export function compareSkip() {
+  const s = get().session;
+  if (!s || !s.compare) return;
+  const first = s.compare.ids[0];
+  closeCompare(s, true);
+  if (s.view === 'single') s.currentId = first;
+  set({ session: { ...s, rev: s.rev + 1 } });
+}
+
+export function compareToggle(id: number) {
+  const s = get().session;
+  if (!s?.compare) return;
+  const k = new Set(s.compare.keep);
+  if (k.has(id)) k.delete(id);
+  else k.add(id);
+  s.compare = { ...s.compare, keep: k, touched: true };
+  set({ session: { ...s, rev: s.rev + 1 } });
+}
+
+export function compareKeepOnly(id: number) {
+  const s = get().session;
+  if (!s?.compare) return;
+  s.compare = { ...s.compare, keep: new Set([id]), touched: true };
+  set({ session: { ...s, rev: s.rev + 1 } });
+}
+
+export function compareKeepAll() {
+  const s = get().session;
+  if (!s?.compare) return;
+  s.compare = { ...s.compare, keep: new Set(s.compare.ids), touched: true };
+  set({ session: { ...s, rev: s.rev + 1 } });
+}
+
+export function comparePage(delta: number) {
+  const s = get().session;
+  if (!s?.compare) return;
+  const pages = Math.ceil(s.compare.ids.length / comparePageSize());
+  const page = Math.max(0, Math.min(pages - 1, s.compare.page + delta));
+  s.compare = { ...s.compare, page };
+  set({ session: { ...s, rev: s.rev + 1 } });
+}
+
+export function comparePageSize() {
+  return window.innerWidth < 1100 ? 4 : 6;
+}
+
+/** Foto Nr. n (1-basiert, auf der aktuellen Seite) */
+export function compareIdAt(n: number) {
+  const s = get().session;
+  if (!s?.compare) return null;
+  const ps = comparePageSize();
+  return s.compare.ids[s.compare.page * ps + n - 1] ?? null;
+}
+
+/**
+ * Vergleich abschließen: Behaltene bleiben (oder kommen in den Zielordner),
+ * alle anderen wandern in den Papierkorb. Ein Rückgängig nimmt alles zurück.
+ */
+export function compareConfirm(targetId?: string) {
+  const s = get().session;
+  if (!s?.compare) return;
+  const c = s.compare;
+  const keep = c.ids.filter((id) => c.keep.has(id));
+  const drop = c.ids.filter((id) => !c.keep.has(id));
+  let target: Target | undefined;
+  if (targetId) {
+    target = activeProfile().targets.find((x) => x.id === targetId);
+    if (target && get().reach[target.path] === false) {
+      toast('error', t('toast.unreachable', { path: target.path }));
+      api().checkReach().then(onReach);
+      return;
+    }
+  }
+  const prevCurrent = s.currentId;
+  const ops: OpRec[] = [];
+  if (target && keep.length) ops.push(startOp(s, keep, { targetId: target.id, destDir: target.path }));
+  if (drop.length) ops.push(startOp(s, drop, { trash: true }));
+  closeCompare(s, true);
+  s.seriesCompared++;
+  if (ops.length) s.undo.push({ kind: 'transfer', ops, prevCurrent: c.ids[0] ?? prevCurrent, seriesKey: c.key ?? undefined });
+  if (target && get().zen && prefs().zenFlash) flash(target.name, target.color, target.key);
+  recompute(s, { preferId: target ? undefined : keep[0] });
+}
+
 // ---------------------------------------------------------------- Navigation & Auswahl
 
 export function goTo(id: number | null, opts: { select?: boolean } = {}) {
@@ -539,7 +843,7 @@ export function goTo(id: number | null, opts: { select?: boolean } = {}) {
     s.selection = new Set([id]);
     s.anchorId = id;
   }
-  set({ session: { ...s, rev: s.rev + 1 } });
+  commit(s);
 }
 
 export function step(delta: number) {
@@ -559,7 +863,8 @@ export function jumpEdge(end: boolean) {
 export function setView(view: 'grid' | 'single') {
   const s = get().session;
   if (!s) return;
-  set({ session: { ...s, view, rev: s.rev + 1 } });
+  s.view = view;
+  commit(s);
 }
 
 export function toggleView() {
@@ -567,7 +872,7 @@ export function toggleView() {
   if (s) setView(s.view === 'grid' ? 'single' : 'grid');
 }
 
-/** Klick im Raster: einfach, Shift (Bereich), Strg/⌘ (umschalten) */
+/** Klick in der Übersicht: einfach, Shift (Bereich), Strg/⌘ (umschalten) */
 export function clickSelect(id: number, mods: { shift: boolean; toggle: boolean }) {
   const s = get().session;
   if (!s) return;
@@ -606,7 +911,7 @@ export function clearSelection() {
   return true;
 }
 
-/** Welche Einträge betrifft eine Aktion? Raster: Auswahl, sonst aktuelles Bild. */
+/** Welche Einträge betrifft eine Aktion? Übersicht: Auswahl, sonst aktuelles Bild. */
 function actionIds(s: SessionState): number[] {
   if (s.view === 'grid' && s.selection.size) return s.viewIds.filter((id) => s.selection.has(id));
   return s.currentId !== null ? [s.currentId] : [];
@@ -624,36 +929,57 @@ function flash(name: string, color: string, key: string) {
   }, 650);
 }
 
+/** Startet einen Dateiauftrag und markiert die Einträge als erledigt. */
+function startOp(s: SessionState, ids: number[], o: { targetId?: string; destDir?: string; trash?: boolean }): OpRec {
+  const opId = ++opCounter;
+  const targetId = o.targetId ?? null;
+  const trash = !!o.trash;
+  for (const id of ids) {
+    s.done.set(id, { opId, targetId, trash });
+    s.skipped.delete(id);
+    const it = s.byId.get(id);
+    if (targetId && it) s.lastSorted = [{ targetId, t: itemTime(it) }, ...s.lastSorted].slice(0, 30);
+  }
+  if (trash) s.deleted += ids.length;
+  else if (targetId) {
+    s.counts[targetId] = (s.counts[targetId] || 0) + ids.length;
+    s.sorted += ids.length;
+  } else s.other += ids.length;
+  const action = trash ? 'trash' : prefs().transferMode === 'copy' ? 'copy' : 'move';
+  api().transfer({ opId, itemIds: ids, destDir: o.destDir, action, liveVideo: prefs().liveVideo });
+  return { opId, ids, targetId, trash };
+}
+
 export function findTargetByKey(key: string): Target | undefined {
   return activeProfile().targets.find((tg) => tg.key === key);
 }
 
-export function sortToTarget(targetId: string) {
+/**
+ * Aktuelles Foto (bzw. Auswahl) in einen Zielordner.
+ * wholeSeries: mit Shift – alle Fotos der Serie auf einmal.
+ */
+export function sortToTarget(targetId: string, opts: { wholeSeries?: boolean } = {}) {
   const s = get().session;
   if (!s) return;
+  if (s.compare) return compareConfirm(targetId);
   const target = activeProfile().targets.find((x) => x.id === targetId);
   if (!target) return;
-  const ids = actionIds(s);
+  let ids = actionIds(s);
+  if (opts.wholeSeries && s.view === 'single') {
+    const ser = openSeriesOf(s, s.currentId);
+    if (ser.length >= 2) ids = ser;
+  }
   if (!ids.length) return;
   if (get().reach[target.path] === false) {
     toast('error', t('toast.unreachable', { path: target.path }));
     api().checkReach().then(onReach);
     return;
   }
-  const action = prefs().transferMode === 'copy' ? 'copy' : 'move';
-  const opId = ++opCounter;
   const prevCurrent = s.currentId;
-  for (const id of ids) {
-    s.done.set(id, { opId, targetId, trash: false });
-    s.skipped.delete(id);
-    const it = s.byId.get(id);
-    if (it) s.lastSorted = [{ targetId, t: itemTime(it) }, ...s.lastSorted].slice(0, 30);
-  }
-  s.counts[targetId] = (s.counts[targetId] || 0) + ids.length;
-  s.sorted += ids.length;
-  s.undo.push({ kind: 'transfer', opId, ids, targetId, prevCurrent, prevView: s.view });
+  const op = startOp(s, ids, { targetId, destDir: target.path });
+  s.undo.push({ kind: 'transfer', ops: [op], prevCurrent });
   s.selection = new Set();
-  api().transfer({ opId, itemIds: ids, destDir: target.path, action, liveVideo: prefs().liveVideo });
+  if (ids.length > 1 && opts.wholeSeries) toast('success', t('toast.seriesMoved', { n: ids.length, name: target.name }));
   if (get().zen && prefs().zenFlash) flash(target.name, target.color, target.key);
   recompute(s, {});
 }
@@ -661,32 +987,28 @@ export function sortToTarget(targetId: string) {
 export function trashCurrent() {
   const s = get().session;
   if (!s) return;
+  if (s.compare) return compareConfirm();
   const ids = actionIds(s);
   if (!ids.length) return;
-  const opId = ++opCounter;
-  for (const id of ids) {
-    s.done.set(id, { opId, targetId: null, trash: true });
-    s.skipped.delete(id);
-  }
-  s.deleted += ids.length;
-  s.undo.push({ kind: 'transfer', opId, ids, targetId: null, trash: true, prevCurrent: s.currentId, prevView: s.view });
+  const op = startOp(s, ids, { trash: true });
+  s.undo.push({ kind: 'transfer', ops: [op], prevCurrent: s.currentId });
   s.selection = new Set();
-  api().transfer({ opId, itemIds: ids, action: 'trash', liveVideo: prefs().liveVideo });
-  if (get().zen && prefs().zenFlash) flash(t('targets.trash'), '#ef4f5f', t('key.del'));
+  if (get().zen && prefs().zenFlash) flash(t('targets.trash'), '#ef5a6f', t('key.del'));
   recompute(s, {});
 }
 
 export function skipCurrent() {
   const s = get().session;
   if (!s || s.currentId === null) return;
+  if (s.compare) return compareSkip();
   const id = s.currentId;
   const wasSkipped = s.skipped.has(id);
   s.skipped.add(id);
-  s.undo.push({ kind: 'skip', ids: wasSkipped ? [] : [id], prevCurrent: id });
+  s.undo.push({ kind: 'skip', ops: [], skipIds: wasSkipped ? [] : [id], prevCurrent: id });
   const i = currentIndex(s);
   if (i < s.viewIds.length - 1) {
     s.currentId = s.viewIds[i + 1];
-    set({ session: { ...s, rev: s.rev + 1 } });
+    commit(s);
   } else {
     set({ session: { ...s, rev: s.rev + 1 } });
     const open = s.items.filter((x) => !s.done.has(x.id));
@@ -700,26 +1022,27 @@ export function skipCurrent() {
   }
 }
 
-/** "Anderer Ordner …": nur dieses Bild einmalig in einen beliebigen Ordner. */
+/** "Anderer Ordner …": nur dieses Foto einmalig in einen beliebigen Ordner. */
 export async function otherFolder() {
   const s = get().session;
   if (!s) return;
-  const ids = actionIds(s);
+  const ids = s.compare ? s.compare.ids.filter((id) => s.compare!.keep.has(id)) : actionIds(s);
   if (!ids.length) return;
   const wasFs = get().fullscreen;
   const dir = await api().pickFolder({ title: t('other.title') });
   if (wasFs && !get().fullscreen) api().setFullscreen(true);
   if (!dir) return;
-  const action = prefs().transferMode === 'copy' ? 'copy' : 'move';
-  const opId = ++opCounter;
-  for (const id of ids) {
-    s.done.set(id, { opId, targetId: null, trash: false });
-    s.skipped.delete(id);
+  const ops: OpRec[] = [startOp(s, ids, { destDir: dir })];
+  let key: number | undefined;
+  if (s.compare) {
+    const drop = s.compare.ids.filter((id) => !s.compare!.keep.has(id));
+    if (drop.length) ops.push(startOp(s, drop, { trash: true }));
+    key = s.compare.key ?? undefined;
+    closeCompare(s, true);
+    s.seriesCompared++;
   }
-  s.other += ids.length;
-  s.undo.push({ kind: 'transfer', opId, ids, targetId: null, prevCurrent: s.currentId, prevView: s.view });
+  s.undo.push({ kind: 'transfer', ops, prevCurrent: s.currentId, seriesKey: key });
   s.selection = new Set();
-  api().transfer({ opId, itemIds: ids, destDir: dir, action, liveVideo: prefs().liveVideo });
   recompute(s, {});
   const already = activeProfile().targets.some((x) => x.path === dir);
   toast('success', t('toast.otherDone', { name: basename(dir) }), {
@@ -731,35 +1054,36 @@ export async function otherFolder() {
 export function undo() {
   const s = get().session;
   if (!s) return;
+  if (s.compare) closeCompare(s, false);
   const u = s.undo.pop();
   if (!u) {
     toast('info', t('toast.nothingToUndo'));
+    set({ session: { ...s, rev: s.rev + 1 } });
     return;
   }
   if (u.kind === 'skip') {
-    for (const id of u.ids) s.skipped.delete(id);
+    for (const id of u.skipIds || []) s.skipped.delete(id);
     recompute(s, { preferId: u.prevCurrent ?? undefined });
     return;
   }
-  for (const id of u.ids) {
-    const d = s.done.get(id);
-    if (!d || d.opId !== u.opId) continue;
-    s.done.delete(id);
-    if (d.trash) s.deleted--;
-    else if (d.targetId) {
-      s.counts[d.targetId] = Math.max(0, (s.counts[d.targetId] || 1) - 1);
-      s.sorted--;
-    } else s.other--;
+  const all: number[] = [];
+  for (const op of [...u.ops].reverse()) {
+    for (const id of op.ids) revertDone(s, id, op.opId);
+    if (op.targetId) {
+      const times = new Set(op.ids.map((id) => s.byId.get(id)).filter(Boolean).map((it) => itemTime(it!)));
+      s.lastSorted = s.lastSorted.filter((x) => !(x.targetId === op.targetId && times.has(x.t)));
+    }
+    api().undo(op.opId);
+    all.push(...op.ids);
   }
-  if (u.targetId) {
-    const times = new Set(u.ids.map((id) => s.byId.get(id)).filter(Boolean).map((it) => itemTime(it!)));
-    s.lastSorted = s.lastSorted.filter((x) => !(x.targetId === u.targetId && times.has(x.t)));
-  }
-  api().undo(u.opId!);
-  if (u.ids.length > 1) s.selection = new Set(u.ids);
+  if (u.seriesKey !== undefined) {
+    // Ganzen Vergleich zurücknehmen – er öffnet sich wieder
+    s.seriesDone.delete(u.seriesKey);
+    s.seriesCompared = Math.max(0, s.seriesCompared - 1);
+  } else if (all.length > 1) s.selection = new Set(all);
   s.summaryShown = false;
   if (get().dialog?.type === 'summary') closeDialog();
-  recompute(s, { preferId: u.prevCurrent ?? u.ids[0] });
+  recompute(s, { preferId: u.prevCurrent ?? all[0] });
   toast('info', t('toast.undone'), { timeout: 1200 });
 }
 
@@ -895,11 +1219,10 @@ export function dissolveGroup(id: string) {
   );
 }
 
-// ---------------------------------------------------------------- Schnellstart
+// ---------------------------------------------------------------- Zuletzt verwendet
 
-export function saveQuickStart(q: Omit<QuickStart, 'id'>) {
-  updateSettings((s) => ({ ...s, quickStarts: [...s.quickStarts, { ...q, id: uid('q') }] }));
-}
+export const sourcesOf = (q: QuickStart) => (q.sources && q.sources.length ? q.sources : [q.source]);
+
 export function updateQuickStart(id: string, patch: Partial<QuickStart>) {
   updateSettings((s) => ({ ...s, quickStarts: s.quickStarts.map((q) => (q.id === id ? { ...q, ...patch } : q)) }));
 }
@@ -908,7 +1231,7 @@ export function deleteQuickStart(id: string) {
 }
 export function runQuickStart(q: QuickStart) {
   return startSession({
-    source: q.source,
+    sources: sourcesOf(q),
     profileId: q.profileId,
     trashDir: q.trashDir,
     startView: q.startView,
@@ -917,40 +1240,25 @@ export function runQuickStart(q: QuickStart) {
   });
 }
 
-// ---------------------------------------------------------------- Diverses
-
-export function toggleFullscreen() {
-  api().setFullscreen(!get().fullscreen);
-}
-export function setZen(on: boolean) {
-  set({ zen: on });
-}
-
-export function resolveTrashDir(source: string) {
-  const p = prefs();
-  return p.trashMode === 'custom' && p.customTrash ? p.customTrash : null;
-}
-
-export async function emptyTrash() {
-  const r = await api().emptyTrash();
-  const s = get().session;
-  if (s && r.pruned.length) {
-    const pr = new Set(r.pruned);
-    s.undo = s.undo.filter((u) => !(u.opId && pr.has(u.opId)));
-  }
-  toast('success', t('toast.trashEmptied', { n: r.removed }));
-  return r;
-}
-
-// ---------------------------------------------------------------- Zuletzt verwendet
+const sameSources = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
 
 /** Jede gestartete Sortierung wird gemerkt (max. 9 + angeheftete). */
 function upsertRecent(list: QuickStart[], o: StartOptions): QuickStart[] {
   const now = Date.now();
-  const existing = list.find((q) => q.source === o.source && q.profileId === o.profileId);
+  const existing = list.find((q) => sameSources(sourcesOf(q), o.sources) && q.profileId === o.profileId);
+  const base = {
+    source: o.sources[0],
+    sources: o.sources,
+    profileId: o.profileId,
+    trashDir: o.trashDir,
+    startView: o.startView,
+    recursive: o.recursive,
+    fullscreen: o.fullscreen,
+    lastUsed: now,
+  };
   const entry: QuickStart = existing
-    ? { ...existing, ...o, trashDir: o.trashDir, lastUsed: now }
-    : { id: uid('q'), name: basename(o.source), ...o, lastUsed: now, pinned: false };
+    ? { ...existing, ...base }
+    : { id: uid('q'), name: o.sources.map(basename).join(' + '), ...base, pinned: false };
   const rest = list.filter((q) => q !== existing);
   const all = [entry, ...rest];
   const pinned = all.filter((q) => q.pinned);
@@ -964,22 +1272,30 @@ export function sortedRecents(list: QuickStart[]) {
   return [...pinned, ...others];
 }
 
+export function forgetRecent(id: string) {
+  deleteQuickStart(id);
+}
+export function togglePinRecent(id: string) {
+  const q = get().settings.quickStarts.find((x) => x.id === id);
+  if (q) updateQuickStart(id, { pinned: !q.pinned });
+}
+
 // ---------------------------------------------------------------- Neue Sortierung einrichten
 
-export function beginSetup(source: string) {
+export function beginSetup(sources: string[]) {
   const p = prefs();
-  const recent = get().settings.quickStarts.find((q) => q.source === source);
+  const recent = get().settings.quickStarts.find((q) => sameSources(sourcesOf(q), sources));
   if (recent) updatePrefs({ activeProfileId: recent.profileId });
   set({
     screen: 'setup',
     setup: {
       step: 0,
-      source,
+      sources,
       recursive: recent?.recursive ?? p.recursive,
       count: null,
       counting: true,
       startView: recent?.startView ?? 'single',
-      trashDir: recent?.trashDir ?? resolveTrashDir(source),
+      trashDir: recent?.trashDir ?? resolveTrashDir(),
       fullscreen: recent?.fullscreen ?? false,
     },
   });
@@ -991,9 +1307,9 @@ export async function countSetup() {
   if (!st) return;
   set({ setup: { ...st, counting: true, count: null } });
   try {
-    const count = await api().countMedia({ dir: st.source, recursive: st.recursive });
+    const count = await api().countMedia({ dirs: st.sources, recursive: st.recursive });
     const cur = get().setup;
-    if (cur && cur.source === st.source && cur.recursive === st.recursive) set({ setup: { ...cur, count, counting: false } });
+    if (cur && sameSources(cur.sources, st.sources) && cur.recursive === st.recursive) set({ setup: { ...cur, count, counting: false } });
   } catch (e: any) {
     api().log(`count: ${e?.stack || e}`);
     const cur = get().setup;
@@ -1005,23 +1321,36 @@ export async function countSetup() {
 export function updateSetup(patch: Partial<SetupState>) {
   const st = get().setup;
   if (!st) return;
-  const next = { ...st, ...patch };
-  set({ setup: next });
-  if (patch.source !== undefined || patch.recursive !== undefined) countSetup();
+  set({ setup: { ...st, ...patch } });
+  if (patch.sources !== undefined || patch.recursive !== undefined) countSetup();
 }
 
 export async function pickSetupSource() {
   const dir = await api().pickFolder({ title: t('home.pick') });
   if (!dir) return;
-  if (get().screen === 'setup') updateSetup({ source: dir, trashDir: resolveTrashDir(dir) });
-  else beginSetup(dir);
+  beginSetup([dir]);
+}
+
+/** Weiteren Quellordner hinzufügen */
+export async function addSetupSource() {
+  const st = get().setup;
+  if (!st) return;
+  const dir = await api().pickFolder({ title: t('setup.source.add') });
+  if (!dir || st.sources.includes(dir)) return;
+  updateSetup({ sources: [...st.sources, dir] });
+}
+
+export function removeSetupSource(dir: string) {
+  const st = get().setup;
+  if (!st || st.sources.length < 2) return;
+  updateSetup({ sources: st.sources.filter((x) => x !== dir) });
 }
 
 export function startFromSetup() {
   const st = get().setup;
   if (!st) return;
   return startSession({
-    source: st.source,
+    sources: st.sources,
     profileId: activeProfile().id,
     trashDir: st.trashDir,
     startView: st.startView,
@@ -1042,14 +1371,6 @@ export async function createTargetFolder(parent: string, name: string) {
   }
 }
 
-export function forgetRecent(id: string) {
-  deleteQuickStart(id);
-}
-export function togglePinRecent(id: string) {
-  const q = get().settings.quickStarts.find((x) => x.id === id);
-  if (q) updateQuickStart(id, { pinned: !q.pinned });
-}
-
 // ---------------------------------------------------------------- Einführung (Coach Marks)
 
 export function coachNext(total: number) {
@@ -1061,4 +1382,31 @@ export function coachNext(total: number) {
 export function coachEnd() {
   set({ coach: null });
   if (!get().settings.tutorialDone) updateSettings((s) => ({ ...s, tutorialDone: true }));
+  const s = get().session;
+  if (s) commit(s); // jetzt ggf. den Serien-Vergleich öffnen
+}
+
+// ---------------------------------------------------------------- Diverses
+
+export function toggleFullscreen() {
+  api().setFullscreen(!get().fullscreen);
+}
+export function setZen(on: boolean) {
+  set({ zen: on });
+}
+
+export function resolveTrashDir() {
+  const p = prefs();
+  return p.trashMode === 'custom' && p.customTrash ? p.customTrash : null;
+}
+
+export async function emptyTrash() {
+  const r = await api().emptyTrash();
+  const s = get().session;
+  if (s && r.pruned.length) {
+    const pr = new Set(r.pruned);
+    s.undo = s.undo.map((u) => ({ ...u, ops: u.ops.filter((o) => !pr.has(o.opId)) })).filter((u) => u.kind !== 'transfer' || u.ops.length);
+  }
+  toast('success', t('toast.trashEmptied', { n: r.removed }));
+  return r;
 }

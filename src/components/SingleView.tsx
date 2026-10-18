@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
-import { useStore, currentItem, currentIndex, step, setView, type SessionState } from '../store';
-import { displayUrl, mediaUrl, fmtBytes, fmtDate, fmtNum, itemTime, clamp } from '../util';
-import { IconChevronLeft, IconChevronRight, IconFolderOut, IconLive, IconMaximize } from '../icons';
+import {
+  useStore, currentItem, currentIndex, step, setView, openSeriesOf, openCompare, type SessionState,
+} from '../store';
+import { displayUrl, fullUrl, mediaUrl, fmtBytes, fmtDate, fmtNum, itemTime, clamp, previewSize } from '../util';
+import { IconChevronLeft, IconChevronRight, IconFolderOut, IconLive, IconMaximize, IconLayers } from '../icons';
+import { tip } from './Tooltip';
 
 interface View {
   scale: number;
@@ -18,6 +21,7 @@ export function zoomCommand(cmd: 'in' | 'out' | 'reset') {
 export function SingleView({ s }: { s: SessionState }) {
   const it = currentItem(s);
   const liveAuto = useStore((st) => st.settings.prefs.liveAutoplay);
+  const expert = useStore((st) => st.settings.prefs.mode === 'expert');
   const ref = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ w: 800, h: 600 });
   const [nat, setNat] = useState<{ w: number; h: number } | null>(null);
@@ -26,6 +30,7 @@ export function SingleView({ s }: { s: SessionState }) {
   const [error, setError] = useState(false);
   const [livePlaying, setLivePlaying] = useState(false);
   const [panning, setPanning] = useState(false);
+  const [hiRes, setHiRes] = useState(false);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<{
     startX: number;
@@ -45,6 +50,8 @@ export function SingleView({ s }: { s: SessionState }) {
     return () => ro.disconnect();
   }, []);
 
+  // Vorschaugröße passend zur Fläche (ändert sich nur bei deutlicher Größenänderung)
+  const pSize = previewSize(box.w, box.h);
   const fitScale = nat ? Math.min(box.w / nat.w, box.h / nat.h) : 1;
 
   const clampView = useCallback(
@@ -65,37 +72,45 @@ export function SingleView({ s }: { s: SessionState }) {
     setError(false);
     setFitMode(true);
     setLivePlaying(false);
+    setHiRes(false);
   }, [it?.id, it?.path]);
 
-  // Einpassen, wenn Modus "fit" aktiv ist
   useEffect(() => {
     if (fitMode && nat) setViewState(clampView({ scale: fitScale, x: 0, y: 0 }));
   }, [fitMode, nat, fitScale, clampView]);
+
+  // Beim Hineinzoomen über die Vorschau-Auflösung hinaus: Original laden
+  useEffect(() => {
+    if (!hiRes && nat && it?.kind === 'image' && view.scale * (window.devicePixelRatio || 1) > 1.05 && !fitMode) setHiRes(true);
+  }, [view.scale, nat, hiRes, fitMode, it?.kind]);
 
   useEffect(() => {
     if (it?.live && liveAuto && nat) setLivePlaying(true);
   }, [it?.live, liveAuto, nat]);
 
-  // Nachbarbilder vorladen
+  // Nachbarbilder vorladen (nur in Vorschaugröße – spart Zeit und Speicher)
   useEffect(() => {
     const i = currentIndex(s);
-    for (const d of [1, 2, -1]) {
-      const id = s.viewIds[i + d];
-      const n = id !== undefined ? s.byId.get(id) : null;
-      if (n && n.kind === 'image') {
-        const img = new Image();
-        img.decoding = 'async';
-        img.src = displayUrl(n);
+    const timer = setTimeout(() => {
+      for (const d of [1, 2, -1]) {
+        const id = s.viewIds[i + d];
+        const n = id !== undefined ? s.byId.get(id) : null;
+        if (n && n.kind === 'image') {
+          const img = new Image();
+          img.decoding = 'async';
+          img.src = displayUrl(n, pSize);
+        }
       }
-    }
-  }, [s.currentId, s.rev]); // eslint-disable-line
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [s.currentId, pSize]); // eslint-disable-line
 
   const zoomAt = useCallback(
     (factor: number, px: number, py: number) => {
       if (!nat) return;
       setFitMode(false);
       setViewState((v) => {
-        const ns = clamp(v.scale * factor, Math.min(fitScale, 1) * 0.5, 10);
+        const ns = clamp(v.scale * factor, Math.min(fitScale, 1) * 0.5, 12);
         const k = ns / v.scale;
         return clampView({ scale: ns, x: px - (px - v.x) * k, y: py - (py - v.y) * k });
       });
@@ -121,14 +136,13 @@ export function SingleView({ s }: { s: SessionState }) {
   };
 
   const onDouble = (e: React.MouseEvent) => {
-    if (!nat || it?.kind !== 'image') return;
+    if (!nat || it?.kind !== 'image' || (e.target as HTMLElement).closest('button')) return;
     const r = ref.current!.getBoundingClientRect();
     if (!fitMode && Math.abs(view.scale - fitScale) > 0.01) {
       setFitMode(true);
       return;
     }
-    const target = fitScale < 0.95 ? 1 : fitScale * 2.5;
-    zoomAt(target / view.scale, e.clientX - r.left, e.clientY - r.top);
+    zoomAt((fitScale * 3) / view.scale, e.clientX - r.left, e.clientY - r.top);
   };
 
   const zoomed = nat ? view.scale > fitScale * 1.01 : false;
@@ -150,13 +164,7 @@ export function SingleView({ s }: { s: SessionState }) {
         pointerType: e.pointerType,
       };
     } else {
-      gesture.current = {
-        type: zoomed ? 'pan' : 'swipe',
-        startX: e.clientX,
-        startY: e.clientY,
-        view,
-        pointerType: e.pointerType,
-      };
+      gesture.current = { type: zoomed ? 'pan' : 'swipe', startX: e.clientX, startY: e.clientY, view, pointerType: e.pointerType };
       if (zoomed) setPanning(true);
     }
   };
@@ -172,7 +180,7 @@ export function SingleView({ s }: { s: SessionState }) {
       const r = ref.current!.getBoundingClientRect();
       const mx = g.mid!.x - r.left;
       const my = g.mid!.y - r.top;
-      const ns = clamp(g.view.scale * (dist / g.dist!), Math.min(fitScale, 1) * 0.5, 10);
+      const ns = clamp(g.view.scale * (dist / g.dist!), Math.min(fitScale, 1) * 0.5, 12);
       const k = ns / g.view.scale;
       setFitMode(false);
       setViewState(clampView({ scale: ns, x: mx - (mx - g.view.x) * k, y: my - (my - g.view.y) * k }));
@@ -204,9 +212,12 @@ export function SingleView({ s }: { s: SessionState }) {
   }
 
   const idx = currentIndex(s);
+  const series = openSeriesOf(s, s.currentId);
+  const seriesPos = series.indexOf(it.id) + 1;
   const rect = nat
     ? { left: 0, top: 0, width: nat.w * view.scale, height: nat.h * view.scale, transform: `translate(${view.x}px, ${view.y}px)` }
     : { opacity: 0 };
+  const mod = window.api.platform === 'darwin' ? '⌘' : t('key.ctrl');
 
   return (
     <div
@@ -226,6 +237,7 @@ export function SingleView({ s }: { s: SessionState }) {
           className="media"
           src={mediaUrl(it.path)}
           controls
+          preload="metadata"
           style={{ left: 0, top: 0, width: '100%', height: '100%', objectFit: 'contain' }}
           onLoadedMetadata={(e) => {
             const v = e.currentTarget;
@@ -236,17 +248,22 @@ export function SingleView({ s }: { s: SessionState }) {
       ) : (
         <>
           <img
-            key={it.path}
+            key={it.path + (hiRes ? ':hi' : '')}
             className={`media ${nat ? 'ready' : ''}`}
-            src={displayUrl(it)}
+            src={hiRes ? fullUrl(it) : displayUrl(it, pSize)}
             alt={it.name}
+            decoding="async"
             draggable={false}
             style={rect}
             onLoad={(e) => {
               const im = e.currentTarget;
-              setNat({ w: im.naturalWidth, h: im.naturalHeight });
+              const nw = im.naturalWidth;
+              const nh = im.naturalHeight;
+              // Wechsel Vorschau → Original: gleiche Darstellungsgröße beibehalten
+              if (nat && hiRes && nw !== nat.w) setViewState((v) => ({ ...v, scale: (v.scale * nat.w) / nw }));
+              setNat({ w: nw, h: nh });
             }}
-            onError={() => setError(true)}
+            onError={() => (hiRes ? setHiRes(false) : setError(true))}
           />
           {livePlaying && it.live && nat && (
             <video
@@ -292,30 +309,40 @@ export function SingleView({ s }: { s: SessionState }) {
 
       <div className="overlay-tools">
         {it.live && (
-          <button className="overlay-btn" onClick={() => setLivePlaying(true)} title={t('ses.playLive')}>
+          <button className="overlay-btn" onClick={() => setLivePlaying(true)} {...tip(t('ses.playLive'), t('tip.live'))}>
             <IconLive size={15} />
             LIVE
           </button>
         )}
         {zoomed && (
-          <button className="overlay-btn" onClick={() => setFitMode(true)} title={t('ses.fit')}>
+          <button className="overlay-btn" onClick={() => setFitMode(true)} {...tip(t('ses.fit'), t('tip.fit'), `${mod} 0`)}>
             <IconMaximize size={15} />
           </button>
         )}
-        <button className="overlay-btn" onClick={() => window.api.showItem(it.path)} title={t('ses.openFolder')}>
-          <IconFolderOut size={15} />
-        </button>
+        {expert && (
+          <button className="overlay-btn" onClick={() => window.api.showItem(it.path)} {...tip(t('ses.openFolder'), t('tip.openFolder'))}>
+            <IconFolderOut size={15} />
+          </button>
+        )}
       </div>
 
-      {nat && it.kind === 'image' && (
-        <div className="overlay-chip zoom">{Math.round(view.scale * 100)} %</div>
+      {nat && zoomed && it.kind === "image" && <div className="overlay-chip zoom">{(view.scale / fitScale).toLocaleString(undefined, { maximumFractionDigits: 1 })}×</div>}
+
+      {series.length >= 2 && seriesPos > 0 && (
+        <div className="series-chip" data-testid="series-chip">
+          <IconLayers size={15} />
+          <span>{t('series.chip', { n: seriesPos, total: series.length })}</span>
+          <button className="btn primary sm" onClick={openCompare} {...tip(t('series.compare'), t('tip.compare'))}>
+            {t('series.compare')}
+          </button>
+        </div>
       )}
 
-      <button className="nav-arrow l" onClick={() => step(-1)} aria-label="←">
-        <IconChevronLeft size={26} />
+      <button className="nav-arrow l" onClick={() => step(-1)} {...tip(t('tip.prev'), undefined, '←')}>
+        <IconChevronLeft size={24} />
       </button>
-      <button className="nav-arrow r" onClick={() => step(1)} aria-label="→">
-        <IconChevronRight size={26} />
+      <button className="nav-arrow r" onClick={() => step(1)} {...tip(t('tip.next'), undefined, '→')}>
+        <IconChevronRight size={24} />
       </button>
     </div>
   );

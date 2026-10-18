@@ -42,7 +42,7 @@ export function Filmstrip({ s }: { s: SessionState }) {
       <div
         key={id}
         data-idx={k}
-        className={`fs-item ${k === cur ? 'current' : ''} ${s.skipped.has(id) ? 'skipped' : ''}`}
+        className={`fs-item ${k === cur ? 'current' : ''} ${s.skipped.has(id) ? 'skipped' : ''} ${s.seriesOf.has(id) ? 'in-series' : ''}`}
         style={{ left: x }}
         title={it.name}
       >

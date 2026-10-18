@@ -38,6 +38,9 @@ Französisch, Spanisch, Italienisch), **Aussehen** (hell, dunkel, automatisch), 
 | F11 | Vollbild · **Esc** beendet es immer |
 | F10 | Nur Bild |
 | F1 | Hilfe & Tastenkürzel |
+| Shift + Ordner-Taste | Ganze Serie in diesen Ordner |
+| Im Vergleich: Shift + 1…6 | Nur dieses Foto behalten |
+| Im Vergleich: Enter | Fertig – Behaltene bleiben, Rest in den Papierkorb |
 
 Zuletzt verwendete Sortierungen erscheinen auf der Startseite und starten per Klick oder Taste 1–9.
 
@@ -57,6 +60,10 @@ Zuletzt verwendete Sortierungen erscheinen auf der Startseite und starten per Kl
 ---
 
 ## Stand der Entwicklung
+
+**Version 0.3** – Serien erkennen & vergleichen (gemeinsames Zoomen, Empfehlung des schärfsten Fotos,
+Shift + Zahl / Shift + Ordner-Taste), mehrere Quellordner, Erklärungen beim Darüberfahren, aufgeräumter
+Einfach-Modus, schneller und sparsamer (bildschirmgroße Vorschauen, kleinere Downloads).
 
 **Version 0.2** – neue, einfachere Oberfläche mit Einrichtung beim ersten Start, Assistent für neue
 Sortierungen, Einführung beim ersten Sortieren, Hilfe-Bereich mit häufigen Fragen, 5 Sprachen.

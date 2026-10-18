@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { t } from '../i18n';
 import {
   useStore, beginSetup, pickSetupSource, runQuickStart, sortedRecents, forgetRecent, togglePinRecent, openDialog,
-  updateQuickStart,
+  updateQuickStart, sourcesOf, isExpert,
 } from '../store';
 import type { QuickStart } from '../types';
 import { KeyCap, MenuPopup, useMenu } from './ui';
@@ -18,10 +18,8 @@ export function Home() {
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDrag(false);
-    const f = e.dataTransfer.files[0];
-    if (!f) return;
-    const p = window.api.pathForFile(f);
-    if (p) beginSetup(p);
+    const paths = [...e.dataTransfer.files].map((f) => window.api.pathForFile(f)).filter(Boolean);
+    if (paths.length) beginSetup(paths);
   };
 
   return (
@@ -73,7 +71,7 @@ export function Home() {
                 <RecentCard key={q.id} q={q} index={i} offline={reach[q.source] === false} />
               ))}
             </div>
-            {recents.length > 1 && (
+            {recents.length > 1 && isExpert() && (
               <div className="faint small" style={{ marginTop: 12 }}>
                 {t('home.keyHint')}
               </div>
@@ -112,9 +110,7 @@ function RecentCard({ q, index, offline }: { q: QuickStart; index: number; offli
             {q.pinned && <IconPin size={13} style={{ marginRight: 4, verticalAlign: -1, opacity: 0.6 }} />}
             {q.name || basename(q.source)}
           </div>
-          <div className="r-path ellipsis" title={q.source}>
-            {q.source}
-          </div>
+          <div className="r-path ellipsis">{sourcesOf(q).join(' · ')}</div>
         </div>
       </div>
       <div className="r-foot">
@@ -149,7 +145,7 @@ function RecentCard({ q, index, offline }: { q: QuickStart; index: number; offli
       </button>
       <div onClick={(e) => e.stopPropagation()}>
         <MenuPopup at={menu.at} onClose={menu.close}>
-          <button className="mi" onClick={() => beginSetup(q.source)}>
+          <button className="mi" onClick={() => beginSetup(sourcesOf(q))}>
             {t('home.edit')}
           </button>
           <button

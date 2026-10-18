@@ -8,6 +8,7 @@ export const COACH_STEPS = [
   { sel: '[data-coach="targets"]', title: 'coach.1.title', text: 'coach.1.text' },
   { sel: '[data-coach="actions"]', title: 'coach.2.title', text: 'coach.2.text' },
   { sel: '[data-testid="undo"]', title: 'coach.3.title', text: 'coach.3.text' },
+  { sel: '[data-testid="series-toggle"]', title: 'coach.5.title', text: 'coach.5.text' },
   { sel: '[data-coach="stage"]', title: 'coach.4.title', text: 'coach.4.text' },
 ] as const;
 

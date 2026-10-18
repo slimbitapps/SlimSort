@@ -196,3 +196,26 @@ test('Viele Dateien: 20.000 Einträge werden zügig eingelesen', async () => {
   assert.equal(items.length, n);
   assert.ok(ms < 8000, `Einlesen dauerte ${ms} ms`);
 });
+
+test('Mehrere Quellordner: jeder hat seinen eigenen Papierkorb', async () => {
+  const d = await tmpdir();
+  const a = path.join(d, 'Kamera');
+  const b = path.join(d, 'Handy');
+  await write(path.join(a, 'k1.jpg'), 'K1');
+  await write(path.join(b, 'h1.jpg'), 'H1');
+  const s = new Session({ timeout: 1000 });
+  const items = await s.open({ sourceDirs: [a, b] });
+  assert.equal(items.length, 2);
+  const byName = Object.fromEntries(items.map((i) => [i.name, i]));
+  assert.equal(byName['h1.jpg'].dir, 'Handy');
+  await s.transfer({ opId: 1, itemIds: [byName['k1.jpg'].id, byName['h1.jpg'].id], action: 'trash' });
+  assert.ok(exists(path.join(a, '_Gelöscht', 'k1.jpg')));
+  assert.ok(exists(path.join(b, '_Gelöscht', 'h1.jpg')));
+  const info = await s.trashInfo();
+  assert.equal(info.count, 2);
+  await s.undo(1);
+  assert.ok(exists(path.join(a, 'k1.jpg')) && exists(path.join(b, 'h1.jpg')));
+  await s.transfer({ opId: 2, itemIds: [byName['k1.jpg'].id, byName['h1.jpg'].id], action: 'trash' });
+  const r = await s.emptyTrash();
+  assert.equal(r.removed, 2);
+});

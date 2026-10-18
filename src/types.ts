@@ -14,6 +14,11 @@ export interface Item {
   liveSize: number;
   /** Aufnahmezeit aus EXIF (ms), falls vorhanden */
   t?: number;
+  /** Bildanalyse (für Serien): Fingerabdruck, Schärfe, Belichtung */
+  hash?: [number, number];
+  sharp?: number;
+  expo?: number;
+  analyzed?: boolean;
 }
 
 export interface Target {
@@ -49,6 +54,8 @@ export interface QuickStart {
   fullscreen: boolean;
   lastUsed?: number;
   pinned?: boolean;
+  /** mehrere Quellordner (neuere Versionen); "source" ist der erste */
+  sources?: string[];
 }
 
 export type Lang = 'de' | 'en' | 'fr' | 'es' | 'it';
@@ -76,6 +83,12 @@ export interface Prefs {
   activeProfileId: string;
   zenFlash: boolean;
   showFilmstrip: boolean;
+  /** Serien erkennen und vergleichen */
+  seriesEnabled: boolean;
+  seriesGapSec: number;
+  seriesStrict: 'loose' | 'normal' | 'strict';
+  autoCompare: boolean;
+  preselectBest: boolean;
 }
 
 export interface SettingsData {
@@ -132,13 +145,13 @@ export interface Api {
   pickFolder(o?: { title?: string; defaultPath?: string }): Promise<string | null>;
   confirm(o: { message: string; detail?: string; buttons: string[]; type?: string }): Promise<number>;
   checkDir(dir: string): Promise<{ ok: boolean; code?: string }>;
-  countMedia(o: { dir: string; recursive: boolean }): Promise<{ images: number; videos: number; total: number; sample: string[] }>;
+  countMedia(o: { dirs: string[]; recursive: boolean }): Promise<{ images: number; videos: number; total: number; sample: string[]; perDir: number[] }>;
   createFolder(o: { parent: string; name: string }): Promise<string>;
   parentDir(p: string): Promise<string>;
   setTheme(theme: Theme): Promise<boolean>;
   log(msg: string): Promise<void>;
   mkdir(dir: string): Promise<boolean>;
-  openSession(o: { sourceDir: string; recursive: boolean; trashDir?: string | null }): Promise<{ items: Item[]; trashDir: string }>;
+  openSession(o: { sourceDirs: string[]; recursive: boolean; trashDir?: string | null }): Promise<{ items: Item[]; trashDir: string }>;
   transfer(o: {
     opId: number;
     itemIds: number[];
@@ -148,7 +161,7 @@ export interface Api {
   }): Promise<boolean>;
   undo(opId: number): Promise<boolean>;
   pending(): Promise<number>;
-  trashInfo(dir?: string): Promise<{ dir: string; count: number; bytes: number }>;
+  trashInfo(dir?: string): Promise<{ dir: string; dirs?: string[]; count: number; bytes: number }>;
   emptyTrash(): Promise<{ removed: number; pruned: number[] }>;
   setWatchedDirs(dirs: string[]): Promise<Record<string, boolean>>;
   checkReach(): Promise<Record<string, boolean>>;

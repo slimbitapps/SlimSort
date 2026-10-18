@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react';
 const CSP =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
   "img-src 'self' data: blob: media: thumb: preview:; media-src 'self' media: blob:; " +
-  "font-src 'self' data:; connect-src 'self' media: thumb: preview:";
+  "font-src 'self' data:; connect-src 'self' media: thumb: preview:; worker-src 'self' blob:";
 
 export default defineConfig({
   base: './',

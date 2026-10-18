@@ -21,7 +21,7 @@ if (process.env.FOTOSORT_USERDATA) app.setPath('userData', process.env.FOTOSORT_
 protocol.registerSchemesAsPrivileged(
   ['media', 'thumb', 'preview'].map((scheme) => ({
     scheme,
-    privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true, bypassCSP: true },
+    privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true, bypassCSP: true, corsEnabled: true },
   }))
 );
 
@@ -47,6 +47,7 @@ function isDark(theme) {
 }
 
 let win = null;
+let pickCount = 0;
 let session = null;
 let exifRun = 0;
 const settings = new SettingsStore(path.join(app.getPath('userData'), 'einstellungen.json'));
@@ -166,7 +167,13 @@ function registerIpc() {
   }));
 
   ipcMain.handle('dialog:pickFolder', async (_e, { title, defaultPath } = {}) => {
-    if (isTest && process.env.FOTOSORT_PICK) return process.env.FOTOSORT_PICK;
+    if (isTest && process.env.FOTOSORT_PICK) {
+      // Tests: mehrere Ordner mit "|" getrennt, werden nacheinander zurückgegeben
+      const list = process.env.FOTOSORT_PICK.split('|');
+      const r = list[pickCount % list.length];
+      pickCount++;
+      return r;
+    }
     const r = await dialog.showOpenDialog(win, {
       title,
       defaultPath,
@@ -183,12 +190,22 @@ function registerIpc() {
   ipcMain.handle('fs:checkDir', (_e, dir) => checkDir(dir));
 
   // Fotos und Videos in einem Ordner zählen (für die Vorschau beim Einrichten)
-  ipcMain.handle('fs:count', async (_e, { dir, recursive }) => {
-    const items = await scan(dir, { recursive, exclude: [path.join(dir, '_Gelöscht')] });
+  ipcMain.handle('fs:count', async (_e, { dir, dirs, recursive }) => {
     let images = 0;
     let videos = 0;
-    for (const it of items) it.kind === 'video' ? videos++ : images++;
-    return { images, videos, total: items.length, sample: items.slice(0, 4).map((i) => i.path) };
+    const sample = [];
+    const perDir = [];
+    for (const d of dirs || [dir]) {
+      const items = await scan(d, { recursive, exclude: [path.join(d, '_Gelöscht')] });
+      let n = 0;
+      for (const it of items) {
+        it.kind === 'video' ? videos++ : images++;
+        n++;
+        if (sample.length < 4 && it.kind === 'image') sample.push(it.path);
+      }
+      perDir.push(n);
+    }
+    return { images, videos, total: images + videos, sample, perDir };
   });
 
   // Neuen Zielordner anlegen (existiert er schon, wird er einfach verwendet)
@@ -221,11 +238,12 @@ function registerIpc() {
     return true;
   });
 
-  ipcMain.handle('session:open', async (_e, { sourceDir, recursive, trashDir }) => {
-    log('session:open', sourceDir);
+  ipcMain.handle('session:open', async (_e, { sourceDir, sourceDirs, recursive, trashDir }) => {
+    log('session:open', sourceDirs || sourceDir);
     const s = newSession();
     const items = await s.open({
       sourceDir,
+      sourceDirs,
       recursive,
       trashDir,
       onProgress: (n) => send('scan:progress', n),

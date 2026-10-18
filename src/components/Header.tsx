@@ -1,14 +1,15 @@
 import { t } from '../i18n';
 import {
   useStore, goHome, openDialog, setView, undo, setZen, toggleFullscreen, updatePrefs, setActiveProfile, otherFolder,
-  type Progress,
+  openCompare, seriesCount, type Progress,
 } from '../store';
 import type { Filter, SortBy } from '../types';
 import { Logo, MenuPopup, useMenu } from './ui';
 import { SetupStepper } from './Setup';
+import { tip } from './Tooltip';
 import {
   IconArrowLeft, IconGrid, IconImage, IconUndo, IconEye, IconMaximize, IconMinimize, IconSettings, IconHelp,
-  IconMore, IconSliders, IconCheck, IconTrash, IconSearch, IconChart, IconKeyboard, IconInfo, IconFolderOut,
+  IconMore, IconSliders, IconCheck, IconTrash, IconSearch, IconChart, IconKeyboard, IconInfo, IconFolderOut, IconLayers,
 } from '../icons';
 import { basename, fmtBytes, fmtDuration, fmtNum, modKey } from '../util';
 
@@ -21,6 +22,7 @@ export function Header() {
         className="brand no-drag"
         style={{ background: 'none', border: 0, padding: 0 }}
         onClick={() => screen === 'setup' && goHome()}
+        {...(screen === 'setup' ? tip(t('ses.back')) : {})}
       >
         <Logo size={26} />
         {t('app.name')}
@@ -31,16 +33,10 @@ export function Header() {
         </div>
       )}
       <span className="spacer" />
-      <button className="btn icon ghost" title={t('menu.help')} aria-label={t('menu.help')} onClick={() => openDialog({ type: 'settings', tab: 'help' })}>
+      <button className="btn icon ghost" onClick={() => openDialog({ type: 'settings', tab: 'help' })} {...tip(t('menu.help'), t('tip.help'), 'F1')}>
         <IconHelp size={19} />
       </button>
-      <button
-        className="btn icon ghost"
-        title={t('menu.settings')}
-        aria-label={t('menu.settings')}
-        data-testid="settings-btn"
-        onClick={() => openDialog({ type: 'settings' })}
-      >
+      <button className="btn icon ghost" data-testid="settings-btn" onClick={() => openDialog({ type: 'settings' })} {...tip(t('menu.settings'), t('tip.settings'))}>
         <IconSettings size={19} />
       </button>
     </div>
@@ -55,7 +51,7 @@ function TransferPill({ p, showEta }: { p: Progress; showEta: boolean }) {
   const r = 6.5;
   const circ = 2 * Math.PI * r;
   return (
-    <div className="transfer-pill" data-testid="progress" title={p.name}>
+    <div className="transfer-pill" data-testid="progress" {...tip(t('transfer.busy'), t('tip.transfer', { name: p.name }))}>
       <svg className="ring" viewBox="0 0 16 16">
         <circle cx="8" cy="8" r={r} fill="none" stroke="var(--line-2)" strokeWidth="2.2" />
         <circle
@@ -92,19 +88,21 @@ function SessionHeader() {
   const total = s.items.length;
   const done = s.done.size;
   const mod = modKey();
+  const nSeries = seriesCount(s);
+  const title = s.sources.length > 1 ? `${basename(s.sources[0])} + ${s.sources.length - 1}` : basename(s.source);
 
   const check = (on: boolean) => <span style={{ width: 16, display: 'inline-grid' }}>{on && <IconCheck size={15} />}</span>;
 
   return (
     <div className="header bordered">
-      <button className="btn icon ghost" onClick={goHome} title={t('ses.back')} aria-label={t('ses.back')} data-testid="back-home">
+      <button className="btn icon ghost" onClick={goHome} data-testid="back-home" {...tip(t('ses.back'), t('tip.back'))}>
         <IconArrowLeft size={18} />
       </button>
       <div className="ses-title">
-        <span className="name ellipsis" title={s.source}>
-          {basename(s.source)}
+        <span className="name ellipsis" {...tip(title, s.sources.join(' · '))}>
+          {title}
         </span>
-        <span className="badge" data-testid="status">
+        <span className="badge" data-testid="status" {...tip(t('tip.counterTitle'), t('tip.counter', { done: fmtNum(done), total: fmtNum(total) }))}>
           {t('ses.counter', { done: fmtNum(done), total: fmtNum(total) })}
         </span>
         {s.selection.size > 1 && <span className="badge accent">{t('ses.selected', { n: fmtNum(s.selection.size) })}</span>}
@@ -113,11 +111,11 @@ function SessionHeader() {
 
       <div className="header-center">
         <div className="seg">
-          <button className={s.view === 'single' ? 'on' : ''} onClick={() => setView('single')} data-testid="view-single" title={`${t('view.single')} (Tab)`}>
+          <button className={s.view === 'single' ? 'on' : ''} onClick={() => setView('single')} data-testid="view-single" {...tip(t('view.single'), t('tip.viewSingle'), 'Tab')}>
             <IconImage size={15} />
             {t('view.single')}
           </button>
-          <button className={s.view === 'grid' ? 'on' : ''} onClick={() => setView('grid')} data-testid="view-grid" title={`${t('view.grid')} (Tab)`}>
+          <button className={s.view === 'grid' ? 'on' : ''} onClick={() => setView('grid')} data-testid="view-grid" {...tip(t('view.grid'), t('tip.viewGrid'), 'Tab')}>
             <IconGrid size={15} />
             {t('view.grid')}
           </button>
@@ -126,21 +124,39 @@ function SessionHeader() {
 
       <span className="spacer" />
 
-      <button className="btn icon ghost" onClick={undo} disabled={!s.undo.length} title={`${t('ses.undo')} (${mod}+Z)`} aria-label={t('ses.undo')} data-testid="undo">
+      {s.view === 'grid' && s.selection.size >= 2 && !s.compare && (
+        <button className="btn sm primary" onClick={openCompare} data-testid="compare-selection" {...tip(t('series.compareSel'), t('tip.compareSel'))}>
+          <IconLayers size={15} />
+          {t('series.compareSel')}
+        </button>
+      )}
+      <button
+        className={`series-pill ${prefs.seriesEnabled ? 'on' : ''}`}
+        onClick={() => updatePrefs({ seriesEnabled: !prefs.seriesEnabled })}
+        data-testid="series-toggle"
+        {...tip(prefs.seriesEnabled ? t('series.on') : t('series.off'), t('tip.series'))}
+      >
+        <IconLayers size={14} />
+        {t('series.label')}
+        {prefs.seriesEnabled ? <span className="n">{nSeries}</span> : <span>{t('series.offShort')}</span>}
+      </button>
+      <button className="btn icon ghost" onClick={undo} disabled={!s.undo.length} data-testid="undo" {...tip(t('ses.undo'), t('tip.undo'), `${mod} Z`)}>
         <IconUndo size={18} />
       </button>
       {expert && (
-        <button className="btn icon ghost" onClick={(e) => viewMenu.open(e, 'right', 250)} title={t('ses.options')} aria-label={t('ses.options')}>
-          <IconSliders size={18} />
-        </button>
+        <>
+          <button className="btn icon ghost" onClick={(e) => viewMenu.open(e, 'right', 250)} {...tip(t('ses.options'), t('tip.options'))}>
+            <IconSliders size={18} />
+          </button>
+          <button className="btn icon ghost" onClick={() => setZen(true)} {...tip(t('ses.focus'), t('tip.zen'), 'F10')}>
+            <IconEye size={18} />
+          </button>
+          <button className="btn icon ghost" onClick={toggleFullscreen} {...tip(t(fullscreen ? 'ses.exitFullscreen' : 'ses.fullscreen'), t('tip.fullscreen'), 'F11')}>
+            {fullscreen ? <IconMinimize size={18} /> : <IconMaximize size={18} />}
+          </button>
+        </>
       )}
-      <button className="btn icon ghost" onClick={() => setZen(true)} title={`${t('ses.focus')} (F10)`} aria-label={t('ses.focus')}>
-        <IconEye size={18} />
-      </button>
-      <button className="btn icon ghost" onClick={toggleFullscreen} title={`${t(fullscreen ? 'ses.exitFullscreen' : 'ses.fullscreen')} (F11)`} aria-label={t('ses.fullscreen')}>
-        {fullscreen ? <IconMinimize size={18} /> : <IconMaximize size={18} />}
-      </button>
-      <button className="btn icon ghost" onClick={(e) => more.open(e, 'right', 260)} aria-label={t('common.more')} data-testid="menu-btn">
+      <button className="btn icon ghost" onClick={(e) => more.open(e, 'right', 270)} data-testid="menu-btn" {...tip(t('common.more'), t('tip.more'))}>
         <IconMore size={18} />
       </button>
 
@@ -193,11 +209,20 @@ function SessionHeader() {
       </MenuPopup>
 
       <MenuPopup at={more.at} onClose={more.close}>
-        <button className="mi" onClick={otherFolder}>
-          <IconFolderOut size={16} />
-          {t('ses.other')}
-          <span className="k">Enter</span>
-        </button>
+        {expert && (
+          <button className="mi" onClick={otherFolder}>
+            <IconFolderOut size={16} />
+            {t('ses.other')}
+            <span className="k">Enter</span>
+          </button>
+        )}
+        {!expert && (
+          <button className="mi" onClick={toggleFullscreen}>
+            {fullscreen ? <IconMinimize size={16} /> : <IconMaximize size={16} />}
+            {t(fullscreen ? 'ses.exitFullscreen' : 'ses.fullscreen')}
+            <span className="k">F11</span>
+          </button>
+        )}
         <button className="mi" onClick={() => openDialog({ type: 'summary' })}>
           <IconChart size={16} />
           {t('menu.summary')}
@@ -206,14 +231,16 @@ function SessionHeader() {
           <IconTrash size={16} />
           {t('menu.trash')}
         </button>
-        <button className="mi" onClick={() => openDialog({ type: 'lost' })}>
-          <IconSearch size={16} />
-          {t('menu.lost')}
-        </button>
+        {expert && (
+          <button className="mi" onClick={() => openDialog({ type: 'lost' })}>
+            <IconSearch size={16} />
+            {t('menu.lost')}
+          </button>
+        )}
         <div className="sep" />
         <button className="mi" onClick={() => openDialog({ type: 'settings', tab: 'help' })}>
           <IconKeyboard size={16} />
-          {t('menu.shortcuts')}
+          {t('menu.help')}
           <span className="k">F1</span>
         </button>
         <button className="mi" onClick={() => openDialog({ type: 'settings' })}>
@@ -228,4 +255,3 @@ function SessionHeader() {
     </div>
   );
 }
-

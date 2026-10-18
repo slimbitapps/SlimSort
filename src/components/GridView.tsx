@@ -17,6 +17,7 @@ export function GridView({ s }: { s: SessionState }) {
   const ref = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ w: 800, h: 600 });
   const [scrollTop, setScrollTop] = useState(0);
+  const raf = useRef(0);
 
   useLayoutEffect(() => {
     const el = ref.current!;
@@ -68,6 +69,7 @@ export function GridView({ s }: { s: SessionState }) {
           selected={s.selection.has(id)}
           current={s.currentId === id}
           skipped={s.skipped.has(id)}
+          series={s.seriesOf.has(id) ? s.series[s.seriesOf.get(id)!].length : 0}
         />
       );
     }
@@ -78,7 +80,14 @@ export function GridView({ s }: { s: SessionState }) {
       ref={ref}
       className="grid-scroll"
       data-testid="grid"
-      onScroll={(e) => setScrollTop((e.target as HTMLDivElement).scrollTop)}
+      onScroll={(e) => {
+        const top = (e.target as HTMLDivElement).scrollTop;
+        if (raf.current) return;
+        raf.current = requestAnimationFrame(() => {
+          raf.current = 0;
+          setScrollTop(top);
+        });
+      }}
     >
       <div style={{ height: totalH, position: 'relative' }}>{tiles}</div>
       {n === 0 && <div className="empty-view">{filter === 'skipped' ? t('ses.emptySkipped') : t('ses.empty')}</div>}
@@ -87,7 +96,7 @@ export function GridView({ s }: { s: SessionState }) {
 }
 
 const Tile = memo(function Tile({
-  it, x, y, w, h, px, selected, current, skipped,
+  it, x, y, w, h, px, selected, current, skipped, series,
 }: {
   it: Item;
   x: number;
@@ -98,6 +107,7 @@ const Tile = memo(function Tile({
   selected: boolean;
   current: boolean;
   skipped: boolean;
+  series: number;
 }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [it.path]);
@@ -134,6 +144,7 @@ const Tile = memo(function Tile({
       <div className="check">{selected && <IconCheck size={13} strokeWidth={3} />}</div>
       <div className="tile-badges">
         {skipped && <span className="tile-badge skip">↷</span>}
+        {series > 1 && <span className="tile-badge">⧉ {series}</span>}
         {it.live && <span className="tile-badge">LIVE</span>}
         {it.kind === 'video' && (
           <span className="tile-badge">
