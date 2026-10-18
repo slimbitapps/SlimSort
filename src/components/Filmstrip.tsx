@@ -3,7 +3,7 @@ import { goTo, currentIndex, step, type SessionState } from '../store';
 import { thumbUrl } from '../util';
 import { IconVideo } from '../icons';
 
-const ITEM_W = 52;
+const ITEM_W = 46;
 const STEP = ITEM_W + 6;
 
 /** Bildleiste wie in Apple Fotos: aktuelles Bild in der Mitte, Ziehen blättert schnell. */

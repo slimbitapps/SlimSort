@@ -78,10 +78,24 @@ export interface Progress {
   speed: number; // Bytes pro Sekunde (geglättet)
 }
 
+export interface SetupState {
+  step: 0 | 1 | 2;
+  source: string;
+  recursive: boolean;
+  count: { images: number; videos: number; total: number; sample: string[] } | null;
+  counting: boolean;
+  startView: 'grid' | 'single';
+  trashDir: string | null;
+  fullscreen: boolean;
+}
+
 interface State {
   ready: boolean;
   settings: SettingsData;
-  screen: 'start' | 'session';
+  screen: 'onboarding' | 'home' | 'setup' | 'session';
+  setup: SetupState | null;
+  /** Schritt der Einführung beim ersten Sortieren (null = aus) */
+  coach: number | null;
   session: SessionState | null;
   dialog: Dialog;
   toasts: Toast[];
@@ -97,7 +111,7 @@ interface State {
 
 export const defaultPrefs: Prefs = {
   lang: 'de',
-  theme: 'dark',
+  theme: 'system',
   mode: 'simple',
   transferMode: 'move',
   liveVideo: 'move',
@@ -121,7 +135,7 @@ function defaultSettings(): SettingsData {
   return {
     version: 1,
     prefs: { ...defaultPrefs },
-    profiles: [{ id: 'default', name: 'Standard', targets: [], groups: [] }],
+    profiles: [{ id: 'default', name: 'Meine Ordner', targets: [], groups: [] }],
     quickStarts: [],
     recentSources: [],
   };
@@ -130,7 +144,9 @@ function defaultSettings(): SettingsData {
 export const useStore = create<State>(() => ({
   ready: false,
   settings: defaultSettings(),
-  screen: 'start',
+  screen: 'home',
+  setup: null,
+  coach: null,
   session: null,
   dialog: null,
   toasts: [],
@@ -168,15 +184,42 @@ export async function init() {
   if (!settings.profiles.some((p) => p.id === settings.prefs.activeProfileId)) {
     settings.prefs.activeProfileId = settings.profiles[0].id;
   }
+  // Bestehende Nutzer (ältere Version) brauchen keine Einführung mehr
+  if (raw.version && raw.onboarded === undefined && (raw.profiles?.some((p) => p.targets.length) || raw.quickStarts?.length)) {
+    settings.onboarded = true;
+  }
+  if (!raw.prefs?.lang) settings.prefs.lang = detectLang();
   setLang(settings.prefs.lang);
-  set({ settings, ready: true, fullscreen: await api().isFullscreen() });
+  api().setTheme(settings.prefs.theme);
+  set({
+    settings,
+    ready: true,
+    screen: settings.onboarded ? 'home' : 'onboarding',
+    fullscreen: await api().isFullscreen(),
+  });
   wireEvents();
   watchDirs();
+}
+
+function detectLang(): Prefs['lang'] {
+  const l = (navigator.language || 'de').slice(0, 2);
+  return (['de', 'en', 'fr', 'es', 'it'] as const).find((x) => x === l) || 'en';
+}
+
+export function finishOnboarding() {
+  updateSettings((s) => ({ ...s, onboarded: true }));
+  set({ screen: 'home' });
+}
+
+export function restartTutorial() {
+  updateSettings((s) => ({ ...s, onboarded: false, tutorialDone: false }));
+  set({ screen: 'onboarding', dialog: null, session: null, setup: null });
 }
 
 export function updatePrefs(p: Partial<Prefs>) {
   const s = get().settings;
   if (p.lang) setLang(p.lang);
+  if (p.theme) api().setTheme(p.theme);
   set({ settings: { ...s, prefs: { ...s.prefs, ...p } } });
   persist();
   if (('sortBy' in p || 'sortDir' in p || 'filter' in p) && get().session) {
@@ -248,6 +291,7 @@ export function closeDialog() {
 // ---------------------------------------------------------------- Ereignisse vom Hauptprozess
 
 let wired = false;
+let scanActive = false;
 function wireEvents() {
   if (wired) return;
   wired = true;
@@ -255,7 +299,9 @@ function wireEvents() {
   a.on('op:done', onOpDone);
   a.on('op:progress', onProgress);
   a.on('op:idle', () => setTimeout(() => api().pending().then((n) => n === 0 && set({ progress: null })), 400));
-  a.on('scan:progress', (n: number) => set({ scanning: n }));
+  // Nur während eines Einlesevorgangs anzeigen: Späte Meldungen dürfen die
+  // Ladeanzeige nicht wieder einschalten (das ließ den Kringel hängen).
+  a.on('scan:progress', (n: number) => scanActive && set({ scanning: n }));
   a.on('exif:batch', onExif);
   a.on('exif:done', () => {
     const s = get().session;
@@ -282,7 +328,10 @@ function onProgress(p: ProgressEvent) {
 function onReach(snap: Record<string, boolean>) {
   const before = get().reach;
   for (const [dir, ok] of Object.entries(snap)) {
-    if (ok && before[dir] === false) toast('success', t('toast.reachable', { name: basename(dir) }));
+    if (ok && before[dir] === false) {
+      set({ toasts: get().toasts.filter((x) => !(x.kind === 'error' && x.text.includes(dir))) });
+      toast('success', t('toast.reachable', { name: basename(dir) }));
+    }
   }
   set({ reach: { ...before, ...snap } });
 }
@@ -354,6 +403,7 @@ export interface StartOptions {
 }
 
 export async function startSession(o: StartOptions) {
+  scanActive = true;
   set({ scanning: 0 });
   try {
     const { items, trashDir } = await api().openSession({
@@ -361,6 +411,7 @@ export async function startSession(o: StartOptions) {
       recursive: o.recursive,
       trashDir: o.trashDir,
     });
+    scanActive = false;
     if (!items.length) {
       set({ scanning: null });
       toast('info', t('start.empty'), { timeout: 5000 });
@@ -396,13 +447,22 @@ export async function startSession(o: StartOptions) {
       ...st,
       prefs: { ...st.prefs, activeProfileId: o.profileId },
       recentSources: [o.source, ...st.recentSources.filter((x) => x !== o.source)].slice(0, 8),
+      quickStarts: upsertRecent(st.quickStarts, o),
     }));
     recompute(session, {});
-    set({ screen: 'session', scanning: null, zen: false });
+    set({
+      screen: 'session',
+      setup: null,
+      scanning: null,
+      zen: false,
+      coach: get().settings.tutorialDone ? null : 0,
+    });
     if (o.fullscreen) api().setFullscreen(true);
     watchDirs();
     return true;
   } catch (err: any) {
+    scanActive = false;
+    api().log(`startSession: ${err?.stack || err}`);
     set({ scanning: null });
     toast('error', t('start.error', { msg: String(err?.message || err) }));
     return false;
@@ -410,7 +470,8 @@ export async function startSession(o: StartOptions) {
 }
 
 export function goHome() {
-  set({ screen: 'start', session: null, zen: false, dialog: null });
+  scanActive = false;
+  set({ screen: 'home', session: null, setup: null, zen: false, dialog: null, scanning: null, coach: null });
   api().pending().then((n) => n === 0 && set({ progress: null }));
   api().setFullscreen(false);
 }
@@ -736,7 +797,7 @@ export function addTarget(dir: string, askKey: boolean) {
     name: basename(dir),
     path: dir,
     key: askKey ? '' : nextFreeKey(prof.targets),
-    color: COLORS[prof.targets.length % COLORS.length],
+    color: COLORS.find((c) => !prof.targets.some((x) => x.color === c)) || COLORS[prof.targets.length % COLORS.length],
     groupId: null,
   };
   updateProfile(prof.id, (p) => ({ ...p, targets: [...p.targets, target] }));
@@ -879,4 +940,125 @@ export async function emptyTrash() {
   }
   toast('success', t('toast.trashEmptied', { n: r.removed }));
   return r;
+}
+
+// ---------------------------------------------------------------- Zuletzt verwendet
+
+/** Jede gestartete Sortierung wird gemerkt (max. 9 + angeheftete). */
+function upsertRecent(list: QuickStart[], o: StartOptions): QuickStart[] {
+  const now = Date.now();
+  const existing = list.find((q) => q.source === o.source && q.profileId === o.profileId);
+  const entry: QuickStart = existing
+    ? { ...existing, ...o, trashDir: o.trashDir, lastUsed: now }
+    : { id: uid('q'), name: basename(o.source), ...o, lastUsed: now, pinned: false };
+  const rest = list.filter((q) => q !== existing);
+  const all = [entry, ...rest];
+  const pinned = all.filter((q) => q.pinned);
+  const others = all.filter((q) => !q.pinned).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+  return [...pinned, ...others].slice(0, Math.max(9, pinned.length));
+}
+
+export function sortedRecents(list: QuickStart[]) {
+  const pinned = list.filter((q) => q.pinned);
+  const others = list.filter((q) => !q.pinned).sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+  return [...pinned, ...others];
+}
+
+// ---------------------------------------------------------------- Neue Sortierung einrichten
+
+export function beginSetup(source: string) {
+  const p = prefs();
+  const recent = get().settings.quickStarts.find((q) => q.source === source);
+  if (recent) updatePrefs({ activeProfileId: recent.profileId });
+  set({
+    screen: 'setup',
+    setup: {
+      step: 0,
+      source,
+      recursive: recent?.recursive ?? p.recursive,
+      count: null,
+      counting: true,
+      startView: recent?.startView ?? 'single',
+      trashDir: recent?.trashDir ?? resolveTrashDir(source),
+      fullscreen: recent?.fullscreen ?? false,
+    },
+  });
+  countSetup();
+}
+
+export async function countSetup() {
+  const st = get().setup;
+  if (!st) return;
+  set({ setup: { ...st, counting: true, count: null } });
+  try {
+    const count = await api().countMedia({ dir: st.source, recursive: st.recursive });
+    const cur = get().setup;
+    if (cur && cur.source === st.source && cur.recursive === st.recursive) set({ setup: { ...cur, count, counting: false } });
+  } catch (e: any) {
+    api().log(`count: ${e?.stack || e}`);
+    const cur = get().setup;
+    if (cur) set({ setup: { ...cur, counting: false, count: { images: 0, videos: 0, total: 0, sample: [] } } });
+    toast('error', t('start.error', { msg: String(e?.message || e) }));
+  }
+}
+
+export function updateSetup(patch: Partial<SetupState>) {
+  const st = get().setup;
+  if (!st) return;
+  const next = { ...st, ...patch };
+  set({ setup: next });
+  if (patch.source !== undefined || patch.recursive !== undefined) countSetup();
+}
+
+export async function pickSetupSource() {
+  const dir = await api().pickFolder({ title: t('home.pick') });
+  if (!dir) return;
+  if (get().screen === 'setup') updateSetup({ source: dir, trashDir: resolveTrashDir(dir) });
+  else beginSetup(dir);
+}
+
+export function startFromSetup() {
+  const st = get().setup;
+  if (!st) return;
+  return startSession({
+    source: st.source,
+    profileId: activeProfile().id,
+    trashDir: st.trashDir,
+    startView: st.startView,
+    recursive: st.recursive,
+    fullscreen: st.fullscreen,
+  });
+}
+
+/** Legt einen neuen Zielordner an und fügt ihn hinzu. */
+export async function createTargetFolder(parent: string, name: string) {
+  try {
+    const dir = await api().createFolder({ parent, name });
+    addTarget(dir, false);
+    return dir;
+  } catch (e: any) {
+    toast('error', String(e?.message || e));
+    return null;
+  }
+}
+
+export function forgetRecent(id: string) {
+  deleteQuickStart(id);
+}
+export function togglePinRecent(id: string) {
+  const q = get().settings.quickStarts.find((x) => x.id === id);
+  if (q) updateQuickStart(id, { pinned: !q.pinned });
+}
+
+// ---------------------------------------------------------------- Einführung (Coach Marks)
+
+export function coachNext(total: number) {
+  const c = get().coach;
+  if (c === null) return;
+  if (c + 1 >= total) coachEnd();
+  else set({ coach: c + 1 });
+}
+export function coachEnd() {
+  set({ coach: null });
+  if (!get().settings.tutorialDone) updateSettings((s) => ({ ...s, tutorialDone: true }));
 }

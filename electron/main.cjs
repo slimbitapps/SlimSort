@@ -2,8 +2,9 @@
 // Mehr Hintergrund-Threads, damit ein hängendes NAS nicht alles blockiert.
 process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE || '16';
 
-const { app, BrowserWindow, ipcMain, dialog, protocol, nativeImage, shell, Menu, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, protocol, nativeImage, nativeTheme, shell, Menu, screen } = require('electron');
 const path = require('node:path');
+const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const { Session } = require('./core/session.cjs');
 const { SettingsStore } = require('./core/settings.cjs');
@@ -11,6 +12,7 @@ const { ReachMonitor, findLostFolders } = require('./core/reach.cjs');
 const { readCaptureTimes } = require('./core/exif.cjs');
 const { createMediaServer } = require('./core/media.cjs');
 const { checkDir } = require('./core/fsops.cjs');
+const { scan } = require('./core/scanner.cjs');
 
 const isDev = !!process.env.VITE_DEV_SERVER_URL;
 const isTest = !!process.env.FOTOSORT_TEST;
@@ -22,6 +24,27 @@ protocol.registerSchemesAsPrivileged(
     privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true, bypassCSP: true },
   }))
 );
+
+// Einfaches Fehlerprotokoll (bleibt lokal) – hilft bei der Fehlersuche.
+function log(...args) {
+  try {
+    const line = `[${new Date().toISOString()}] ${args.map((a) => (a instanceof Error ? a.stack : typeof a === 'string' ? a : JSON.stringify(a))).join(' ')}\n`;
+    fs.appendFileSync(path.join(app.getPath('userData'), 'app.log'), line);
+  } catch {
+    /* ignorieren */
+  }
+}
+process.on('uncaughtException', (e) => log('uncaughtException', e));
+process.on('unhandledRejection', (e) => log('unhandledRejection', e));
+
+const HEADER_H = 52;
+const THEMES = {
+  dark: { bg: '#121316', header: '#121316', symbols: '#e9eaee' },
+  light: { bg: '#f5f5f7', header: '#f5f5f7', symbols: '#1c1c1e' },
+};
+function isDark(theme) {
+  return theme === 'dark' || (theme !== 'light' && nativeTheme.shouldUseDarkColors);
+}
 
 let win = null;
 let session = null;
@@ -36,17 +59,25 @@ function send(channel, payload) {
 function createWindow() {
   const saved = settings.data.window || {};
   const { workAreaSize } = screen.getPrimaryDisplay();
+  const theme = (settings.data.prefs && settings.data.prefs.theme) || 'system';
+  const colors = THEMES[isDark(theme) ? 'dark' : 'light'];
+  const isMacOS = process.platform === 'darwin';
   win = new BrowserWindow({
     width: Math.min(saved.width || 1400, workAreaSize.width),
     height: Math.min(saved.height || 900, workAreaSize.height),
     x: saved.x,
     y: saved.y,
-    minWidth: 860,
-    minHeight: 560,
-    backgroundColor: '#14161a',
+    minWidth: 900,
+    minHeight: 600,
+    backgroundColor: colors.bg,
     title: 'Fotosortierer',
     show: false,
     autoHideMenuBar: true,
+    // Moderne Fensterleiste: Inhalt reicht bis oben, Fensterknöpfe bleiben nativ.
+    titleBarStyle: 'hidden',
+    ...(isMacOS
+      ? { trafficLightPosition: { x: 18, y: 18 } }
+      : { titleBarOverlay: { color: colors.header, symbolColor: colors.symbols, height: HEADER_H } }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -150,12 +181,48 @@ function registerIpc() {
   });
 
   ipcMain.handle('fs:checkDir', (_e, dir) => checkDir(dir));
+
+  // Fotos und Videos in einem Ordner zählen (für die Vorschau beim Einrichten)
+  ipcMain.handle('fs:count', async (_e, { dir, recursive }) => {
+    const items = await scan(dir, { recursive, exclude: [path.join(dir, '_Gelöscht')] });
+    let images = 0;
+    let videos = 0;
+    for (const it of items) it.kind === 'video' ? videos++ : images++;
+    return { images, videos, total: items.length, sample: items.slice(0, 4).map((i) => i.path) };
+  });
+
+  // Neuen Zielordner anlegen (existiert er schon, wird er einfach verwendet)
+  ipcMain.handle('fs:createFolder', async (_e, { parent, name }) => {
+    const clean = String(name).replace(/[\\/:*?"<>|]/g, '').replace(/^\.+/, '').trim();
+    if (!clean) throw new Error('Ungültiger Name');
+    const dir = path.join(parent, clean);
+    await fsp.mkdir(dir, { recursive: true });
+    return dir;
+  });
+  ipcMain.handle('fs:parent', (_e, p) => path.dirname(p));
+
+  // Design umschalten: Fensterknöpfe passend einfärben
+  ipcMain.handle('win:theme', (_e, theme) => {
+    nativeTheme.themeSource = theme === 'system' ? 'system' : theme;
+    const c = THEMES[isDark(theme) ? 'dark' : 'light'];
+    if (win && process.platform !== 'darwin') {
+      try {
+        win.setTitleBarOverlay({ color: c.header, symbolColor: c.symbols, height: HEADER_H });
+      } catch {
+        /* ältere Systeme */
+      }
+    }
+    if (win) win.setBackgroundColor(c.bg);
+    return isDark(theme);
+  });
+  ipcMain.handle('app:log', (_e, msg) => log('renderer', msg));
   ipcMain.handle('fs:mkdir', async (_e, dir) => {
     await fsp.mkdir(dir, { recursive: true });
     return true;
   });
 
   ipcMain.handle('session:open', async (_e, { sourceDir, recursive, trashDir }) => {
+    log('session:open', sourceDir);
     const s = newSession();
     const items = await s.open({
       sourceDir,
@@ -172,6 +239,7 @@ function registerIpc() {
         isCancelled: () => run !== exifRun,
       }
     ).then(() => run === exifRun && send('exif:done', null));
+    log('session:open ok', items.length);
     return { items, trashDir: s.trashDir };
   });
 
@@ -220,6 +288,8 @@ let quitting = false;
 
 app.whenReady().then(() => {
   settings.load();
+  log('start', app.getVersion(), process.platform, process.arch);
+  nativeTheme.on('updated', () => send('win:systemTheme', nativeTheme.shouldUseDarkColors));
   media = createMediaServer({ nativeImage, cacheDir: path.join(app.getPath('userData'), 'cache') });
   protocol.handle('media', media.handleMedia);
   protocol.handle('thumb', media.handleThumb);

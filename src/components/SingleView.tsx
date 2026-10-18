@@ -198,7 +198,7 @@ export function SingleView({ s }: { s: SessionState }) {
   if (!it) {
     return (
       <div className="single" ref={ref}>
-        <div className="empty-view">{t('grid.empty')}</div>
+        <div className="empty-view">{t('ses.empty')}</div>
       </div>
     );
   }
@@ -237,7 +237,7 @@ export function SingleView({ s }: { s: SessionState }) {
         <>
           <img
             key={it.path}
-            className="media"
+            className={`media ${nat ? 'ready' : ''}`}
             src={displayUrl(it)}
             alt={it.name}
             draggable={false}
@@ -263,16 +263,21 @@ export function SingleView({ s }: { s: SessionState }) {
         </>
       )}
 
+      {!nat && !error && it.kind === 'image' && (
+        <div className="loading-img">
+          <div className="spinner" />
+        </div>
+      )}
       {error && (
         <div className="no-preview">
           <div>
             <div style={{ fontSize: 16, marginBottom: 6 }}>{it.name}</div>
-            <div className="small">{t('single.noPreview')}</div>
+            <div className="small">{t('ses.noPreview')}</div>
           </div>
         </div>
       )}
 
-      <div className="overlay-info" data-testid="single-info">
+      <div className="overlay-chip info" data-testid="single-info">
         <span className="ellipsis" style={{ fontWeight: 600 }}>
           {it.name}
         </span>
@@ -280,30 +285,30 @@ export function SingleView({ s }: { s: SessionState }) {
           {fmtNum(idx + 1)} / {fmtNum(s.viewIds.length)}
         </span>
         <span style={{ opacity: 0.75 }} className="ellipsis">
-          {t('single.info', { size: fmtBytes(it.size), date: fmtDate(itemTime(it)) })}
+          {fmtBytes(it.size)} · {fmtDate(itemTime(it))}
         </span>
-        {s.skipped.has(it.id) && <span className="badge skip">{t('single.skipped')}</span>}
+        {s.skipped.has(it.id) && <span className="tile-badge skip">{t('ses.skipped')}</span>}
       </div>
 
       <div className="overlay-tools">
         {it.live && (
-          <button className="btn" onClick={() => setLivePlaying(true)} title={t('single.playLive')}>
-            <IconLive size={16} />
-            {t('single.liveBadge')}
+          <button className="overlay-btn" onClick={() => setLivePlaying(true)} title={t('ses.playLive')}>
+            <IconLive size={15} />
+            LIVE
           </button>
         )}
         {zoomed && (
-          <button className="btn" onClick={() => setFitMode(true)} title={t('single.zoomFit')}>
-            <IconMaximize size={16} />
+          <button className="overlay-btn" onClick={() => setFitMode(true)} title={t('ses.fit')}>
+            <IconMaximize size={15} />
           </button>
         )}
-        <button className="btn icon" onClick={() => window.api.showItem(it.path)} title={t('single.openFolder')}>
-          <IconFolderOut size={16} />
+        <button className="overlay-btn" onClick={() => window.api.showItem(it.path)} title={t('ses.openFolder')}>
+          <IconFolderOut size={15} />
         </button>
       </div>
 
       {nat && it.kind === 'image' && (
-        <div className="zoom-label">{Math.round(view.scale * 100)} %</div>
+        <div className="overlay-chip zoom">{Math.round(view.scale * 100)} %</div>
       )}
 
       <button className="nav-arrow l" onClick={() => step(-1)} aria-label="←">

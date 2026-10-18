@@ -1,16 +1,14 @@
 import { useMemo, useRef, useState } from 'react';
 import { t } from '../i18n';
 import {
-  useStore, activeProfile, sortToTarget, trashCurrent, pickAndAddTarget, openDialog, updateTarget,
-  removeTarget, reorderTarget, groupTargets, updateGroup, dissolveGroup, moveTargetToEnd,
-  suggestionFor, currentItem, type SessionState,
+  useStore, activeProfile, sortToTarget, trashCurrent, skipCurrent, pickAndAddTarget, openDialog, updateTarget,
+  removeTarget, reorderTarget, groupTargets, updateGroup, dissolveGroup, moveTargetToEnd, suggestionFor, currentItem,
+  type SessionState,
 } from '../store';
 import type { Group, Target } from '../types';
 import { COLORS, basename, fmtNum } from '../util';
-import {
-  IconPlus, IconTrash, IconWarning, IconFolder, IconKeyboard, IconChevronDown, IconChevronRight,
-} from '../icons';
-import { Floating, KeyCap } from './ui';
+import { IconPlus, IconTrash, IconWarning, IconFolder, IconKeyboard, IconChevronDown, IconChevronRight, IconSkip } from '../icons';
+import { Floating, Help, KeyCap } from './ui';
 
 type Menu =
   | { kind: 'target'; target: Target; x: number; y: number }
@@ -18,7 +16,8 @@ type Menu =
 
 type DropZone = { id: string; zone: 'before' | 'after' | 'into' } | null;
 
-export function TargetBar({ s }: { s: SessionState }) {
+/** Untere Leiste: Überspringen, Löschen und alle Zielordner. */
+export function Dock({ s }: { s: SessionState }) {
   useStore((st) => st.settings.profiles); // neu zeichnen, wenn Ziele sich ändern
   const reach = useStore((st) => st.reach);
   const profile = activeProfile();
@@ -27,6 +26,7 @@ export function TargetBar({ s }: { s: SessionState }) {
   const [drop, setDrop] = useState<DropZone>(null);
   const longPress = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestion = suggestionFor(s, currentItem(s));
+  const mac = window.api.platform === 'darwin';
 
   // Gruppen an der Stelle ihres ersten Mitglieds einfügen
   const blocks = useMemo(() => {
@@ -47,8 +47,6 @@ export function TargetBar({ s }: { s: SessionState }) {
     return out;
   }, [profile]);
 
-  const openMenuAt = (m: Menu) => setMenu(m);
-
   const pressHandlers = (onLong: (x: number, y: number) => void) => ({
     onPointerDown: (e: React.PointerEvent) => {
       if (e.pointerType === 'mouse') return;
@@ -59,10 +57,9 @@ export function TargetBar({ s }: { s: SessionState }) {
     onPointerLeave: () => longPress.current && clearTimeout(longPress.current),
   });
 
-  const zoneOf = (e: React.DragEvent, allowInto: boolean): 'before' | 'after' | 'into' => {
+  const zoneOf = (e: React.DragEvent): 'before' | 'after' | 'into' => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const rel = (e.clientX - r.left) / r.width;
-    if (!allowInto) return rel < 0.5 ? 'before' : 'after';
     return rel < 0.28 ? 'before' : rel > 0.72 ? 'after' : 'into';
   };
 
@@ -71,22 +68,20 @@ export function TargetBar({ s }: { s: SessionState }) {
     const count = s.counts[tg.id] || 0;
     const dz = drop && drop.id === tg.id ? `drop-${drop.zone}` : '';
     return (
-      <div
+      <button
         key={tg.id + ':' + count}
         className={`target ${offline ? 'offline' : ''} ${suggestion === tg.id ? 'suggest' : ''} ${count ? 'hit' : ''} ${dz}`}
         style={{ ['--c' as string]: tg.color }}
-        role="button"
-        tabIndex={-1}
         data-testid="target"
         data-name={tg.name}
-        title={`${tg.name}\n${tg.path}${offline ? '\n⚠ ' + t('targets.offline') : ''}`}
+        title={`${tg.name}\n${tg.path}${offline ? '\n⚠ ' + t('ses.offline') : ''}`}
         draggable
         onClick={() => sortToTarget(tg.id)}
         onContextMenu={(e) => {
           e.preventDefault();
-          openMenuAt({ kind: 'target', target: tg, x: e.clientX, y: e.clientY });
+          setMenu({ kind: 'target', target: tg, x: e.clientX, y: e.clientY });
         }}
-        {...pressHandlers((x, y) => openMenuAt({ kind: 'target', target: tg, x, y }))}
+        {...pressHandlers((x, y) => setMenu({ kind: 'target', target: tg, x, y }))}
         onDragStart={(e) => {
           setDragId(tg.id);
           e.dataTransfer.effectAllowed = 'move';
@@ -100,7 +95,7 @@ export function TargetBar({ s }: { s: SessionState }) {
           if (!dragId || dragId === tg.id) return;
           e.preventDefault();
           e.stopPropagation();
-          const zone = zoneOf(e, true);
+          const zone = zoneOf(e);
           if (!drop || drop.id !== tg.id || drop.zone !== zone) setDrop({ id: tg.id, zone });
         }}
         onDragLeave={() => setDrop(null)}
@@ -108,40 +103,42 @@ export function TargetBar({ s }: { s: SessionState }) {
           e.preventDefault();
           e.stopPropagation();
           if (!dragId || dragId === tg.id) return;
-          const zone = zoneOf(e, true);
+          const zone = zoneOf(e);
           if (zone === 'into') groupTargets(dragId, tg.id);
           else reorderTarget(dragId, tg.id, zone === 'after', tg.groupId ?? null);
           setDrop(null);
           setDragId(null);
         }}
       >
-        {suggestion === tg.id && <span className="sugg">{t('single.suggest')}</span>}
-        <div className="tname ellipsis">{tg.name}</div>
-        <div className="tfoot">
+        {suggestion === tg.id && <span className="sugg">{t('ses.suggest')}</span>}
+        <div className="t-top">
+          <span className="t-dot" />
+          <span className="t-name ellipsis">{tg.name}</span>
+          {offline && <IconWarning size={14} style={{ color: 'var(--danger)', flex: 'none' }} />}
+        </div>
+        <div className="t-foot">
           <KeyCap k={tg.key} />
-          {offline && <IconWarning size={14} style={{ color: 'var(--danger)' }} />}
-          <span className="count" data-testid="target-count">
+          <span className="t-count" data-testid="target-count">
             {fmtNum(count)}
           </span>
         </div>
-      </div>
+      </button>
     );
   };
 
   const renderGroup = (g: Group, members: Target[]) => {
     const sum = members.reduce((a, m) => a + (s.counts[m.id] || 0), 0);
-    const hasSuggestion = members.some((m) => m.id === suggestion);
     const anyOffline = members.some((m) => reach[m.path] === false);
     return (
-      <div key={g.id} className={`group ${g.collapsed ? 'closed' : ''}`} data-testid="group">
-        <div
-          className={`ghead ${hasSuggestion ? 'suggest' : ''}`}
+      <div key={g.id} className="group" data-testid="group">
+        <button
+          className="ghead"
           onClick={() => updateGroup(g.id, { collapsed: !g.collapsed })}
           onContextMenu={(e) => {
             e.preventDefault();
-            openMenuAt({ kind: 'group', group: g, x: e.clientX, y: e.clientY });
+            setMenu({ kind: 'group', group: g, x: e.clientX, y: e.clientY });
           }}
-          {...pressHandlers((x, y) => openMenuAt({ kind: 'group', group: g, x, y }))}
+          {...pressHandlers((x, y) => setMenu({ kind: 'group', group: g, x, y }))}
           onDragOver={(e) => {
             if (!dragId || members.some((m) => m.id === dragId)) return;
             e.preventDefault();
@@ -155,83 +152,75 @@ export function TargetBar({ s }: { s: SessionState }) {
         >
           <div className="row" style={{ gap: 4 }}>
             {g.collapsed ? <IconChevronRight size={14} /> : <IconChevronDown size={14} />}
-            <span className="tname ellipsis" style={{ fontWeight: 600, fontSize: 13 }}>
+            <span className="ellipsis" style={{ fontWeight: 620, fontSize: 13 }}>
               {g.name}
             </span>
             {anyOffline && <IconWarning size={13} style={{ color: 'var(--danger)' }} />}
           </div>
           <div className="row" style={{ gap: 6 }}>
-            <div className="gdots">
-              {members.slice(0, 6).map((m) => (
-                <i key={m.id} style={{ background: m.color }} />
-              ))}
-            </div>
-            {g.collapsed && (
+            {g.collapsed ? (
               <div className="gkeys">
                 {members.slice(0, 5).map((m) => (
                   <KeyCap key={m.id} k={m.key} />
                 ))}
               </div>
+            ) : (
+              <div className="row" style={{ gap: 3 }}>
+                {members.slice(0, 6).map((m) => (
+                  <span key={m.id} className="dot" style={{ background: m.color, width: 8, height: 8 }} />
+                ))}
+              </div>
             )}
-            <span className="count" style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-2)' }}>
+            <span className="faint small" style={{ marginLeft: 'auto', fontWeight: 600 }}>
               {fmtNum(sum)}
             </span>
           </div>
-        </div>
+        </button>
         {!g.collapsed && members.map(renderTarget)}
       </div>
     );
   };
 
   return (
-    <div
-      className="targetbar"
-      data-testid="targetbar"
-      onDragOver={(e) => dragId && e.preventDefault()}
-      onDrop={(e) => {
-        e.preventDefault();
-        if (dragId) moveTargetToEnd(dragId);
-        setDragId(null);
-        setDrop(null);
-      }}
-    >
+    <div className="dock" data-testid="targetbar">
+      <div className="dock-actions" data-coach="actions">
+        <button className="act" onClick={skipCurrent} data-testid="skip" title={`${t('ses.skip')} (${t('key.space')})`}>
+          <IconSkip size={18} />
+          {t('ses.skip')}
+          <KeyCap k={t('key.space')} />
+        </button>
+        <button className="act delete" onClick={trashCurrent} data-testid="target-trash" title={t('ses.delete.tip')}>
+          <IconTrash size={18} />
+          {t('ses.delete')}
+          <KeyCap k={mac ? '⌫' : t('key.del')} />
+        </button>
+      </div>
+      <div className="dock-sep" />
       <div
-        className="target trash"
-        role="button"
-        data-testid="target-trash"
-        onClick={() => trashCurrent()}
-        title={t('tb.delete')}
+        className="targets-scroll"
+        data-coach="targets"
+        onDragOver={(e) => dragId && e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          if (dragId) moveTargetToEnd(dragId);
+          setDragId(null);
+          setDrop(null);
+        }}
       >
-        <div className="tname row" style={{ gap: 6 }}>
-          <IconTrash size={14} />
-          {t('targets.trash')}
-        </div>
-        <div className="tfoot">
-          <KeyCap k={window.api.platform === 'darwin' ? '⌫' : t('key.del')} />
-          <span className="count">{fmtNum(s.deleted)}</span>
+        {blocks.map((b) => (b.type === 't' ? renderTarget(b.target) : renderGroup(b.group, b.members)))}
+        <button className="target add" onClick={pickAndAddTarget} data-testid="add-target">
+          <IconPlus size={16} />
+          {t('ses.addTarget')}
+        </button>
+        {profile.targets.length === 0 && <div className="target-hint">{t('ses.noTargets')}</div>}
+        <div className="row" style={{ alignSelf: 'center', padding: '0 6px', flex: 'none' }}>
+          <Help title={t('setup.targets.title')} text={t('targets.help')} />
         </div>
       </div>
 
-      {blocks.map((b) => (b.type === 't' ? renderTarget(b.target) : renderGroup(b.group, b.members)))}
-
-      <div className="target add" role="button" onClick={pickAndAddTarget} data-testid="add-target">
-        <IconPlus size={16} />
-        {t('targets.add')}
-      </div>
-      {profile.targets.length === 0 && (
-        <div className="target-hint">
-          <span>{t('targets.addHint')}</span>
-        </div>
-      )}
-      <div className="row" style={{ alignSelf: 'center', paddingRight: 4 }}>
-        <HelpTargets />
-      </div>
-
-      {menu && menu.kind === 'target' && (
-        <TargetMenu menu={menu} onClose={() => setMenu(null)} />
-      )}
+      {menu && menu.kind === 'target' && <TargetMenu menu={menu} onClose={() => setMenu(null)} />}
       {menu && menu.kind === 'group' && (
-        <Floating x={menu.x} y={menu.y} anchorBottom className="menu-pop" onClose={() => setMenu(null)}>
+        <Floating x={menu.x} y={menu.y} anchorBottom className="menu" onClose={() => setMenu(null)}>
           <button
             className="mi"
             onClick={() => {
@@ -257,31 +246,6 @@ export function TargetBar({ s }: { s: SessionState }) {
   );
 }
 
-function HelpTargets() {
-  // Hilfe zur Zielleiste – Text steht in targets.help
-  const [open, setOpen] = useState<{ x: number; y: number } | null>(null);
-  return (
-    <>
-      <button
-        className="help-btn"
-        aria-label={t('common.help')}
-        onClick={(e) => {
-          const r = e.currentTarget.getBoundingClientRect();
-          setOpen(open ? null : { x: r.left - 300, y: r.top - 10 });
-        }}
-      >
-        ?
-      </button>
-      {open && (
-        <Floating x={open.x} y={open.y} anchorBottom className="help-pop" onClose={() => setOpen(null)}>
-          <h4>{t('targets.add')}</h4>
-          {t('targets.help')}
-        </Floating>
-      )}
-    </>
-  );
-}
-
 function TargetMenu({ menu, onClose }: { menu: Extract<Menu, { kind: 'target' }>; onClose: () => void }) {
   const tg = menu.target;
   const run = (fn: () => void) => () => {
@@ -289,14 +253,14 @@ function TargetMenu({ menu, onClose }: { menu: Extract<Menu, { kind: 'target' }>
     fn();
   };
   return (
-    <Floating x={menu.x} y={menu.y} anchorBottom className="menu-pop" onClose={onClose}>
-      <div className="row small muted" style={{ padding: '6px 10px' }}>
+    <Floating x={menu.x} y={menu.y} anchorBottom className="menu" onClose={onClose}>
+      <div className="row small muted" style={{ padding: '6px 10px 8px' }}>
         <KeyCap k={tg.key} />
-        <span className="ellipsis" style={{ maxWidth: 200 }}>
+        <span className="ellipsis" style={{ maxWidth: 200, fontWeight: 600 }}>
           {tg.name}
         </span>
       </div>
-      <div className="msep" />
+      <div className="sep" />
       <button className="mi" onClick={run(() => openDialog({ type: 'keyCapture', targetId: tg.id }))}>
         <IconKeyboard size={16} />
         {t('targets.menu.key')}
@@ -309,21 +273,13 @@ function TargetMenu({ menu, onClose }: { menu: Extract<Menu, { kind: 'target' }>
       >
         {t('targets.menu.rename')}
       </button>
-      <div className="small faint" style={{ padding: '6px 10px 0' }}>
-        {t('targets.menu.color')}
-      </div>
+      <div className="mh">{t('targets.menu.color')}</div>
       <div className="colors">
         {COLORS.map((c) => (
-          <button
-            key={c}
-            className={c === tg.color ? 'on' : ''}
-            style={{ background: c }}
-            aria-label={c}
-            onClick={run(() => updateTarget(tg.id, { color: c }))}
-          />
+          <button key={c} className={c === tg.color ? 'on' : ''} style={{ background: c }} aria-label={c} onClick={run(() => updateTarget(tg.id, { color: c }))} />
         ))}
       </div>
-      <div className="msep" />
+      <div className="sep" />
       <button
         className="mi"
         onClick={run(async () => {
@@ -342,11 +298,10 @@ function TargetMenu({ menu, onClose }: { menu: Extract<Menu, { kind: 'target' }>
           {t('targets.menu.ungroup')}
         </button>
       )}
-      <div className="msep" />
+      <div className="sep" />
       <button className="mi danger" onClick={run(() => removeTarget(tg.id))}>
         {t('targets.menu.remove')}
       </button>
     </Floating>
   );
 }
-

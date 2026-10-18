@@ -8,9 +8,8 @@ import type { Item } from '../types';
 /** Wird von der Tastatursteuerung für Pfeil hoch/runter benutzt. */
 export const gridNav = { cols: 1 };
 
-const GAP = 10;
+const GAP = 8;
 const PAD = 12;
-const NAME_H = 24;
 
 export function GridView({ s }: { s: SessionState }) {
   const size = useStore((st) => st.settings.prefs.thumbSize);
@@ -31,7 +30,7 @@ export function GridView({ s }: { s: SessionState }) {
   const cols = Math.max(1, Math.floor((box.w - PAD * 2 + GAP) / (size + GAP)));
   gridNav.cols = cols;
   const tileW = (box.w - PAD * 2 - GAP * (cols - 1)) / cols;
-  const tileH = Math.round(tileW * 0.82) + NAME_H;
+  const tileH = Math.round(tileW * 0.75);
   const rowH = tileH + GAP;
   const rows = Math.ceil(n / cols);
   const totalH = PAD * 2 + Math.max(0, rows * rowH - GAP);
@@ -82,7 +81,7 @@ export function GridView({ s }: { s: SessionState }) {
       onScroll={(e) => setScrollTop((e.target as HTMLDivElement).scrollTop)}
     >
       <div style={{ height: totalH, position: 'relative' }}>{tiles}</div>
-      {n === 0 && <div className="empty-view">{filter === 'skipped' ? t('grid.emptySkipped') : t('grid.empty')}</div>}
+      {n === 0 && <div className="empty-view">{filter === 'skipped' ? t('ses.emptySkipped') : t('ses.empty')}</div>}
     </div>
   );
 }
@@ -133,11 +132,11 @@ const Tile = memo(function Tile({
         )}
       </div>
       <div className="check">{selected && <IconCheck size={13} strokeWidth={3} />}</div>
-      <div className="badges">
-        {skipped && <span className="badge skip">↷</span>}
-        {it.live && <span className="badge">LIVE</span>}
+      <div className="tile-badges">
+        {skipped && <span className="tile-badge skip">↷</span>}
+        {it.live && <span className="tile-badge">LIVE</span>}
         {it.kind === 'video' && (
-          <span className="badge">
+          <span className="tile-badge">
             <IconVideo size={11} />
           </span>
         )}

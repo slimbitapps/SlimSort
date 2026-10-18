@@ -47,9 +47,11 @@ export interface QuickStart {
   startView: 'grid' | 'single';
   recursive: boolean;
   fullscreen: boolean;
+  lastUsed?: number;
+  pinned?: boolean;
 }
 
-export type Lang = 'de' | 'en';
+export type Lang = 'de' | 'en' | 'fr' | 'es' | 'it';
 export type Theme = 'dark' | 'light' | 'system';
 export type SortBy = 'name' | 'date' | 'size' | 'type';
 export type Filter = 'all' | 'images' | 'videos' | 'skipped';
@@ -83,6 +85,7 @@ export interface SettingsData {
   quickStarts: QuickStart[];
   recentSources: string[];
   onboarded?: boolean;
+  tutorialDone?: boolean;
 }
 
 export interface OpResult {
@@ -129,6 +132,11 @@ export interface Api {
   pickFolder(o?: { title?: string; defaultPath?: string }): Promise<string | null>;
   confirm(o: { message: string; detail?: string; buttons: string[]; type?: string }): Promise<number>;
   checkDir(dir: string): Promise<{ ok: boolean; code?: string }>;
+  countMedia(o: { dir: string; recursive: boolean }): Promise<{ images: number; videos: number; total: number; sample: string[] }>;
+  createFolder(o: { parent: string; name: string }): Promise<string>;
+  parentDir(p: string): Promise<string>;
+  setTheme(theme: Theme): Promise<boolean>;
+  log(msg: string): Promise<void>;
   mkdir(dir: string): Promise<boolean>;
   openSession(o: { sourceDir: string; recursive: boolean; trashDir?: string | null }): Promise<{ items: Item[]; trashDir: string }>;
   transfer(o: {

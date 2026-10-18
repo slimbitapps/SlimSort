@@ -1,4 +1,4 @@
-import { getLang } from './i18n';
+import { getLocale } from './i18n';
 import type { Item, SortBy } from './types';
 
 const enc = encodeURIComponent;
@@ -11,7 +11,7 @@ export const browserCanShow = (ext: string) => BROWSER_IMG.has(ext);
 export const displayUrl = (it: Item) => (browserCanShow(it.ext) ? mediaUrl(it.path) : previewUrl(it.path));
 
 export const isMac = () => window.api?.platform === 'darwin';
-export const modKey = () => (isMac() ? '⌘' : getLang() === 'de' ? 'Strg' : 'Ctrl');
+export const modKey = () => (isMac() ? '⌘' : getLocale().startsWith('de') ? 'Strg' : 'Ctrl');
 
 export function uid(prefix = '') {
   return prefix + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-3);
@@ -30,7 +30,7 @@ export function fmtBytes(n: number) {
     v /= 1024;
     i++;
   }
-  const s = v.toLocaleString(getLang(), { maximumFractionDigits: v < 10 && i > 0 ? 1 : 0 });
+  const s = v.toLocaleString(getLocale(), { maximumFractionDigits: v < 10 && i > 0 ? 1 : 0 });
   return `${s} ${units[i]}`;
 }
 
@@ -45,7 +45,7 @@ export function fmtDuration(ms: number) {
 }
 
 export function fmtDate(ms: number) {
-  return new Date(ms).toLocaleString(getLang(), {
+  return new Date(ms).toLocaleString(getLocale(), {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -56,7 +56,7 @@ export function fmtDate(ms: number) {
 }
 
 export function fmtNum(n: number) {
-  return n.toLocaleString(getLang());
+  return n.toLocaleString(getLocale());
 }
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
@@ -86,7 +86,7 @@ export function keyFromEvent(e: KeyboardEvent): string | null {
 export const isAssignableKey = (k: string) => /^([A-ZÄÖÜ0-9]|F[2-9]|F12)$/.test(k);
 
 export const COLORS = [
-  '#5b8cff', '#2fbf71', '#f5a524', '#ef4f5f', '#a66cff', '#18b8c9', '#ff7ab6', '#8f9bb3', '#c9a227', '#6dd16d',
+  '#5b7cfa', '#33c37a', '#f6a23c', '#ef5a6f', '#a970ff', '#1fb5c9', '#f472b6', '#8a94a6', '#d4a72c', '#6cc644',
 ];
 
 export function clamp(v: number, a: number, b: number) {

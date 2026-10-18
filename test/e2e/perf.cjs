@@ -31,21 +31,28 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     path.join(userData, 'einstellungen.json'),
     JSON.stringify({
       version: 1,
-      prefs: { mode: 'expert', activeProfileId: 'p' },
+      onboarded: true,
+      tutorialDone: true,
+      prefs: { mode: 'expert', activeProfileId: 'p', lang: 'de' },
       profiles: [{ id: 'p', name: 'Test', groups: [], targets: [{ id: 't', name: 'Ziel', path: dst, key: '1', color: '#5b8cff' }] }],
     })
   );
   const app = await playwright._electron.launch({
-    executablePath: require('electron'),
-    args: [ROOT, '--no-sandbox'],
+    executablePath: process.env.FOTOSORT_EXE || require('electron'),
+    args: process.env.FOTOSORT_EXE ? ['--no-sandbox'] : [ROOT, '--no-sandbox'],
     env: { ...process.env, FOTOSORT_TEST: '1', FOTOSORT_USERDATA: userData, FOTOSORT_PICK: src },
   });
   const win = await app.firstWindow();
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1400, 900));
   await win.click('[data-testid="pick-source"]');
-  await win.click('text=Raster');
   let t0 = Date.now();
-  await win.click('[data-testid="start-go"]');
+  await win.waitForFunction(() => /Fotos/.test(document.querySelector('[data-testid="source-count"]')?.textContent || '') && !/gezählt/.test(document.querySelector('[data-testid="source-count"]').textContent), null, { timeout: 60000 });
+  console.log(`Zählen von ${N} Dateien: ${Date.now() - t0} ms`);
+  await win.click('[data-testid="setup-next"]');
+  await win.click('[data-testid="setup-next"]');
+  await win.click('text=Übersicht');
+  t0 = Date.now();
+  await win.click('[data-testid="setup-next"]');
   await win.waitForSelector('[data-testid="grid"] [data-testid="tile"]', { timeout: 60000 });
   const openMs = Date.now() - t0;
   console.log(`Einlesen + Anzeigen von ${N} Dateien: ${openMs} ms`);
@@ -74,7 +81,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await win.keyboard.press('Tab');
   t0 = Date.now();
   await win.keyboard.press('Control+a');
-  await win.waitForFunction(() => /markiert/.test(document.querySelector('[data-testid="status"]').textContent));
+  await win.waitForFunction(() => /ausgewählt/.test(document.querySelector('.header').textContent));
   console.log(`Alles markieren: ${Date.now() - t0} ms`);
   await win.keyboard.press('Escape');
   await sleep(300);

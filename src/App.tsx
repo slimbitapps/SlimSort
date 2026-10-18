@@ -1,24 +1,35 @@
 import { useEffect, useState } from 'react';
 import { t } from './i18n';
 import {
-  useStore, init, closeDialog, setZen, clearSelection, openDialog, undo, selectAll, toggleFullscreen,
-  toggleView, step, jumpEdge, skipCurrent, trashCurrent, otherFolder, findTargetByKey, sortToTarget,
-  runQuickStart, toast, dismissToast,
+  useStore, init, closeDialog, setZen, clearSelection, openDialog, undo, selectAll, toggleFullscreen, toggleView,
+  step, jumpEdge, skipCurrent, trashCurrent, otherFolder, findTargetByKey, sortToTarget, runQuickStart, toast,
+  dismissToast, sortedRecents, coachNext, coachEnd, goHome,
 } from './store';
-import { TopBar } from './components/TopBar';
-import { StartScreen } from './components/StartScreen';
+import { Header } from './components/Header';
+import { Onboarding } from './components/Onboarding';
+import { Home } from './components/Home';
+import { Setup } from './components/Setup';
 import { Session } from './components/Session';
 import { Dialogs } from './components/dialogs';
-import { KeyCap } from './components/ui';
+import { Coach, COACH_STEPS } from './components/Coach';
+import { KeyCap, Spinner } from './components/ui';
 import { gridNav } from './components/GridView';
 import { zoomCommand } from './components/SingleView';
-import { isTyping, keyFromEvent, isMac } from './util';
-import { IconCheck, IconClose, IconInfo, IconWarning } from './icons';
+import { isTyping, keyFromEvent, isMac, fmtNum } from './util';
+import { IconCheck, IconClose, IconInfo, IconWarning, IconEye } from './icons';
 
 /** Zentrale Tastatursteuerung */
 function onKeyDown(e: KeyboardEvent) {
   const st = useStore.getState();
   const mod = e.ctrlKey || e.metaKey;
+
+  // Einführung: nur Weiter/Beenden
+  if (st.coach !== null && !st.dialog) {
+    if (e.key === 'Enter' || e.key === 'ArrowRight') coachNext(COACH_STEPS.length);
+    if (e.key === 'Escape') coachEnd();
+    e.preventDefault();
+    return;
+  }
 
   if (e.key === 'Escape') {
     // Vollbild beendet zusätzlich der Hauptprozess selbst – doppelt hält besser.
@@ -32,7 +43,7 @@ function onKeyDown(e: KeyboardEvent) {
 
   if (e.key === 'F1' || (mod && e.key === '/')) {
     e.preventDefault();
-    openDialog({ type: 'shortcuts' });
+    openDialog({ type: 'settings', tab: 'help' });
     return;
   }
   if (e.key === 'F11' || (isMac() && e.metaKey && e.ctrlKey && e.key.toLowerCase() === 'f')) {
@@ -41,9 +52,9 @@ function onKeyDown(e: KeyboardEvent) {
     return;
   }
 
-  if (st.screen === 'start') {
+  if (st.screen === 'home') {
     if (!mod && !e.altKey && /^[1-9]$/.test(e.key)) {
-      const q = st.settings.quickStarts[Number(e.key) - 1];
+      const q = sortedRecents(st.settings.quickStarts)[Number(e.key) - 1];
       if (q) {
         e.preventDefault();
         runQuickStart(q);
@@ -53,7 +64,7 @@ function onKeyDown(e: KeyboardEvent) {
   }
 
   const s = st.session;
-  if (!s) return;
+  if (st.screen !== 'session' || !s) return;
 
   if (mod) {
     const k = e.key.toLowerCase();
@@ -140,19 +151,19 @@ function onKeyDown(e: KeyboardEvent) {
     if (e.repeat) return;
     const target = findTargetByKey(k);
     if (target) sortToTarget(target.id);
-    else toast('info', t('toast.noTargetKey', { key: k }), { timeout: 1600 });
+    else toast('info', t('toast.noTargetKey', { key: k }), { timeout: 1800 });
   }
 }
 
 function useTheme() {
   const theme = useStore((s) => s.settings.prefs.theme);
   useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const apply = () => {
-      const dark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      const dark = theme === 'dark' || (theme === 'system' && mq.matches);
       document.documentElement.dataset.theme = dark ? 'dark' : 'light';
     };
     apply();
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
     mq.addEventListener('change', apply);
     return () => mq.removeEventListener('change', apply);
   }, [theme]);
@@ -165,12 +176,12 @@ function Toasts() {
       {toasts.map((x) => (
         <div key={x.id} className={`toast ${x.kind}`} role="status">
           <span className="ti">
-            {x.kind === 'error' ? <IconWarning size={17} /> : x.kind === 'success' ? <IconCheck size={17} /> : <IconInfo size={17} />}
+            {x.kind === 'error' ? <IconWarning size={18} /> : x.kind === 'success' ? <IconCheck size={18} /> : <IconInfo size={18} />}
           </span>
           <span>{x.text}</span>
           {x.action && (
             <button
-              className="btn primary"
+              className="btn primary sm"
               onClick={() => {
                 x.action!.run();
                 dismissToast(x.id);
@@ -179,8 +190,8 @@ function Toasts() {
               {x.action.label}
             </button>
           )}
-          <button className="btn icon ghost" onClick={() => dismissToast(x.id)} aria-label={t('common.close')}>
-            <IconClose size={15} />
+          <button className="btn icon ghost sm" onClick={() => dismissToast(x.id)} aria-label={t('common.close')}>
+            <IconClose size={14} />
           </button>
         </div>
       ))}
@@ -199,11 +210,36 @@ function Flash() {
   );
 }
 
+function Loading() {
+  const scanning = useStore((s) => s.scanning);
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (scanning === null) return setSlow(false);
+    const id = setTimeout(() => setSlow(true), 8000);
+    return () => clearTimeout(id);
+  }, [scanning === null]); // eslint-disable-line
+  if (scanning === null) return null;
+  return (
+    <div className="loading-overlay" data-testid="loading">
+      <div className="loading-card">
+        <Spinner />
+        <div style={{ fontWeight: 650, fontSize: 15 }}>{t('loading.title')}</div>
+        <div className="muted small">{scanning > 0 ? t('loading.found', { n: fmtNum(scanning) }) : t('loading.wait')}</div>
+        {slow && (
+          <button className="btn sm" onClick={goHome}>
+            {t('common.cancel')}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function App() {
   const ready = useStore((s) => s.ready);
   const screen = useStore((s) => s.screen);
   const zen = useStore((s) => s.zen);
-  const scanning = useStore((s) => s.scanning);
+  const fullscreen = useStore((s) => s.fullscreen);
   useStore((s) => s.settings.prefs.lang); // neu zeichnen bei Sprachwechsel
   const [mouseMoved, setMouseMoved] = useState(false);
   useTheme();
@@ -211,7 +247,12 @@ export function App() {
   useEffect(() => {
     init();
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    const onErr = (e: ErrorEvent) => window.api.log(`window.error: ${e.message} ${e.error?.stack || ''}`);
+    window.addEventListener('error', onErr);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('error', onErr);
+    };
   }, []);
 
   // Im Modus "Nur Bild" Mauszeiger nach kurzer Zeit ausblenden
@@ -231,21 +272,27 @@ export function App() {
   }, [zen]);
 
   if (!ready) return null;
+  const onboarding = screen === 'onboarding';
   return (
-    <div className={`app ${zen ? 'zen' : ''} ${mouseMoved ? 'mouse-moved' : ''}`}>
-      <TopBar />
-      {screen === 'start' ? <StartScreen /> : <Session />}
+    <div
+      className={`app platform-${window.api.platform} ${zen ? 'zen' : ''} ${mouseMoved ? 'mouse-moved' : ''} ${fullscreen ? 'fullscreen' : ''} ${onboarding ? 'no-header' : ''}`}
+    >
+      {!onboarding && <Header />}
+      {screen === 'onboarding' && <Onboarding />}
+      {screen === 'home' && <Home />}
+      {screen === 'setup' && <Setup />}
+      {screen === 'session' && <Session />}
+      {zen && (
+        <button className="btn zen-exit" onClick={() => setZen(false)}>
+          <IconEye size={16} />
+          {t('ses.focusExit')}
+        </button>
+      )}
       <Dialogs />
+      <Coach />
       <Toasts />
       <Flash />
-      {scanning !== null && (
-        <div className="scan-overlay">
-          <div className="card row" style={{ gap: 14 }}>
-            <div className="spinner" />
-            {t('start.scanning', { n: scanning.toLocaleString() })}
-          </div>
-        </div>
-      )}
+      <Loading />
     </div>
   );
 }

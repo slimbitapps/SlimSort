@@ -18,28 +18,28 @@ Wie die App ohne Warnmeldungen von Windows/macOS veröffentlicht wird: siehe **[
 
 ---
 
-## So funktioniert’s
+## So funktioniert's
 
-1. **Quellordner wählen** (oder hineinziehen).
-2. **Zielordner anlegen** (unten „+ Zielordner hinzufügen“). Jeder bekommt automatisch eine Taste (1, 2, 3 …).
-3. **Taste drücken** → die Datei wandert in den Ordner, die nächste erscheint.
+Beim ersten Start führt die App durch eine kurze Einrichtung: **Sprache** (Deutsch, Englisch,
+Französisch, Spanisch, Italienisch), **Aussehen** (hell, dunkel, automatisch), **Bedienung**
+(Einfach oder Profi) und eine kurze bebilderte Anleitung.
+
+1. **Ordner mit Fotos auswählen** (oder hineinziehen). Die App zeigt, wie viele Fotos und Videos darin sind.
+2. **Zielordner festlegen** – neue Ordner lassen sich direkt in der App anlegen. Jeder bekommt eine Taste (1, 2, 3 …).
+3. **Sortieren starten.** Beim ersten Mal erklärt eine kurze Einführung die wichtigsten Bereiche.
 
 | Taste | Wirkung |
 |---|---|
-| Zielordner-Taste | Datei (oder alle markierten) in diesen Ordner |
+| Taste eines Zielordners | Foto (oder alle ausgewählten) dorthin |
 | Leertaste | Überspringen |
-| Entf / ⌫ | In den Löschordner („_Gelöscht“) |
-| Enter | Nur diese Datei in einen anderen Ordner |
+| Entf / ⌫ | Löschen (in den Papierkorb der App) |
 | Strg/⌘ + Z | Rückgängig – beliebig oft |
-| Tab | Raster ↔ Einzelbild |
+| Tab | Einzelbild ↔ Übersicht |
 | F11 | Vollbild · **Esc** beendet es immer |
-| F10 | Nur Bild (alles ausblenden) |
-| F1 | Tastenübersicht |
+| F10 | Nur Bild |
+| F1 | Hilfe & Tastenkürzel |
 
-Rechtsklick auf ein Ziel: Taste, Name, Farbe oder Ordner ändern. Ziel auf ein anderes ziehen = Gruppe.
-
-**Simpel / Expert** (oben rechts): Simpel zeigt nur das Nötigste. Expert zeigt zusätzlich Filter,
-Reihenfolge, Kopieren statt Verschieben, Profile und Feineinstellungen.
+Zuletzt verwendete Sortierungen erscheinen auf der Startseite und starten per Klick oder Taste 1–9.
 
 ---
 
@@ -58,7 +58,10 @@ Reihenfolge, Kopieren statt Verschieben, Profile und Feineinstellungen.
 
 ## Stand der Entwicklung
 
-**Version 0.1 (erste nutzbare Version)** – enthalten:
+**Version 0.2** – neue, einfachere Oberfläche mit Einrichtung beim ersten Start, Assistent für neue
+Sortierungen, Einführung beim ersten Sortieren, Hilfe-Bereich mit häufigen Fragen, 5 Sprachen.
+
+**Version 0.1** – enthalten:
 Raster- und Einzelansicht, Zoom/Verschieben, Videos, Bildleiste, Vollbild, Nur-Bild-Modus,
 Zielleiste mit Tasten/Farben/Zählern/Gruppen, Löschordner, Überspringen, „Anderer Ordner …“,
 Verschieben/Kopieren, unbegrenztes Rückgängig, Filter & Reihenfolge, Profile, Schnellstart-Kacheln,
