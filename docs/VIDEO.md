@@ -5,7 +5,7 @@ in das KI-Sprach-Tool kopieren. Alles andere (Bild, Schnitt) ist auf Deutsch erk
 
 
 > **Sprechtexte zum Kopieren** (aktuelle Fassung, ohne Regieanweisungen): **`docs/SPRECHTEXT.md`**.
-> **KI-Stimme:** Clipchamp (kostenlos, von Microsoft, ab 13) oder TTSMaker (kostenlos, ohne Konto).
+> **KI-Stimme:** Clipchamp (kostenlos, von Microsoft) oder TTSMaker (kostenlos, ohne Konto).
 > ElevenLabs erst ab 18.
 ---
 
