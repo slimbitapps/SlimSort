@@ -1,0 +1,65 @@
+# Baut automatisch die Installer für Windows und Mac.
+# Ergebnis: unter "Actions" -> letzter Lauf -> "Artifacts" herunterladen.
+# Bei einem Versions-Tag (z. B. v0.2.0) entsteht zusätzlich ein Release.
+name: Installer bauen
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+      - name: Windows-Installer
+        if: runner.os == 'Windows'
+        run: npx electron-builder --win nsis zip --x64 --publish never
+
+      - name: Mac-App (ad-hoc signiert) und DMG
+        if: runner.os == 'macOS'
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: |
+          npx electron-builder --mac dir --universal -c.mac.identity=null --publish never
+          codesign --force --deep --sign - release/mac-universal/Fotosortierer.app
+          npx electron-builder --mac dmg --universal -c.mac.identity=null --prepackaged release/mac-universal/Fotosortierer.app --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Fotosortierer-${{ runner.os }}
+          path: |
+            release/*.exe
+            release/*.zip
+            release/*.dmg
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: out/*

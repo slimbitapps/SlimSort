@@ -1,0 +1,91 @@
+import { useLayoutEffect, useRef, useState } from 'react';
+import { goTo, currentIndex, step, type SessionState } from '../store';
+import { thumbUrl } from '../util';
+import { IconVideo } from '../icons';
+
+const ITEM_W = 52;
+const STEP = ITEM_W + 6;
+
+/** Bildleiste wie in Apple Fotos: aktuelles Bild in der Mitte, Ziehen blättert schnell. */
+export function Filmstrip({ s }: { s: SessionState }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [w, setW] = useState(800);
+  const [drag, setDrag] = useState<{ startX: number; startIdx: number; dx: number; moved: boolean } | null>(null);
+  const raf = useRef(0);
+
+  useLayoutEffect(() => {
+    const el = ref.current!;
+    const ro = new ResizeObserver(() => setW(el.clientWidth));
+    ro.observe(el);
+    setW(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
+
+  const n = s.viewIds.length;
+  const cur = currentIndex(s);
+  if (!n) return <div className="filmstrip" ref={ref} />;
+
+  // Während des Ziehens: Pixelversatz relativ zur aktuellen Position
+  const offset = drag ? drag.dx + (cur - drag.startIdx) * STEP : 0;
+  const half = Math.ceil(w / STEP / 2) + 3;
+  const lo = Math.max(0, cur - half - Math.ceil(Math.abs(offset) / STEP));
+  const hi = Math.min(n - 1, cur + half + Math.ceil(Math.abs(offset) / STEP));
+  const center = w / 2 - ITEM_W / 2;
+
+  const items = [];
+  for (let k = lo; k <= hi; k++) {
+    const id = s.viewIds[k];
+    const it = s.byId.get(id)!;
+    const x = center + (k - cur) * STEP + offset;
+    if (x < -ITEM_W * 2 || x > w + ITEM_W) continue;
+    items.push(
+      <div
+        key={id}
+        data-idx={k}
+        className={`fs-item ${k === cur ? 'current' : ''} ${s.skipped.has(id) ? 'skipped' : ''}`}
+        style={{ left: x }}
+        title={it.name}
+      >
+        <img src={thumbUrl(it.path, 256)} loading="lazy" decoding="async" alt="" draggable={false} onError={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+        {it.kind === 'video' && <IconVideo size={12} className="vid" />}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={ref}
+      className={`filmstrip ${drag ? 'dragging' : ''}`}
+      data-testid="filmstrip"
+      onWheel={(e) => step(Math.sign(e.deltaY || e.deltaX))}
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        setDrag({ startX: e.clientX, startIdx: cur, dx: 0, moved: false });
+      }}
+      onPointerMove={(e) => {
+        if (!drag) return;
+        const dx = e.clientX - drag.startX;
+        const moved = drag.moved || Math.abs(dx) > 4;
+        setDrag({ ...drag, dx, moved });
+        if (!moved) return;
+        const target = Math.max(0, Math.min(n - 1, drag.startIdx - Math.round(dx / STEP)));
+        if (target !== cur) {
+          cancelAnimationFrame(raf.current);
+          raf.current = requestAnimationFrame(() => goTo(s.viewIds[target]));
+        }
+      }}
+      onPointerUp={(e) => {
+        if (drag && !drag.moved) {
+          // Antippen: zu diesem Bild springen
+          const el = document.elementsFromPoint(e.clientX, e.clientY).find((x) => (x as HTMLElement).dataset?.idx);
+          const k = el ? Number((el as HTMLElement).dataset.idx) : NaN;
+          if (!isNaN(k)) goTo(s.viewIds[k]);
+        }
+        setDrag(null);
+      }}
+      onPointerCancel={() => setDrag(null)}
+    >
+      {items}
+    </div>
+  );
+}
