@@ -370,9 +370,8 @@ export const de = {
   'about.safety.title': 'Sicher',
   'about.safety': 'Nie überschreiben, geprüftes Kopieren, unbegrenztes Rückgängig.',
   'about.more': 'Weitere Apps von SlimBit Apps',
-  'about.placeholder': 'App {n}',
-  'about.placeholder.desc': 'Beschreibung folgt',
-  'about.soon': 'Demnächst',
+  'about.website': 'Alle Apps auf der Website',
+  'about.website.desc': 'Neuigkeiten, Updates und weitere kostenlose Apps.',
   'about.copyright': '© {year} SlimBit Apps',
 
   // ---- Version 0.3: Serien, Vergleich, Erklärungen

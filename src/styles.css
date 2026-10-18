@@ -2109,6 +2109,23 @@ h3 {
   flex-direction: column;
   gap: 4px;
 }
+.app-card.link {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-style: solid;
+  border-color: var(--line-2);
+  background: var(--surface);
+}
+.app-card.link:hover {
+  border-color: var(--accent);
+}
+.app-card.link .ic {
+  margin-bottom: 0;
+  color: var(--accent);
+}
 .app-card .ic {
   width: 36px;
   height: 36px;

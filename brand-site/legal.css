@@ -1,0 +1,15 @@
+:root { --bg:#f5f6fa; --panel:#fff; --text:#171a21; --muted:#5b6272; --border:#e3e6ec; --accent:#5b6cff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0f1115; --panel:#181b22; --text:#eceef3; --muted:#a3aab8; --border:#2a2f39; --accent:#7b8bff; } }
+:root[data-theme="dark"] { --bg:#0f1115; --panel:#181b22; --text:#eceef3; --muted:#a3aab8; --border:#2a2f39; --accent:#7b8bff; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Arial,sans-serif; }
+.wrap { max-width:760px; margin:0 auto; padding:0 16px 60px; }
+header { display:flex; align-items:center; gap:10px; height:64px; }
+header a { display:flex; align-items:center; gap:10px; text-decoration:none; color:inherit; font-weight:750; font-size:18px; }
+header img { width:32px; height:32px; }
+.card { background:var(--panel); border:1px solid var(--border); border-radius:18px; padding:24px; }
+h1 { letter-spacing:-.02em; margin:24px 0 14px; }
+h2 { font-size:19px; margin:26px 0 6px; }
+p, li { color:var(--muted); }
+a { color:var(--accent); }
+.todo { background:#fff3cd; color:#7a5600; border-radius:6px; padding:0 4px; }

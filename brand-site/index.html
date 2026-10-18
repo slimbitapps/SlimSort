@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SlimBit Apps</title>
+<meta name="description" content="SlimBit Apps – kleine, kostenlose Apps, die eine Sache richtig gut machen. Ohne Werbung, ohne Konto, ohne Datensammlung." />
+<meta property="og:title" content="SlimBit Apps" />
+<meta property="og:description" content="Kleine, kostenlose Apps, die eine Sache richtig gut machen." />
+<meta property="og:image" content="logo.png" />
+<link rel="icon" href="logo.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="logo.png" />
+<style>
+  :root {
+    --bg: #f5f6fa; --panel: #ffffff; --text: #171a21; --muted: #5b6272; --faint: #8a91a0; --border: #e3e6ec;
+    --accent: #5b6cff; --accent-2: #8a5cff; --soft: rgba(91,108,255,.10); --shadow: 0 10px 30px rgba(23,26,33,.07);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1115; --panel: #181b22; --text: #eceef3; --muted: #a3aab8; --faint: #747c8b; --border: #2a2f39;
+      --accent: #7b8bff; --accent-2: #a27dff; --soft: rgba(123,139,255,.14); --shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1115; --panel: #181b22; --text: #eceef3; --muted: #a3aab8; --faint: #747c8b; --border: #2a2f39;
+    --accent: #7b8bff; --accent-2: #a27dff; --soft: rgba(123,139,255,.14); --shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Arial, sans-serif; }
+  a { color: inherit; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+
+  /* Kopfzeile */
+  header { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 88%, transparent);
+    border-bottom: 1px solid transparent; }
+  header.scrolled { border-bottom-color: var(--border); }
+  .bar { display: flex; align-items: center; gap: 12px; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 750; font-size: 18px; letter-spacing: -.01em; flex: 1; }
+  .brand img { width: 34px; height: 34px; }
+  nav { display: flex; gap: 4px; align-items: center; }
+  nav a { text-decoration: none; color: var(--muted); padding: 6px 10px; border-radius: 8px; font-size: 15px; }
+  nav a:hover { color: var(--text); background: var(--soft); }
+  .lang { border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 8px; padding: 5px 10px; cursor: pointer; font: inherit; font-size: 14px; }
+  @media (max-width: 560px) { nav a.hide-sm { display: none; } }
+
+  /* Hero */
+  .hero { text-align: center; padding: 72px 0 56px; }
+  .hero .mark { width: 88px; height: 88px; margin-bottom: 22px; filter: drop-shadow(0 12px 28px rgba(91,108,255,.35)); }
+  .hero h1 { font-size: clamp(30px, 5.4vw, 52px); line-height: 1.1; letter-spacing: -.025em; margin: 0 0 16px; }
+  .hero h1 span { background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero p { color: var(--muted); font-size: 19px; max-width: 620px; margin: 0 auto 30px; }
+  .cta { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; border-radius: 12px; text-decoration: none;
+    font-weight: 650; border: 1px solid var(--border); background: var(--panel); color: var(--text); }
+  .btn.primary { background: linear-gradient(90deg, var(--accent), var(--accent-2)); color: #fff; border: 0; box-shadow: 0 8px 22px rgba(91,108,255,.35); }
+  .btn:hover { transform: translateY(-1px); }
+  .btn svg { flex: none; }
+
+  section { padding: 40px 0; }
+  .label { text-transform: uppercase; letter-spacing: .08em; font-size: 12.5px; font-weight: 700; color: var(--accent); text-align: center; margin-bottom: 6px; }
+  h2 { text-align: center; font-size: clamp(24px, 3.6vw, 34px); letter-spacing: -.02em; margin: 0 0 28px; }
+
+  /* App-Karten */
+  .apps { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; }
+  .app { position: relative; display: flex; flex-direction: column; gap: 12px; padding: 22px; border-radius: 20px;
+    background: var(--panel); border: 1px solid var(--border); box-shadow: var(--shadow); text-decoration: none; transition: transform .15s, border-color .15s; }
+  a.app:hover { transform: translateY(-3px); border-color: var(--accent); }
+  .app .top { display: flex; align-items: center; gap: 14px; }
+  .app img { width: 60px; height: 60px; border-radius: 14px; }
+  .app h3 { margin: 0; font-size: 20px; letter-spacing: -.01em; }
+  .app .tag { color: var(--muted); font-size: 14px; }
+  .app p { margin: 0; color: var(--muted); font-size: 15px; flex: 1; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { font-size: 12.5px; padding: 3px 9px; border-radius: 99px; background: var(--soft); color: var(--accent); font-weight: 600; }
+  .chip.off { background: transparent; border: 1px dashed var(--border); color: var(--faint); }
+  .app .go { font-weight: 650; color: var(--accent); display: flex; align-items: center; gap: 6px; }
+  .app.soon { border-style: dashed; box-shadow: none; background: transparent; align-items: center; justify-content: center; text-align: center; min-height: 240px; }
+  .app.soon .ph { width: 60px; height: 60px; border-radius: 14px; border: 2px dashed var(--border); display: grid; place-items: center; color: var(--faint); }
+
+  /* Prinzipien */
+  .values { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+  .v { padding: 20px; border-radius: 16px; background: var(--panel); border: 1px solid var(--border); }
+  .v .ic { width: 40px; height: 40px; border-radius: 11px; background: var(--soft); color: var(--accent); display: grid; place-items: center; margin-bottom: 10px; }
+  .v b { display: block; font-size: 16.5px; margin-bottom: 2px; }
+  .v span { color: var(--muted); font-size: 14.5px; }
+
+  /* Über */
+  .about { max-width: 680px; margin: 0 auto; text-align: center; color: var(--muted); font-size: 17px; }
+  .about .links { margin-top: 22px; }
+
+  footer { border-top: 1px solid var(--border); margin-top: 40px; padding: 26px 0 44px; color: var(--faint); font-size: 14px; }
+  footer .wrap { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+  footer .sp { flex: 1; }
+  footer a { text-decoration: none; color: var(--muted); }
+  footer a:hover { color: var(--text); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header id="hdr">
+  <div class="wrap bar">
+    <a class="brand" href="#top"><img src="logo.svg" alt="" />SlimBit Apps</a>
+    <nav>
+      <a href="#apps" data-i="navApps">Apps</a>
+      <a href="#about" class="hide-sm" data-i="navAbout">Über</a>
+      <button class="lang" id="lang" type="button">English</button>
+    </nav>
+  </div>
+</header>
+
+<main id="top" class="wrap">
+  <section class="hero">
+    <img class="mark" src="logo.svg" alt="SlimBit Apps Logo" />
+    <h1 data-i="h1">Kleine Apps, die eine Sache <span>richtig gut</span> machen.</h1>
+    <p data-i="sub">Kostenlos, ohne Werbung, ohne Konto und ohne Datensammlung. Für Windows und Mac – Android folgt.</p>
+    <div class="cta">
+      <a class="btn primary" href="#apps" data-i="ctaApps">Alle Apps ansehen</a>
+      <a class="btn" id="yt" href="#" target="_blank" rel="noopener">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 0 0 1 7.2 31 31 0 0 0 .5 12a31 31 0 0 0 .5 4.8 3 3 0 0 0 2.1 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 0 0 2.1-2.1 31 31 0 0 0 .5-4.8 31 31 0 0 0-.5-4.8zM9.7 15.1V8.9l5.8 3.1-5.8 3.1z"/></svg>
+        YouTube
+      </a>
+    </div>
+  </section>
+
+  <section id="apps">
+    <div class="label" data-i="appsLabel">Apps</div>
+    <h2 data-i="appsH">Was ich bisher gebaut habe</h2>
+    <div class="apps" id="appList"></div>
+  </section>
+
+  <section>
+    <div class="label" data-i="valLabel">Versprechen</div>
+    <h2 data-i="valH">Das gilt für jede App</h2>
+    <div class="values">
+      <div class="v"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v8H4v-8M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg></div>
+        <b data-i="v1h">Kostenlos</b><span data-i="v1p">Keine Abos, keine Testphase, keine versteckten Kosten.</span></div>
+      <div class="v"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+        <b data-i="v2h">Privat</b><span data-i="v2p">Keine Datensammlung, kein Konto. Deine Dateien bleiben auf deinem Gerät.</span></div>
+      <div class="v"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+        <b data-i="v3h">Einfach</b><span data-i="v3p">Startet sofort und erklärt sich selbst – mit Einführung und Hilfe zu jedem Knopf.</span></div>
+      <div class="v"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div>
+        <b data-i="v4h">Sicher</b><span data-i="v4p">Nichts wird ungefragt gelöscht oder überschrieben. Fast alles lässt sich rückgängig machen.</span></div>
+    </div>
+  </section>
+
+  <section id="about">
+    <div class="label" data-i="aboutLabel">Über</div>
+    <h2 data-i="aboutH">Wer steckt dahinter?</h2>
+    <div class="about">
+      <p data-i="aboutP">SlimBit Apps ist ein privates Hobby-Projekt. Ich baue Werkzeuge, die ich selbst im Alltag vermisst habe – schlank, schnell und ohne Ballast. Alle Apps sind kostenlos. Ideen, Fehler oder Wünsche? Schreib mir gern!</p>
+      <div class="links cta">
+        <a class="btn" id="mail" href="#" data-i="contact">Kontakt</a>
+        <a class="btn" id="gh" href="https://github.com/slimbitapps" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© <span id="year"></span> SlimBit Apps</span>
+    <span class="sp"></span>
+    <a href="impressum.html" data-i="imprint">Impressum</a>
+    <a href="datenschutz.html" data-i="privacy">Datenschutz</a>
+  </div>
+</footer>
+
+<script>
+  // ============ EINSTELLUNGEN – hier anpassen ============
+  const YOUTUBE = 'https://www.youtube.com/@slimbitapps'; // Link zu deinem YouTube-Kanal
+  const EMAIL = 'kontakt@example.com';                    // deine Kontakt-Adresse (auch im Impressum ändern!)
+
+  // Jede App ein Eintrag. Neue App? Einfach einen Block kopieren und anpassen.
+  // url leer lassen = Karte "Bald verfügbar".
+  const APPS = [
+    {
+      name: 'Fotosortierer',
+      icon: 'fotosortierer.png',
+      url: 'https://slimbitapps.github.io/fotosortierter/',
+      platforms: ['Windows', 'Mac'],
+      soon: ['Android'],
+      de: { tag: 'Fotos per Tastendruck sortieren', text: 'Tausende Fotos und Videos in Minuten in die richtigen Ordner sortieren. Erkennt Serien und schlägt das schärfste Bild vor. NAS-tauglich und komplett rückgängig machbar.' },
+      en: { tag: 'Sort photos with one key press', text: 'Sort thousands of photos and videos into the right folders in minutes. Detects bursts and suggests the sharpest shot. NAS-friendly and fully undoable.' },
+    },
+  ];
+  // Anzahl der Platzhalter-Karten für kommende Apps
+  const COMING_SOON = 2;
+
+  // ============ Texte ============
+  const en = {
+    navApps: 'Apps', navAbout: 'About',
+    h1: 'Small apps that do <span>one thing really well</span>.',
+    sub: 'Free, no ads, no account and no data collection. For Windows and Mac – Android coming soon.',
+    ctaApps: 'See all apps',
+    appsLabel: 'Apps', appsH: 'What I have built so far',
+    valLabel: 'Promise', valH: 'True for every app',
+    v1h: 'Free', v1p: 'No subscriptions, no trials, no hidden costs.',
+    v2h: 'Private', v2p: 'No data collection, no account. Your files stay on your device.',
+    v3h: 'Simple', v3p: 'Starts right away and explains itself – with a tour and help for every button.',
+    v4h: 'Safe', v4p: 'Nothing is deleted or overwritten without asking. Almost everything can be undone.',
+    aboutLabel: 'About', aboutH: 'Who is behind this?',
+    aboutP: 'SlimBit Apps is a private hobby project. I build tools I was missing in my own everyday life – slim, fast and without clutter. All apps are free. Ideas, bugs or wishes? Get in touch!',
+    contact: 'Contact', imprint: 'Imprint', privacy: 'Privacy',
+    open: 'Open download page', soonT: 'New app in the works', soonP: 'Subscribe on YouTube so you don’t miss it.', soonChip: 'soon',
+  };
+  const de = {
+    open: 'Zur Download-Seite', soonT: 'Neue App in Arbeit', soonP: 'Abonniere den YouTube-Kanal, um nichts zu verpassen.', soonChip: 'bald',
+  };
+  document.querySelectorAll('[data-i]').forEach((el) => (de[el.dataset.i] = el.innerHTML));
+
+  let lang = (navigator.language || 'de').startsWith('de') ? 'de' : 'en';
+  try { lang = localStorage.getItem('lang') || lang; } catch {}
+
+  const arrow = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+  function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+  function render() {
+    const d = lang === 'de' ? de : en;
+    document.documentElement.lang = lang;
+    document.querySelectorAll('[data-i]').forEach((el) => { if (d[el.dataset.i]) el.innerHTML = d[el.dataset.i]; });
+    document.getElementById('lang').textContent = lang === 'de' ? 'English' : 'Deutsch';
+    let html = '';
+    for (const a of APPS) {
+      const t = a[lang];
+      const chips = a.platforms.map((p) => `<span class="chip">${esc(p)}</span>`).join('') +
+        (a.soon || []).map((p) => `<span class="chip off">${esc(p)} · ${d.soonChip}</span>`).join('');
+      html += `<a class="app" href="${esc(a.url)}">
+        <div class="top"><img src="${esc(a.icon)}" alt="" /><div><h3>${esc(a.name)}</h3><div class="tag">${esc(t.tag)}</div></div></div>
+        <p>${esc(t.text)}</p>
+        <div class="chips">${chips}</div>
+        <div class="go">${d.open} ${arrow}</div>
+      </a>`;
+    }
+    for (let i = 0; i < COMING_SOON; i++) {
+      html += `<div class="app soon"><div class="ph"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+        <h3>${d.soonT}</h3><p>${d.soonP}</p></div>`;
+    }
+    document.getElementById('appList').innerHTML = html;
+  }
+
+  document.getElementById('lang').onclick = () => {
+    lang = lang === 'de' ? 'en' : 'de';
+    try { localStorage.setItem('lang', lang); } catch {}
+    render();
+  };
+  document.getElementById('yt').href = YOUTUBE;
+  document.getElementById('mail').href = 'mailto:' + EMAIL;
+  document.getElementById('year').textContent = new Date().getFullYear();
+  const hdr = document.getElementById('hdr');
+  addEventListener('scroll', () => hdr.classList.toggle('scrolled', scrollY > 8), { passive: true });
+  render();
+</script>
+</body>
+</html>

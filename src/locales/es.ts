@@ -356,9 +356,8 @@ export const es: Dict = {
   'about.safety.title': 'Seguro',
   'about.safety': 'Nunca sobrescribe, copia verificada, deshacer ilimitado.',
   'about.more': 'Más apps de SlimBit Apps',
-  'about.placeholder': 'App {n}',
-  'about.placeholder.desc': 'Descripción próximamente',
-  'about.soon': 'Próximamente',
+  'about.website': 'Todas las apps en la web',
+  'about.website.desc': 'Novedades, actualizaciones y más apps gratuitas.',
   'about.copyright': '© {year} SlimBit Apps',
 
   // ---- Version 0.3: Serien, Vergleich, Erklärungen

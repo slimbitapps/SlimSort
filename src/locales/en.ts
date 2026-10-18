@@ -356,9 +356,8 @@ export const en: Dict = {
   'about.safety.title': 'Safe',
   'about.safety': 'Never overwrites, verified copying, unlimited undo.',
   'about.more': 'More apps by SlimBit Apps',
-  'about.placeholder': 'App {n}',
-  'about.placeholder.desc': 'Description coming soon',
-  'about.soon': 'Coming soon',
+  'about.website': 'All apps on the website',
+  'about.website.desc': 'News, updates and more free apps.',
   'about.copyright': '© {year} SlimBit Apps',
 
   // ---- Version 0.3: Serien, Vergleich, Erklärungen

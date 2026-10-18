@@ -356,9 +356,8 @@ export const it: Dict = {
   'about.safety.title': 'Sicuro',
   'about.safety': 'Mai sovrascrivere, copia verificata, annullamento illimitato.',
   'about.more': 'Altre app di SlimBit Apps',
-  'about.placeholder': 'App {n}',
-  'about.placeholder.desc': 'Descrizione in arrivo',
-  'about.soon': 'Prossimamente',
+  'about.website': 'Tutte le app sul sito',
+  'about.website.desc': 'Novità, aggiornamenti e altre app gratuite.',
   'about.copyright': '© {year} SlimBit Apps',
 
   // ---- Version 0.3: Serien, Vergleich, Erklärungen

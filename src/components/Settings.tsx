@@ -9,7 +9,7 @@ import type { AppInfo, Prefs, Profile } from '../types';
 import { Help, KeyCap, Logo, Switch, MenuPopup, useMenu } from './ui';
 import {
   IconGlobe, IconSliders, IconTrash, IconImage, IconLayers, IconSettings, IconHelp, IconInfo, IconClose, IconCheck,
-  IconSparkle, IconLock, IconBook, IconRefresh, IconPlus, IconMore, IconLayers as IconStack,
+  IconLock, IconRefresh, IconPlus, IconMore, IconLayers as IconStack,
 } from '../icons';
 import { modKey, uid } from '../util';
 
@@ -581,6 +581,9 @@ function HelpTab() {
   );
 }
 
+/** Startseite mit allen Apps von SlimBit Apps */
+const WEBSITE_URL = 'https://slimbitapps.github.io/';
+
 function AboutTab() {
   const [info, setInfo] = useState<AppInfo | null>(null);
   useEffect(() => {
@@ -606,18 +609,25 @@ function AboutTab() {
       </Group>
 
       <div className="section-label">{t('about.more')}</div>
-      <div className="apps" style={{ marginBottom: 20 }}>
-        {[1, 2, 3].map((n) => (
-          <div key={n} className="app-card">
-            <div className="ic">{n === 1 ? <IconSparkle size={18} /> : n === 2 ? <IconBook size={18} /> : <IconLayers size={18} />}</div>
-            <div style={{ fontWeight: 620 }}>{t('about.placeholder', { n })}</div>
-            <div className="small faint">{t('about.placeholder.desc')}</div>
-            <div className="small" style={{ color: 'var(--accent)', fontWeight: 600, marginTop: 4 }}>
-              {t('about.soon')}
-            </div>
+      <button
+        className="app-card link"
+        style={{ marginBottom: 20 }}
+        onClick={() => window.api.openExternal(WEBSITE_URL)}
+        {...tip(t('about.website'), WEBSITE_URL)}
+      >
+        <div className="row" style={{ gap: 12 }}>
+          <div className="ic">
+            <IconGlobe size={18} />
           </div>
-        ))}
-      </div>
+          <div className="grow">
+            <div style={{ fontWeight: 620 }}>{t('about.website')}</div>
+            <div className="small faint">{t('about.website.desc')}</div>
+          </div>
+          <span className="small" style={{ color: 'var(--accent)', fontWeight: 600 }}>
+            {WEBSITE_URL.replace(/^https:\/\//, '').replace(/\/$/, '')} ↗
+          </span>
+        </div>
+      </button>
       <div className="row small faint" style={{ justifyContent: 'space-between' }}>
         <span>{t('about.copyright', { year: new Date().getFullYear() })}</span>
         <span>

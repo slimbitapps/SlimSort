@@ -30,6 +30,8 @@
   header { display: flex; align-items: center; gap: 10px; padding: 18px 0; }
   .logo { width: 34px; height: 34px; border-radius: 9px; }
   header b { font-size: 18px; flex: 1; }
+  .home { color: var(--muted); text-decoration: none; font-size: 15px; padding: 6px 10px; border-radius: 8px; }
+  .home:hover { color: var(--text); background: var(--soft); }
   .lang { border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
   .hero { text-align: center; padding: 40px 0 24px; }
   .hero h1 { font-size: clamp(28px, 5vw, 42px); line-height: 1.15; margin: 0 0 12px; }
@@ -73,6 +75,7 @@
   <header>
     <img class="logo" src="icon.png" alt="" />
     <b>Fotosortierer</b>
+    <a class="home" href="https://slimbitapps.github.io/" data-i="allApps">Alle Apps</a>
     <button class="lang" id="lang">English</button>
   </header>
 
@@ -162,7 +165,10 @@
 
   <footer>
     <span data-i="foot">Fotosortierer · Kostenlos für Windows und Mac · Android folgt</span>
-    · <a href="#" id="allReleases" style="color:inherit">Alle Versionen</a>
+    · <a href="#" id="allReleases" style="color:inherit" data-i="releases">Alle Versionen</a>
+    <br /><a href="https://slimbitapps.github.io/" style="color:inherit">SlimBit Apps</a>
+    · <a href="https://slimbitapps.github.io/impressum.html" style="color:inherit" data-i="imprint">Impressum</a>
+    · <a href="https://slimbitapps.github.io/datenschutz.html" style="color:inherit" data-i="privacy">Datenschutz</a>
   </footer>
 </div>
 
@@ -177,6 +183,7 @@
   const base = `https://github.com/${REPO}/releases/latest/download/`;
   const files = { win: base + 'Fotosortierer-Setup.exe', mac: base + 'Fotosortierer-Mac.dmg', macIntel: base + 'Fotosortierer-Mac-Intel.dmg' };
   const en = {
+    allApps: 'All apps', releases: 'All versions', imprint: 'Imprint', privacy: 'Privacy',
     title: 'Sort photos – one key press per picture.',
     sub: 'Pick a folder, give target folders a key, go. Nothing is ever overwritten, everything can be undone. Free and without data collection.',
     store: 'Get it from the Microsoft Store',
