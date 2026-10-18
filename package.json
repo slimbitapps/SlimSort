@@ -1,6 +1,6 @@
 {
   "name": "fotosortierer",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Fotos und Videos per Tastendruck sortieren",
   "main": "electron/main.cjs",
   "scripts": {
