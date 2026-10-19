@@ -1,0 +1,230 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1080px; height: 1920px; overflow: hidden; background: #070910; font-family: Inter, system-ui, sans-serif; color: #fff; }
+  #stage { position: absolute; inset: 0; overflow: hidden; }
+  .scene { position: absolute; inset: 0; display: none; }
+  .abs { position: absolute; }
+  .grad { background: linear-gradient(90deg, #3b8bff, #1ec8f0 55%, #3ee089); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .word { display: inline-block; white-space: pre; }
+  .head { left: 40px; right: 40px; text-align: center; font-weight: 900; letter-spacing: -2px; line-height: 1.05; text-shadow: 0 10px 40px rgba(0,0,0,.6); }
+  .tile { position: absolute; left: 0; top: 0; width: 480px; height: 320px; border-radius: 22px; overflow: hidden; background: #111;
+    box-shadow: 0 24px 60px rgba(0,0,0,.55), 0 0 0 2px rgba(255,255,255,.08); transform-origin: 50% 50%; will-change: transform; }
+  .tile img { width: 100%; height: 100%; object-fit: cover; display: block; transform-origin: 62% 31%; }
+  .tile .ring { position: absolute; inset: 0; border-radius: 22px; border: 6px solid transparent; }
+  .tile .no { position: absolute; left: 14px; top: 14px; min-width: 50px; padding: 4px 12px; border-radius: 12px; background: rgba(0,0,0,.6);
+    font: 800 30px Inter, sans-serif; text-align: center; }
+  .tile .tag { position: absolute; right: 14px; top: 14px; padding: 8px 18px; border-radius: 999px; font: 800 30px Inter, sans-serif; white-space: nowrap; }
+  .flash { position: absolute; inset: 0; background: #fff; pointer-events: none; opacity: 0; }
+  .cap { position: absolute; display: flex; gap: 18px; left: 50%; top: 395px; transform: translateX(-50%); }
+  .cap kbd { display: inline-block; min-width: 130px; padding: 22px 32px; border-radius: 26px; background: linear-gradient(180deg, #ffffff, #e8ebf1);
+    color: #111; text-align: center; font: 800 64px Inter, sans-serif; box-shadow: 0 12px 0 #9aa3b5, 0 24px 50px rgba(0,0,0,.55); }
+  .chip { position: absolute; display: flex; align-items: center; gap: 14px; padding: 16px 30px; border-radius: 999px; background: rgba(14,18,28,.94);
+    border: 1px solid rgba(255,255,255,.14); font-size: 42px; font-weight: 800; white-space: nowrap; box-shadow: 0 14px 40px rgba(0,0,0,.45); }
+  .trash { position: absolute; left: 390px; top: 1460px; width: 300px; height: 230px; border-radius: 30px; background: rgba(16,20,30,.92);
+    border: 2px solid rgba(255,255,255,.08); box-shadow: 0 20px 60px rgba(0,0,0,.5); display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 6px; transform-origin: 50% 60%; }
+  .trash .nm { font-size: 36px; font-weight: 800; }
+  .trash .ct { font-size: 30px; color: #a9b3c8; font-weight: 600; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="../motion/core.js"></script>
+<script>
+const HD = C.photosHD;
+const HORSE = HD.find((f) => f.endsWith('p15.jpg')) || HD[0];
+// Serienbilder: gleiches Motiv, leicht verwackelt – nur Nr. 4 ist scharf
+const BURST = [
+  { blur: 3.6, dx: -6, dy: 3, r: -0.6, b: 1.0 },
+  { blur: 2.4, dx: 4, dy: -2, r: 0.4, b: 1.03 },
+  { blur: 4.6, dx: -2, dy: 6, r: 0.9, b: 0.97 },
+  { blur: 0, dx: 0, dy: 0, r: 0, b: 1.02 },
+  { blur: 2.9, dx: 7, dy: -4, r: -0.8, b: 0.99 },
+  { blur: 4.0, dx: -5, dy: -5, r: 0.5, b: 1.04 },
+];
+const BEST = 3;
+const GRID = BURST.map((_, i) => ({ x: 40 + (i % 2) * 520 + 240, y: 600 + Math.floor(i / 2) * 360 + 160 }));
+const TRASH = { x: 540, y: 1575 };
+const trashSvg = '<svg width="90" height="90" viewBox="0 0 24 24" fill="none" stroke="#ff8a8a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6"/></svg>';
+
+// ---------- 1–5: Serie – aufnehmen, erkennen, vergleichen, zoomen, behalten
+scene('burst', (r, s) => {
+  s.titles = ['', 'Series found ✓', 'Finds the sharpest', 'Zoom all at once 🔍', 'Keep the best.'].map((t) => {
+    const e = el('div', 'abs head', r, t);
+    css(e, { top: '190px', fontSize: '92px' });
+    return e;
+  });
+  s.h1 = words(r, 'Same moment.', { top: '160px', fontSize: '92px' });
+  s.h1.className += ' head';
+  s.h2 = words(r, 'Which one is sharp?', { top: '275px', fontSize: '92px', color: '#ff6b6b' });
+  s.h2.className += ' head';
+  s.pill = el('div', 'chip', r, '<span class="grad">●</span> 6 similar photos');
+  css(s.pill, { left: '50%', top: '440px', fontSize: '40px' });
+  s.cap = el('div', 'cap', r);
+  s.trash = el('div', 'trash', r, `${trashSvg}<div class="nm">Trash folder</div><div class="ct">0 photos</div>`);
+  s.chip = el('div', 'chip', r, '↺ Can be restored');
+  css(s.chip, { left: '50%', top: '1290px', fontSize: '38px' });
+  s.tiles = BURST.map((b, i) => {
+    const t = el('div', 'tile', r, `<img/><div class="ring"></div><div class="no">${i + 1}</div><div class="tag"></div><div class="flash"></div>`);
+    const im = t.querySelector('img');
+    im.src = HORSE;
+    t.im = im;
+    t.ring = t.querySelector('.ring');
+    t.no = t.querySelector('.no');
+    t.tag = t.querySelector('.tag');
+    t.flash = t.querySelector('.flash');
+    return t;
+  });
+}, (s, lt, D) => {
+  const [o1, o2, o3, o4, o5] = s.pOff;
+  const L = (i) => (i < 4 ? s.pOff[i + 1] : D) - s.pOff[i];
+  const shotAt = (i) => 0.25 + i * Math.min(0.22, (0.45 * L(0)) / 6);
+  const toGrid = E.io(p(lt, o2 + 0.1, 0.8));
+  const scanAt = (i) => o3 + 0.08 * L(2) + i * 0.12 * L(2) * 0.8;
+  const bestAt = o3 + 0.72 * L(2);
+  const zoom = E.io(p(lt, o4 + 0.12 * L(3), 0.9)) * (1 - E.io(p(lt, o5, 0.45)));
+  const pickAt = o5 + 0.12 * L(4), enterAt = o5 + 0.36 * L(4);
+  const flyAt = (k) => enterAt + 0.12 + k * 0.09;
+  s.ev = { pickAt, enterAt, flyAt, shotAt, bestAt, zoomAt: o4 + 0.12 * L(3) };
+
+  // Überschriften
+  drawWords(s.h1, lt, 0.05, 0.08);
+  drawWords(s.h2, lt, 0.45 * L(0), 0.08);
+  const hOut = 1 - p(lt, o2 - 0.2, 0.25);
+  s.h1.style.opacity = s.h2.style.opacity = hOut;
+  const phase = lt < o2 ? 0 : lt < o3 ? 1 : lt < o4 ? 2 : lt < o5 ? 3 : 4;
+  s.titles.forEach((e, i) => {
+    const k = E.out(p(lt, s.pOff[i] + 0.05, 0.35));
+    e.style.opacity = i === phase ? k : 0;
+    e.style.transform = `translateY(${(1 - k) * 30}px)`;
+  });
+  if (phase === 4) s.titles[4].innerHTML = 'Keep the <span class="grad">best.</span>';
+  const kp = E.back(p(lt, o2 + 0.5, 0.45));
+  s.pill.style.opacity = (phase >= 1 && phase <= 3 ? p(lt, o2 + 0.5, 0.2) : 0);
+  s.pill.style.transform = `translateX(-50%) scale(${0.6 + 0.4 * kp})`;
+
+  // Kacheln
+  let kept = 0;
+  s.tiles.forEach((t, i) => {
+    const b = BURST[i];
+    const shot = p(lt, shotAt(i), 0.12);
+    // Stapel (Aufnahme) → Raster
+    const st = { x: 540 + b.dx * 6, y: 1000 + b.dy * 6, s: 1.85, r: b.r * 4 + (i - 2.5) * 1.2 };
+    // vor dem Behalten rückt das Raster etwas zusammen, damit Platz für den Papierkorb ist
+    const sq = 0.2 * E.io(p(lt, pickAt - 0.35, 0.4));
+    const g = { x: 540 + (GRID[i].x - 540) * (1 - sq), y: 600 + (GRID[i].y - 600) * (1 - sq) };
+    let x = lerp(st.x, g.x, toGrid), y = lerp(st.y, g.y, toGrid), sc = lerp(st.s, 1 - sq, toGrid), rot = lerp(st.r, 0, toGrid);
+    let op = shot, z = 1 + i;
+    sc *= 0.92 + 0.08 * E.out(shot);
+    // Behalten / Papierkorb
+    if (i === BEST) {
+      const k = E.io(p(lt, flyAt(4) + 0.15, 0.6));
+      x = lerp(x, 540, k); y = lerp(y, 960, k); sc = lerp(sc, 1.9, k); z = 20;
+    } else {
+      const k = BURST.slice(0, i).length - (i > BEST ? 1 : 0);
+      const f = E.io(p(lt, flyAt(k), 0.45));
+      if (f > 0) {
+        x = lerp(x, TRASH.x, f); y = lerp(y, TRASH.y, f) - Math.sin(f * Math.PI) * 140;
+        sc = lerp(sc, 0.18, f); rot = lerp(rot, (i % 2 ? 14 : -14), f); op *= 1 - p(f, 0.85, 0.15); z = 30;
+      }
+      if (f >= 1) kept++;
+    }
+    css(t, { transform: `translate(${x - 240}px, ${y - 160}px) rotate(${rot}deg) scale(${sc})`, opacity: op, zIndex: z, display: op > 0.01 ? 'block' : 'none' });
+    t.flash.style.opacity = 0.8 * (1 - p(lt, shotAt(i), 0.18)) * (lt >= shotAt(i) ? 1 : 0);
+    // Unschärfe (wächst beim Zoomen mit), synchroner Zoom
+    t.im.style.filter = `blur(${b.blur}px) brightness(${b.b})`;
+    t.im.style.transform = `translate(${b.dx}px, ${b.dy}px) rotate(${b.r}deg) scale(${1.04 + 1.7 * zoom})`;
+    // Prüf-Scan und Markierung
+    const scan = p(lt, scanAt(i), 0.12) * (1 - p(lt, scanAt(i) + 0.18, 0.15));
+    const best = i === BEST && lt >= bestAt;
+    const picked = lt >= pickAt;
+    t.ring.style.borderColor = best ? '#3ee089' : scan > 0 ? `rgba(30,200,240,${scan})` : 'transparent';
+    t.ring.style.boxShadow = best ? 'inset 0 0 40px rgba(62,224,137,.35)' : 'none';
+    t.no.style.opacity = toGrid * (1 - p(lt, flyAt(0), 0.3));
+    let tag = '', bg = '';
+    if (best && !picked) { tag = '★ Sharpest'; bg = '#2fbf71'; }
+    else if (picked && i === BEST) { tag = '✓ Keep'; bg = '#2fbf71'; }
+    else if (picked) { tag = '🗑'; bg = 'rgba(200,60,60,.85)'; }
+    t.tag.textContent = tag;
+    t.tag.style.background = bg;
+    t.tag.style.display = tag ? 'block' : 'none';
+    const tk = E.back(p(lt, best && !picked ? bestAt : pickAt, 0.4));
+    t.tag.style.transform = `scale(${tag ? 0.5 + 0.5 * tk : 1})`;
+    t.style.filter = phase >= 2 && lt >= bestAt && i !== BEST && !picked ? 'brightness(.7)' : 'none';
+  });
+
+  // Papierkorb
+  const ta = E.back(p(lt, enterAt - 0.15, 0.45));
+  s.trash.style.opacity = p(lt, enterAt - 0.15, 0.2);
+  const landing = [0, 1, 2, 3, 4].some((k) => lt >= flyAt(k) + 0.45 && lt < flyAt(k) + 0.65);
+  s.trash.style.transform = `translateY(${(1 - ta) * 60}px) scale(${(landing ? 1.08 : 1) * (0.8 + 0.2 * ta)})`;
+  s.trash.style.borderColor = landing ? '#ff8a8a' : 'rgba(255,255,255,.08)';
+  s.trash.querySelector('.ct').textContent = `${kept} photo${kept === 1 ? '' : 's'}`;
+  const ck = E.back(p(lt, flyAt(4) + 0.6, 0.4));
+  s.chip.style.opacity = p(lt, flyAt(4) + 0.6, 0.2);
+  s.chip.style.transform = `translateX(-50%) scale(${0.6 + 0.4 * ck})`;
+  s.chip.style.top = '1310px';
+
+  // große Tasten oben
+  const keys = [[pickAt, ['Shift', '4']], [enterAt, ['Enter']]];
+  const cur = [...keys].reverse().find(([t]) => lt >= t - 0.1 && lt < t + 0.55);
+  if (cur) {
+    const [t, label] = cur;
+    const kk = p(lt, t - 0.05, 0.1) * (1 - p(lt, t + 0.08, 0.1));
+    s.cap.innerHTML = label.map((x) => `<kbd style="transform:translateY(${kk * 10}px);box-shadow:0 ${12 - kk * 10}px 0 #9aa3b5,0 24px 50px rgba(0,0,0,.55)${x.length > 2 ? ';min-width:240px' : ''}">${x}</kbd>`).join('<span style="font:800 64px Inter;align-self:center">+</span>');
+    s.cap.style.opacity = p(lt, t - 0.1, 0.08) * (1 - p(lt, t + 0.4, 0.15));
+  } else s.cap.innerHTML = '';
+  s.cap.style.top = '330px';
+}, 5);
+scenes[scenes.length - 1].sfx = function (D) {
+  const s = this;
+  s.draw(s, 0, D);
+  const e = s.ev, out = [];
+  for (let i = 0; i < 6; i++) out.push({ t: e.shotAt(i) - 0.02, type: 'click' });
+  out.push({ t: s.pOff[1] + 0.1, type: 'whoosh' });
+  out.push({ t: e.bestAt, type: 'pop' });
+  out.push({ t: e.zoomAt, type: 'whoosh' });
+  out.push({ t: e.pickAt - 0.03, type: 'click' });
+  out.push({ t: e.enterAt - 0.03, type: 'click' });
+  for (let k = 0; k < 5; k++) { out.push({ t: e.flyAt(k), type: 'whoosh' }); out.push({ t: e.flyAt(k) + 0.45, type: 'pop' }); }
+  return out;
+};
+
+// ---------- 6: echte App + Download
+scene('cta', (r, s) => {
+  s.handheld = 0.8;
+  s.a = laptopWin(r, 900, 540, 560);
+  s.lbl = el('div', 'chip', r, '✓ The real app');
+  css(s.lbl, { left: '50%', top: '210px', fontSize: '38px' });
+  s.icon = el('img', 'abs', r);
+  s.icon.src = ICON;
+  css(s.icon, { left: '465px', top: '880px', width: '150px', height: '150px', borderRadius: '36px', boxShadow: '0 20px 60px rgba(30,140,255,.45)' });
+  s.name = el('div', 'abs head', r, 'Slim<span class="grad">Sort</span>');
+  css(s.name, { top: '1050px', fontSize: '140px', letterSpacing: '-4px' });
+  s.free = el('div', 'abs head', r, 'Free · Windows &amp; Mac');
+  css(s.free, { top: '1220px', fontSize: '54px', fontWeight: 600, color: '#c7d0e2', letterSpacing: 0 });
+  s.btn = el('div', 'abs', r, 'Link in profile ↗');
+  css(s.btn, { left: '240px', width: '600px', top: '1340px', textAlign: 'center', padding: '28px 0', borderRadius: '28px', fontSize: '56px', fontWeight: 800,
+    background: 'linear-gradient(90deg, #1560f0, #0a9fd0)', boxShadow: '0 16px 50px rgba(21,96,240,.55)' });
+}, (s, lt, D) => {
+  const m = M.series;
+  setImg(s.a.img, frame('series', m.cmp + 0.4 + lt * ((m.best - m.cmp) / D)));
+  const k = E.out(p(lt, 0, 0.7));
+  place(s.a, { s: 0.92 + 0.06 * k, ry: -12 * (1 - k), y: 30 * (1 - k) });
+  s.lbl.style.opacity = p(lt, 0.2, 0.3);
+  s.lbl.style.transform = 'translateX(-50%)';
+  const ki = E.back(p(lt, 0.4, 0.5));
+  s.icon.style.transform = `scale(${ki})`;
+  [s.name, s.free, s.btn].forEach((e, i) => {
+    const kk = E.out(p(lt, 0.6 + i * 0.2, 0.5));
+    e.style.opacity = kk;
+    e.style.transform = `translateY(${(1 - kk) * 40}px)` + (i === 2 ? ` scale(${1 + 0.035 * Math.sin(lt * 5) * p(lt, 1.6, 0.3)})` : '');
+  });
+});
+
+start({ captionTop: 1700 });
+</script>
