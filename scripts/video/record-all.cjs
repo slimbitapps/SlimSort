@@ -48,7 +48,11 @@ async function session(name, { w, h, zoom = 1, lang = 'en', photos = 'singles', 
   const home = freshHome(lang);
   const pics = path.join(home, lang === 'de' ? 'Bilder' : 'Pictures');
   const src = path.join(pics, lang === 'de' ? 'Urlaub 2025' : 'Summer 2025');
-  L.demoPhotos(src, photos);
+  if (process.env.PHOTOS) {
+    // eigene Fotos (z. B. für das Intro-Video)
+    const args = photos === 'series' ? ['--series', path.join(process.env.PHOTOS, process.env.SERIES_PHOTO || 'Datei 7.jpg')] : ['--sort'];
+    require('node:child_process').execFileSync('python3', [path.join(__dirname, 'prep-photos.py'), process.env.PHOTOS, src, ...args]);
+  } else L.demoPhotos(src, photos);
   let targets = withTargets ? L.makeTargets(pics, NAMES[lang], COLORS) : [];
   if (nas) targets.push({ id: 'nas', name: NAS[lang], path: '/Volumes/NAS/Photos', key: '4', color: COLORS[3] });
   const X = await L.startDisplay(w, h);
@@ -245,6 +249,32 @@ async function website(name, { w, h }) {
     await c.key(['Shift', String(best + 1)], c.lang === 'de' ? 'Nur dieses behalten' : 'Keep only this one', '', `Shift+Digit${best + 1}`, 1800);
     c.mark('move');
     await c.key('2', c.T[1], COLORS[1], '2', 2200);
+    c.mark('end');
+  });
+
+  // ===== Querformat: Übersicht im hellen Design =====
+  await session('grid-light', { w: LW, h: LH, zoom: 1.3, nas: false, extra: { theme: 'light' } }, async (c) => {
+    const { win, drv } = c;
+    await c.quickSetup();
+    await c.waitSingle();
+    await win.keyboard.press('Tab');
+    await win.waitForSelector('[data-testid="grid"] [data-testid="tile"]');
+    await L.sleep(1500);
+    await drv.inject();
+    await drv.moveTo(LW * 0.7, LH * 0.6, 10);
+    await c.startRec();
+    c.mark('grid');
+    const tiles = await win.$$('[data-testid="tile"]');
+    for (const i of [1, 3, 6]) {
+      const b = await tiles[i].boundingBox();
+      await drv.moveTo(b.x + b.width / 2, b.y + b.height / 2, 700);
+      await win.keyboard.down('Control');
+      await win.mouse.down();
+      await win.mouse.up();
+      await win.keyboard.up('Control');
+      await L.sleep(400);
+    }
+    await L.sleep(800);
     c.mark('end');
   });
 

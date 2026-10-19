@@ -1,0 +1,539 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #070910; font-family: Inter, system-ui, sans-serif; color: #fff; }
+  #stage { position: absolute; inset: 0; overflow: hidden; }
+  #bg { position: absolute; inset: 0; }
+  .scene { position: absolute; inset: 0; display: none; }
+  .abs { position: absolute; }
+  .grad { background: linear-gradient(90deg, #3b8bff, #1ec8f0 55%, #3ee089); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .word { display: inline-block; white-space: pre; will-change: transform, opacity; }
+  .win { position: absolute; border-radius: 18px; overflow: hidden; background: #111;
+    box-shadow: 0 40px 120px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.08); transform-origin: 50% 50%; }
+  .win img { width: 100%; height: 100%; display: block; }
+  .pill { position: absolute; display: flex; align-items: center; gap: 16px; padding: 16px 30px 16px 16px; border-radius: 999px;
+    background: rgba(12,15,24,.88); border: 1px solid rgba(255,255,255,.1); box-shadow: 0 16px 44px rgba(0,0,0,.45);
+    font-size: 36px; font-weight: 700; white-space: nowrap; }
+  .pill .n { width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center; font-size: 28px; font-weight: 800;
+    background: linear-gradient(135deg, #2f7bff, #1ec8f0); }
+  .card { position: absolute; width: 560px; padding: 26px 30px; border-radius: 22px; background: rgba(14,18,28,.9);
+    border: 1px solid rgba(255,255,255,.1); box-shadow: 0 20px 60px rgba(0,0,0,.5); display: flex; gap: 22px; align-items: center; }
+  .card .ic { width: 76px; height: 76px; border-radius: 20px; display: grid; place-items: center; flex: none; }
+  .card b { display: block; font-size: 36px; margin-bottom: 4px; }
+  .card span { font-size: 25px; color: #a9b3c8; }
+  .chip { position: absolute; padding: 16px 28px; border-radius: 999px; background: rgba(14,18,28,.92); border: 1px solid rgba(255,255,255,.12);
+    font-size: 34px; font-weight: 700; white-space: nowrap; box-shadow: 0 14px 40px rgba(0,0,0,.45); display: flex; gap: 12px; align-items: center; }
+  /* Ordner-Fenster (alter Weg) */
+  .fwin { position: absolute; left: 160px; top: 90px; width: 1600px; height: 900px; border-radius: 18px; overflow: hidden;
+    background: #1b1e25; box-shadow: 0 40px 120px rgba(0,0,0,.6), 0 0 0 1px #2b303a; }
+  .fbar { height: 64px; display: flex; align-items: center; gap: 16px; padding: 0 22px; background: #22262f; border-bottom: 1px solid #2b303a; }
+  .fbar i { width: 14px; height: 14px; border-radius: 50%; background: #3a404c; display: inline-block; margin-right: 8px; }
+  .fbar b { font-size: 22px; } .fbar span { margin-left: auto; color: #8d95a5; font-size: 19px; }
+  .fside { position: absolute; left: 0; top: 64px; bottom: 0; width: 270px; background: #1f232b; border-right: 1px solid #2b303a; padding: 18px 12px; }
+  .fside h4 { margin: 4px 10px 12px; font-size: 14px; letter-spacing: .08em; color: #7d8596; }
+  .fold { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 10px; font-size: 20px; color: #c9cfda; }
+  .fold .c { margin-left: auto; color: #8d95a5; font-size: 17px; }
+  .fmain { position: absolute; left: 270px; right: 0; top: 64px; bottom: 0; overflow: hidden; }
+  .fgrid { position: absolute; left: 0; right: 0; top: 0; padding: 24px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 20px 16px; }
+  .ftile { text-align: center; font-size: 15px; color: #c9cfda; }
+  .ftile img { width: 100%; aspect-ratio: 3/2; object-fit: cover; border-radius: 6px; display: block; margin-bottom: 7px; }
+  .cursor { position: absolute; width: 34px; height: 34px; left: 0; top: 0; filter: drop-shadow(0 2px 4px rgba(0,0,0,.5)); z-index: 5; }
+  .ghost { position: absolute; width: 200px; z-index: 4; opacity: .9; }
+  .ghost img { width: 100%; border-radius: 8px; box-shadow: 0 16px 40px rgba(0,0,0,.6); }
+  /* Ergebnis */
+  .rcard { position: absolute; width: 470px; padding: 18px; border-radius: 20px; background: #1d2129; border: 1px solid #2f3541; }
+  .rcard .col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+  .rcard .col img { width: 100%; aspect-ratio: 3/2; object-fit: cover; border-radius: 8px; }
+  .rcard b { font-size: 30px; display: flex; align-items: center; gap: 12px; } .rcard b i { width: 16px; height: 16px; border-radius: 50%; display: block; }
+  .rcard span { color: #9aa2b2; font-size: 23px; }
+</style>
+</head>
+<body>
+<div id="stage"><div id="bg"></div></div>
+<script>
+// ======================================================================= Grundlagen
+const C = window.CONFIG;
+const FPS = 30;
+const stage = document.getElementById('stage');
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const E = {
+  lin: (t) => t,
+  out: (t) => 1 - Math.pow(1 - t, 3),
+  in: (t) => t * t * t,
+  io: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
+  back: (t) => { const c1 = 1.5, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); },
+};
+const p = (lt, a, d) => clamp((lt - a) / d);
+/** Schlüsselbilder: [[t, v], …] → Wert zur Zeit lt (mit Easing zwischen den Punkten) */
+function kf(lt, keys, ease = E.io) {
+  if (lt <= keys[0][0]) return keys[0][1];
+  for (let i = 1; i < keys.length; i++) {
+    if (lt <= keys[i][0]) {
+      const [t0, v0] = keys[i - 1], [t1, v1] = keys[i];
+      return lerp(v0, v1, ease((lt - t0) / (t1 - t0)));
+    }
+  }
+  return keys[keys.length - 1][1];
+}
+function el(tag, cls, parent, html) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (html !== undefined) e.innerHTML = html;
+  (parent || stage).appendChild(e);
+  return e;
+}
+const css = (e, o) => Object.assign(e.style, o);
+const pending = [];
+function setImg(img, src) {
+  if (img._src === src) return;
+  img._src = src;
+  img.src = src;
+  pending.push(img.decode().catch(() => {}));
+}
+function frame(clip, sec) {
+  const f = C.frames[clip];
+  const i = clamp(Math.round(sec * FPS) + 1, 1, f.count);
+  return `${f.dir}/${String(i).padStart(5, '0')}.jpg`;
+}
+const M = C.marks;
+const photos = C.photos;
+const ICON = C.icon;
+const CURSOR = '<svg viewBox="0 0 24 24" width="34" height="34"><path d="M4 2l15 10.5-6.6 1.2 3.9 7.6-3 1.5-3.9-7.6L4 20z" fill="#fff" stroke="#111" stroke-width="1.3" stroke-linejoin="round"/></svg>';
+const GRAB = '<svg viewBox="0 0 24 24" width="34" height="34"><path d="M8 11V6.5a1.5 1.5 0 0 1 3 0V11m0-1.5v-5a1.5 1.5 0 0 1 3 0V11m0-4a1.5 1.5 0 0 1 3 0v6c0 4-2.5 7-6 7h-1.5C7 20 5 17.5 4 15l-1.2-3a1.4 1.4 0 0 1 2.4-1.4L7 13V9.5a1.5 1.5 0 0 1 1-1.4" fill="#fff" stroke="#111" stroke-width="1.2" stroke-linejoin="round"/></svg>';
+
+/** Text Wort für Wort einblenden */
+function words(parent, text, style, cls = '') {
+  const box = el('div', 'abs', parent);
+  css(box, style);
+  box._w = text.split(/(\s+)/).filter((x) => x.length).map((w) => {
+    if (/^\s+$/.test(w)) { box.appendChild(document.createTextNode(' ')); return null; }
+    const s = el('span', 'word ' + cls, box, w);
+    return s;
+  }).filter(Boolean);
+  return box;
+}
+function drawWords(box, lt, start, stagger = 0.09, out = Infinity) {
+  box._w.forEach((w, i) => {
+    const k = E.out(p(lt, start + i * stagger, 0.45));
+    const o = 1 - p(lt, out, 0.3);
+    w.style.opacity = k * o;
+    w.style.transform = `translateY(${(1 - k) * 40}px) scale(${0.92 + 0.08 * k})`;
+    w.style.filter = k < 1 ? `blur(${(1 - k) * 10}px)` : 'none';
+  });
+}
+/** schwebendes App-Fenster mit Rohclip */
+function appWin(parent, w = 1600, h = 900) {
+  const win = el('div', 'win', parent);
+  css(win, { width: w + 'px', height: h + 'px', left: (1920 - w) / 2 + 'px', top: (1080 - h) / 2 + 'px' });
+  const img = el('img', '', win);
+  return { win, img, w, h };
+}
+function place(o, { x = 0, y = 0, s = 1, rx = 0, ry = 0, rz = 0, op = 1 }) {
+  o.win.style.transform = `perspective(2200px) translate3d(${x}px, ${y}px, 0) rotateX(${rx}deg) rotateY(${ry}deg) rotateZ(${rz}deg) scale(${s})`;
+  o.win.style.opacity = op;
+}
+
+// ======================================================================= Hintergrund
+const bg = document.getElementById('bg');
+function drawBg(t) {
+  const a = (x, y, c, r) => `radial-gradient(circle at ${x}% ${y}%, ${c} 0%, transparent ${r}%)`;
+  bg.style.background = [
+    a(20 + 12 * Math.sin(t * 0.21), 30 + 10 * Math.cos(t * 0.17), 'rgba(47,123,255,.32)', 45),
+    a(80 + 10 * Math.cos(t * 0.19), 70 + 12 * Math.sin(t * 0.23), 'rgba(62,224,137,.18)', 42),
+    a(55 + 15 * Math.sin(t * 0.13 + 2), 15 + 8 * Math.sin(t * 0.29), 'rgba(30,200,240,.16)', 40),
+    'linear-gradient(160deg, #0a0f1d 0%, #070910 60%, #0a0d14 100%)',
+  ].join(',');
+}
+
+// ======================================================================= Szenen
+const scenes = [];
+function scene(key, build, draw) {
+  const root = el('div', 'scene', stage);
+  const s = { key, root, draw };
+  build(root, s);
+  scenes.push(s);
+}
+
+// ---------- 1: Fotowand – "2,000 photos. 1 folder."
+scene('hook', (r, s) => {
+  s.wall = el('div', 'abs', r);
+  css(s.wall, { left: '-400px', top: '-500px', width: '2900px', display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '14px', transformOrigin: '50% 50%' });
+  for (let i = 0; i < 12 * 10; i++) {
+    const im = el('img', '', s.wall);
+    im.src = photos[(i * 7 + Math.floor(i / 12)) % photos.length];
+    css(im, { width: '100%', aspectRatio: '3/2', objectFit: 'cover', borderRadius: '10px', display: 'block' });
+  }
+  s.shade = el('div', 'abs', r);
+  css(s.shade, { inset: 0, background: 'radial-gradient(ellipse at 50% 50%, rgba(7,9,16,.55) 0%, rgba(7,9,16,.92) 75%)' });
+  s.t1 = words(r, '2,000 photos.', { left: 0, right: 0, top: '330px', textAlign: 'center', fontSize: '150px', fontWeight: 800, letterSpacing: '-4px' });
+  s.t2 = words(r, 'One folder.', { left: 0, right: 0, top: '510px', textAlign: 'center', fontSize: '150px', fontWeight: 800, letterSpacing: '-4px' }, 'grad');
+  s.t3 = words(r, 'Sort them … someday?', { left: 0, right: 0, top: '720px', textAlign: 'center', fontSize: '46px', fontWeight: 500, color: '#a9b3c8' });
+}, (s, lt, D) => {
+  s.wall.style.transform = `perspective(1600px) rotateX(${28 - lt * 1.2}deg) rotateZ(${-9 + lt * 0.6}deg) translateY(${-lt * 55}px) scale(${1.05 + lt * 0.025})`;
+  drawWords(s.t1, lt, 0.3, 0.12);
+  drawWords(s.t2, lt, 1.5, 0.12);
+  drawWords(s.t3, lt, D * 0.55, 0.08);
+});
+
+// ---------- 2: Der alte Weg – Kamera verfolgt die Maus
+scene('oldway', (r, s) => {
+  s.cam = el('div', 'abs', r);
+  css(s.cam, { left: 0, top: 0, width: '1920px', height: '1080px', transformOrigin: '0 0' });
+  const w = el('div', 'fwin', s.cam);
+  w.innerHTML = `<div class="fbar"><i></i><i></i><i></i><b>Summer 2025</b><span id="ow-count">2,147 items</span></div>
+    <div class="fside"><h4>PICTURES</h4>
+      <div class="fold" id="ow-f0">📁 Family<span class="c" id="ow-c0">0</span></div>
+      <div class="fold" id="ow-f1">📁 Holiday<span class="c" id="ow-c1">0</span></div>
+      <div class="fold" id="ow-f2">📁 Nature<span class="c" id="ow-c2">0</span></div></div>
+    <div class="fmain"><div class="fgrid" id="ow-grid"></div></div>`;
+  s.win = w;
+  const grid = w.querySelector('#ow-grid');
+  s.tiles = [];
+  for (let i = 0; i < 48; i++) {
+    const t = el('div', 'ftile', grid, `<img src="${photos[i % photos.length]}"/><div>IMG_${5001 + i}.JPG</div>`);
+    s.tiles.push(t);
+  }
+  s.grid = grid;
+  s.ghost = el('div', 'ghost', s.cam, '<img/>');
+  s.cur = el('div', 'cursor', s.cam, CURSOR);
+  s.overlay = el('div', 'abs', r);
+  css(s.overlay, { inset: 0 });
+  s.label = el('div', 'pill', s.overlay, '<span class="n" style="background:#ef4f5f">✕</span>The old way');
+  css(s.label, { left: '70px', top: '60px' });
+  const wrow = el('div', 'abs', s.overlay);
+  css(wrow, { left: 0, right: 0, top: '860px', display: 'flex', justifyContent: 'center', gap: '48px' });
+  s.wds = ['Drag.', 'Drop.', 'Scroll.', 'Repeat.'].map((txt) => {
+    const b = el('div', '', wrow, txt);
+    css(b, { fontSize: '96px', fontWeight: 800, letterSpacing: '-2px', textShadow: '0 10px 40px rgba(0,0,0,.7)', display: 'inline-block' });
+    return b;
+  });
+  s.hours = el('div', 'abs', s.overlay, 'For hours.');
+  css(s.hours, { left: 0, right: 0, top: '420px', textAlign: 'center', fontSize: '150px', fontWeight: 800, color: '#ff6b6b', textShadow: '0 10px 50px rgba(0,0,0,.8)' });
+  s.pos = null;
+}, (s, lt, D) => {
+  // Positionen einmal messen (Kamera neutral)
+  if (!s.pos) {
+    s.cam.style.transform = 'none';
+    const r = (e) => { const b = e.getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; };
+    s.pos = { t: s.tiles.map((t) => r(t.querySelector('img'))), f: [0, 1, 2].map((i) => r(s.win.querySelector('#ow-f' + i))) };
+  }
+  const T = (x) => (x * D) / 9.5; // Zeitplan auf Szenenlänge strecken
+  const P = s.pos;
+  // Ablauf: [Start, Kachel, Ordner, Zeiten]
+  const drags = [
+    { tile: 8, fold: 1, a: T(0.3), grab: T(1.1), drop: T(3.4), zoom: 2.1 },
+    { tile: 3, fold: 0, a: T(4.0), grab: T(4.5), drop: T(5.5), zoom: 1.35 },
+    { tile: 20, fold: 2, a: T(7.3), grab: T(7.7), drop: T(8.6), zoom: 1.35 },
+  ];
+  let cx = 1300, cy = 900, z = 1, dragging = null;
+  const scrollY = -kf(lt, [[T(5.8), 0], [T(7.0), 260]]);
+  s.grid.style.transform = `translateY(${scrollY}px)`;
+  const tilePos = (i) => [P.t[i][0], P.t[i][1] + scrollY];
+  let prev = [1300, 900];
+  for (const d of drags) {
+    const tp = tilePos(d.tile), fp = P.f[d.fold];
+    if (lt >= d.a) {
+      const k1 = E.io(p(lt, d.a, d.grab - d.a - 0.15));
+      cx = lerp(prev[0], tp[0], k1); cy = lerp(prev[1], tp[1], k1);
+      if (lt >= d.grab) {
+        const k2 = E.io(p(lt, d.grab, d.drop - d.grab));
+        // Bogen-Bewegung beim Ziehen
+        cx = lerp(tp[0], fp[0], k2); cy = lerp(tp[1], fp[1], k2) - Math.sin(k2 * Math.PI) * 120;
+        if (lt < d.drop) dragging = d;
+      }
+    }
+    prev = lt >= d.drop ? fp : prev;
+  }
+  // Kachel-Zustand
+  drags.forEach((d, i) => {
+    const t = s.tiles[d.tile];
+    const gone = lt >= d.drop;
+    t.style.opacity = gone ? 0 : lt >= d.grab ? 0.35 : 1;
+    t.querySelector('img').style.outline = lt >= d.grab - 0.15 && !gone ? '3px solid #5b8cff' : 'none';
+    s.win.querySelector('#ow-f' + d.fold).style.background = lt >= d.drop - 0.25 && lt < d.drop + 0.35 ? 'rgba(91,140,255,.35)' : '';
+  });
+  [0, 1, 2].forEach((f) => (s.win.querySelector('#ow-c' + f).textContent = drags.filter((d) => d.fold === f && lt >= d.drop).length));
+  s.win.querySelector('#ow-count').textContent = `${2147 - drags.filter((d) => lt >= d.drop).length} items`;
+  // Ghost + Cursor
+  if (dragging) {
+    s.ghost.style.display = 'block';
+    s.ghost.querySelector('img').src = photos[dragging.tile % photos.length];
+    css(s.ghost, { left: cx - 60 + 'px', top: cy - 40 + 'px' });
+  } else s.ghost.style.display = 'none';
+  s.cur.innerHTML = dragging ? GRAB : CURSOR;
+  css(s.cur, { left: cx - 6 + 'px', top: cy - 4 + 'px' });
+  // Kamera: beim ersten Ziehen nah dran und hinterher, dann herauszoomen
+  const d0 = drags[0];
+  z = kf(lt, [[T(0.2), 1], [d0.grab, d0.zoom], [d0.drop, d0.zoom], [d0.drop + T(0.7), 1], [drags[1].a, 1], [drags[1].grab, 1.3], [drags[1].drop + 0.3, 1], [T(7.2), 1], [drags[2].grab, 1.3], [drags[2].drop + 0.3, 1.05]]);
+  const fx = lerp(960, cx, clamp((z - 1) / 0.6)), fy = lerp(540, cy, clamp((z - 1) / 0.6));
+  s.cam.style.transform = `translate(${960 - fx * z}px, ${540 - fy * z}px) scale(${z})`;
+  // Entsättigen gegen Ende
+  s.win.style.filter = `saturate(${1 - 0.6 * p(lt, T(5.5), T(3))}) brightness(${1 - 0.25 * p(lt, T(8.6), T(0.6))})`;
+  // Texte
+  const at = [d0.grab, d0.drop, T(5.8), T(7.3)];
+  s.wds.forEach((w, i) => {
+    const k = E.back(p(lt, at[i], 0.35));
+    w.style.opacity = clamp(p(lt, at[i], 0.2)) * (1 - p(lt, T(8.6), 0.3));
+    w.style.transform = `scale(${0.6 + 0.4 * k})`;
+  });
+  const kh = E.back(p(lt, T(8.7), 0.4));
+  s.hours.style.opacity = p(lt, T(8.7), 0.2);
+  s.hours.style.transform = `scale(${0.7 + 0.3 * kh})`;
+  s.label.style.opacity = E.out(p(lt, 0.1, 0.4)) * (1 - p(lt, T(8.6), 0.3));
+});
+
+// ---------- 3: Logo-Auftritt
+scene('logo', (r, s) => {
+  s.rays = el('div', 'abs', r);
+  css(s.rays, { left: '460px', top: '40px', width: '1000px', height: '1000px', borderRadius: '50%',
+    background: 'conic-gradient(from 0deg, transparent 0 8%, rgba(59,139,255,.14) 10%, transparent 14% 30%, rgba(62,224,137,.12) 33%, transparent 37% 55%, rgba(30,200,240,.13) 58%, transparent 62% 80%, rgba(59,139,255,.12) 84%, transparent 88%)' });
+  s.ring = el('div', 'abs', r);
+  css(s.ring, { left: '960px', top: '400px', width: '10px', height: '10px', borderRadius: '50%', border: '6px solid rgba(91,170,255,.8)' });
+  s.icon = el('img', 'abs', r);
+  s.icon.src = ICON;
+  css(s.icon, { left: '835px', top: '205px', width: '250px', height: '250px', borderRadius: '58px', boxShadow: '0 30px 90px rgba(30,140,255,.45)' });
+  s.name = el('div', 'abs', r, 'Slim<span class="grad">Sort</span>');
+  css(s.name, { left: 0, right: 0, top: '500px', textAlign: 'center', fontSize: '170px', fontWeight: 800, letterSpacing: '-5px' });
+  s.tag = words(r, 'The fastest way to sort your photos.', { left: 0, right: 0, top: '720px', textAlign: 'center', fontSize: '54px', fontWeight: 500, color: '#c7d0e2' });
+}, (s, lt, D) => {
+  s.rays.style.transform = `rotate(${lt * 12}deg) scale(${0.6 + 0.4 * E.out(p(lt, 0, 1.2))})`;
+  s.rays.style.opacity = E.out(p(lt, 0, 1));
+  const kr = p(lt, 0.1, 1.1);
+  const size = 10 + kr * 1500;
+  css(s.ring, { width: size + 'px', height: size + 'px', left: 960 - size / 2 + 'px', top: 330 - size / 2 + 'px', opacity: 1 - kr });
+  const ki = E.back(p(lt, 0.05, 0.7));
+  s.icon.style.transform = `scale(${ki}) rotate(${(1 - ki) * -25}deg)`;
+  s.icon.style.opacity = p(lt, 0.05, 0.2);
+  const kn = E.out(p(lt, 0.45, 0.8));
+  s.name.style.opacity = kn;
+  s.name.style.transform = `translateY(${(1 - kn) * 50}px)`;
+  s.name.style.clipPath = `inset(0 ${(1 - kn) * 50}% 0 ${(1 - kn) * 50}%)`;
+  drawWords(s.tag, lt, 1.2, 0.07);
+});
+
+// ---------- 4: Einrichtung – Fenster dreht sich ins Bild
+scene('setup', (r, s) => {
+  s.a = appWin(r, 1500, 844);
+  s.steps = [['1', 'Pick a folder'], ['2', 'Create target folders'], ['3', 'Each one gets a key']].map(([n, t], i) => {
+    const e = el('div', 'pill', r, `<span class="n">${n}</span>${t}`);
+    css(e, { left: 70 + i * 610 + 'px', top: '980px', fontSize: '32px', padding: '12px 26px 12px 12px' });
+    return e;
+  });
+}, (s, lt, D) => {
+  const m = M.main;
+  // Zeit im Rohclip: Ordner wählen → Zielordner (schneller) → kurz vor Start
+  const k1 = D * 0.3, k2 = D * 0.85;
+  let ct;
+  if (lt < k1) ct = lerp(m.home + 0.5, m.targets, lt / k1);
+  else if (lt < k2) ct = lerp(m.targets, m.targetsDone + 0.6, (lt - k1) / (k2 - k1));
+  else if (lt < (k2 + D) / 2) ct = lerp(m.sorting - 3.8, m.sorting - 3.0, (lt - k2) / ((D - k2) / 2));
+  else ct = lerp(m.sorting - 1.1, m.sorting + 0.1, (lt - (k2 + D) / 2) / ((D - k2) / 2));
+  setImg(s.a.img, frame('main', ct));
+  const k = E.out(p(lt, 0, 1.6));
+  place(s.a, { y: -40 + (1 - k) * 80, ry: -28 * (1 - k), rx: 10 * (1 - k), s: 0.88 + 0.12 * k, rz: -2 * (1 - k) });
+  const at = [0.3, k1 + 0.1, k1 + (k2 - k1) * 0.55];
+  s.steps.forEach((e, i) => {
+    const kk = E.back(p(lt, at[i], 0.45));
+    e.style.opacity = p(lt, at[i], 0.2);
+    e.style.transform = `translateY(${(1 - kk) * 30}px)`;
+  });
+});
+
+// ---------- 5: Sortieren – Kamera fährt an Foto und Tasten
+scene('sort', (r, s) => {
+  s.a = appWin(r, 1640, 922);
+}, (s, lt, D) => {
+  const m = M.main;
+  setImg(s.a.img, frame('main', m.sorting + 0.3 + lt * ((m.fast - m.sorting - 0.6) / D)));
+  const z = kf(lt, [[0, 1.0], [1.6, 1.32], [D - 1.6, 1.38], [D, 1.12]]);
+  const y = kf(lt, [[0, 0], [1.6, -150], [D - 1.6, -170], [D, -60]]);
+  place(s.a, { s: z, y, ry: kf(lt, [[0, 6], [2, 0]]) });
+});
+
+// ---------- 6: Schnell – Zähler
+scene('fast', (r, s) => {
+  s.a = appWin(r, 1220, 686);
+  s.num = el('div', 'abs', r);
+  css(s.num, { left: '1300px', top: '330px', width: '600px', textAlign: 'center', fontSize: '170px', fontWeight: 800, letterSpacing: '-5px', fontVariantNumeric: 'tabular-nums' });
+  s.lbl = el('div', 'abs', r, 'photos sorted');
+  css(s.lbl, { left: '1300px', top: '540px', width: '600px', textAlign: 'center', fontSize: '44px', color: '#a9b3c8' });
+  s.min = el('div', 'abs', r, '⏱ in about <b class="grad">10 minutes</b>');
+  css(s.min, { left: '1300px', top: '640px', width: '600px', textAlign: 'center', fontSize: '44px', fontWeight: 600 });
+}, (s, lt, D) => {
+  const m = M.main;
+  setImg(s.a.img, frame('main', m.fast + lt * ((m.fastEnd - m.fast + 0.3) / D)));
+  const k = E.out(p(lt, 0, 0.9));
+  place(s.a, { x: -330 * k, s: 1.0 - 0.1 * k, ry: 16 * k, y: 10 });
+  const n = Math.round(1000 * E.io(p(lt, 0.5, D - 1.4)));
+  s.num.innerHTML = `<span class="grad">${n.toLocaleString('en-US')}</span>`;
+  s.num.style.opacity = s.lbl.style.opacity = p(lt, 0.4, 0.4);
+  const km = E.back(p(lt, D * 0.55, 0.5));
+  s.min.style.opacity = p(lt, D * 0.55, 0.3);
+  s.min.style.transform = `scale(${0.7 + 0.3 * km})`;
+});
+
+// ---------- 7: Sicher – Funktions-Karten
+scene('safe', (r, s) => {
+  s.a = appWin(r, 1240, 698);
+  const items = [
+    ['↺', '#2f7bff', 'Unlimited undo', 'Ctrl + Z – as often as you like'],
+    ['⛨', '#3ee089', 'Never overwrites', 'Duplicates get a number'],
+    ['◉', '#a66cff', 'NAS-safe', 'Drive offline? Photo stays put'],
+  ];
+  s.cards = items.map(([ic, c, h, t], i) => {
+    const e = el('div', 'card', r, `<div class="ic" style="background:${c}22;color:${c};font-size:44px">${ic}</div><div><b>${h}</b><span>${t}</span></div>`);
+    css(e, { left: '1300px', top: 215 + i * 230 + 'px' });
+    return e;
+  });
+}, (s, lt, D) => {
+  const m = M.main;
+  setImg(s.a.img, frame('main', m.undo - 0.3 + lt * ((m.nasEnd - m.undo + 0.3) / D)));
+  const k = E.out(p(lt, 0, 0.9));
+  place(s.a, { x: -310 * k, ry: 14 * k, s: 1 - 0.06 * k });
+  const nasAt = ((m.nas - m.undo + 0.3) / (m.nasEnd - m.undo + 0.3)) * D;
+  const at = [0.5, 0.5 + D * 0.22, nasAt + 0.2];
+  s.cards.forEach((e, i) => {
+    const kk = E.back(p(lt, at[i], 0.5));
+    e.style.opacity = p(lt, at[i], 0.25);
+    e.style.transform = `translateX(${(1 - kk) * 120}px)`;
+  });
+});
+
+// ---------- 8: Serien – Zoom auf das empfohlene Foto
+scene('series', (r, s) => {
+  s.a = appWin(r, 1680, 945);
+  s.t = words(r, 'Finds the series. Suggests the sharpest.', { left: 0, right: 0, top: '30px', textAlign: 'center', fontSize: '60px', fontWeight: 800, textShadow: '0 8px 30px rgba(0,0,0,.8)' });
+}, (s, lt, D) => {
+  const m = M.series;
+  const len = m.end - m.cmp;
+  const ct = m.cmp + 0.2 + lt * (len / D);
+  setImg(s.a.img, frame('series', ct));
+  const bestT = ((m.best - m.cmp) / len) * D, moveT = ((m.move - m.cmp) / len) * D;
+  const z = kf(lt, [[0, 0.92], [1.0, 0.92], [bestT - 0.6, 0.92], [bestT + 0.4, 1.45], [moveT - 0.2, 1.45], [moveT + 0.6, 0.95]]);
+  const x = kf(lt, [[bestT - 0.6, 0], [bestT + 0.4, -480], [moveT - 0.2, -480], [moveT + 0.6, 0]]);
+  const y = kf(lt, [[0, 50], [bestT - 0.6, 50], [bestT + 0.4, 210], [moveT - 0.2, 210], [moveT + 0.6, 50]]);
+  place(s.a, { s: z, x, y, rx: kf(lt, [[0, 12], [1.2, 0]]) });
+  drawWords(s.t, lt, 0.4, 0.08);
+});
+
+// ---------- 9: Funktionen – zwei Fenster (dunkel/hell) + Chips
+scene('features', (r, s) => {
+  s.d = appWin(r, 1150, 647);
+  s.l = appWin(r, 1150, 647);
+  const chips = ['Overview mode', 'Multiple folders', 'Light & dark', '5 languages', 'Simple & expert mode'];
+  const pos = [[90, 70], [1330, 120], [80, 930], [1420, 880], [700, 980]];
+  s.chips = chips.map((c, i) => {
+    const e = el('div', 'chip', r, `<span class="grad">✦</span>${c}`);
+    css(e, { left: pos[i][0] + 'px', top: pos[i][1] + 'px' });
+    return e;
+  });
+  s.t = words(r, 'Simple when you start. Powerful when you need it.', { left: 0, right: 0, top: '470px', textAlign: 'center', fontSize: '64px', fontWeight: 800, textShadow: '0 10px 40px rgba(0,0,0,.9)' });
+}, (s, lt, D) => {
+  const m = M.main, g = M['grid-light'];
+  setImg(s.d.img, frame('main', m.grid + 1.3 + lt * 0.5));
+  setImg(s.l.img, frame('grid-light', g.grid + lt * ((g.end - g.grid) / D)));
+  const k = E.out(p(lt, 0, 1.2));
+  place(s.d, { x: -330, y: -70 + 20 * Math.sin(lt * 0.8), ry: 22, rz: -2, s: 0.88 + 0.04 * k, op: k });
+  place(s.l, { x: 360 * k + 200 * (1 - k), y: 90 - 15 * Math.sin(lt * 0.8), ry: -18, rz: 2, s: 0.9, op: k });
+  s.chips.forEach((e, i) => {
+    const at = 0.4 + i * (D * 0.11);
+    const kk = E.back(p(lt, at, 0.45));
+    e.style.opacity = p(lt, at, 0.2);
+    e.style.transform = `scale(${0.6 + 0.4 * kk}) translateY(${Math.sin(lt * 1.3 + i) * 6}px)`;
+  });
+  const tt = D * 0.62;
+  drawWords(s.t, lt, tt, 0.08);
+  const dim = p(lt, tt - 0.2, 0.4) * 0.55;
+  s.d.win.style.filter = s.l.win.style.filter = `brightness(${1 - dim})`;
+});
+
+// ---------- 10: Kostenlos & privat – Ergebnis-Ordner
+scene('free', (r, s) => {
+  const folders = [['Family', '#5b8cff', 612], ['Holiday', '#2fbf71', 1104], ['Nature', '#f5a524', 431]];
+  s.cards = folders.map(([n, c, total], i) => {
+    const e = el('div', 'rcard', r, `<div class="col">${[0, 1, 2, 3].map((k) => `<img src="${photos[(i * 5 + k * 3) % photos.length]}"/>`).join('')}</div>
+      <div><b><i style="background:${c}"></i>${n}</b><span class="cnt">0 photos</span></div>`);
+    css(e, { left: 165 + i * 545 + 'px', top: '120px' });
+    e._total = total;
+    return e;
+  });
+  const row = el('div', 'abs', r);
+  css(row, { left: 0, right: 0, top: '700px', display: 'flex', justifyContent: 'center', gap: '56px' });
+  s.big = ['Free.', 'No ads.', 'No account.', 'No cloud.'].map((txt, i) => {
+    const b = el('div', i === 0 ? 'grad' : '', row, txt);
+    css(b, { fontSize: '84px', fontWeight: 800, letterSpacing: '-2px', display: 'inline-block' });
+    return b;
+  });
+  s.sub = words(r, 'Your photos never leave your computer.', { left: 0, right: 0, top: '880px', textAlign: 'center', fontSize: '46px', color: '#c7d0e2', fontWeight: 500 });
+}, (s, lt, D) => {
+  s.cards.forEach((e, i) => {
+    const kk = E.out(p(lt, 0.1 + i * 0.25, 0.7));
+    e.style.opacity = kk;
+    e.style.transform = `translateY(${(1 - kk) * 60}px) rotate(${(i - 1) * 2 * (1 - kk)}deg)`;
+    e.querySelector('.cnt').textContent = `${Math.round(e._total * E.out(p(lt, 0.3 + i * 0.25, 1.6))).toLocaleString('en-US')} photos`;
+  });
+  s.big.forEach((b, i) => {
+    const at = 0.9 + i * (D * 0.11);
+    const kk = E.back(p(lt, at, 0.4));
+    b.style.opacity = p(lt, at, 0.2);
+    b.style.transform = `scale(${0.6 + 0.4 * kk})`;
+  });
+  drawWords(s.sub, lt, D * 0.6, 0.06);
+});
+
+// ---------- 11: Abspann
+scene('cta', (r, s) => {
+  s.icon = el('img', 'abs', r);
+  s.icon.src = ICON;
+  css(s.icon, { left: '870px', top: '150px', width: '180px', height: '180px', borderRadius: '42px', boxShadow: '0 30px 90px rgba(30,140,255,.45)' });
+  s.name = el('div', 'abs', r, 'Slim<span class="grad">Sort</span>');
+  css(s.name, { left: 0, right: 0, top: '350px', textAlign: 'center', fontSize: '140px', fontWeight: 800, letterSpacing: '-4px' });
+  s.os = el('div', 'abs', r, 'For Windows &amp; Mac');
+  css(s.os, { left: 0, right: 0, top: '530px', textAlign: 'center', fontSize: '50px', color: '#c7d0e2' });
+  s.btn = el('div', 'abs', r, '⬇&nbsp; Download free');
+  css(s.btn, { left: '660px', top: '650px', width: '600px', textAlign: 'center', padding: '28px 0', borderRadius: '24px', fontSize: '48px', fontWeight: 700,
+    background: 'linear-gradient(90deg, #1560f0, #0a9fd0)', boxShadow: '0 16px 50px rgba(21,96,240,.55)' });
+  s.url = el('div', 'abs', r, 'slimbitapps.github.io/SlimSort &nbsp;·&nbsp; link in the description');
+  css(s.url, { left: 0, right: 0, top: '820px', textAlign: 'center', fontSize: '36px', color: '#9fb4ff' });
+  s.sub = el('div', 'abs', r, '<span style="background:#e62117;padding:10px 22px;border-radius:12px;font-weight:700">Subscribe</span>&nbsp; for more apps by SlimBit Apps');
+  css(s.sub, { left: 0, right: 0, top: '930px', textAlign: 'center', fontSize: '32px', color: '#a9b3c8' });
+}, (s, lt, D) => {
+  const ki = E.back(p(lt, 0, 0.6));
+  s.icon.style.transform = `scale(${ki})`;
+  [s.name, s.os, s.btn, s.url, s.sub].forEach((e, i) => {
+    const kk = E.out(p(lt, 0.25 + i * 0.25, 0.6));
+    e.style.opacity = kk;
+    e.style.transform = `translateY(${(1 - kk) * 40}px)`;
+  });
+  const pulse = 1 + 0.03 * Math.sin(lt * 4) * p(lt, 1.5, 0.5);
+  s.btn.style.transform += ` scale(${pulse})`;
+});
+
+// ======================================================================= Zeitleiste
+const DUR = C.durations; // Sekunden je Szene (aus den Sprechtext-Absätzen)
+const FADE = 0.4;
+const starts = [];
+{ let t = 0; for (const d of DUR) { starts.push(t); t += d; } window.TOTAL = t; }
+window.render = async (t) => {
+  pending.length = 0;
+  drawBg(t);
+  scenes.forEach((s, i) => {
+    const lt = t - starts[i], D = DUR[i];
+    const on = lt >= -FADE && lt < D + 0.001;
+    s.root.style.display = on ? 'block' : 'none';
+    if (!on) return;
+    const fin = E.out(clamp((lt + FADE) / FADE)), fout = i === scenes.length - 1 ? 1 : 1 - E.in(clamp((lt - (D - FADE)) / FADE));
+    s.root.style.opacity = Math.min(fin, fout);
+    s.root.style.transform = `scale(${1 + 0.04 * (1 - fin) - 0.03 * (1 - fout)})`;
+    s.draw(s, Math.max(0, lt), D);
+  });
+  await Promise.all(pending);
+};
+window.SCENES = scenes.map((s) => s.key);
+</script>
+</body>
+</html>
