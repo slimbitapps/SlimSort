@@ -11,8 +11,8 @@ VOICE, WORK = sys.argv[1], os.path.abspath(sys.argv[2])
 N = 11
 # Mindestlänge je Szene (die Animationen brauchen etwas Zeit)
 MIN = [6.0, 9.0, 4.8, 7.5, 9.5, 5.5, 10.0, 12.0, 8.0, 7.0, 7.0]
-LEAD = 0.35   # Stimme beginnt kurz nach dem Szenenwechsel
-TAIL = 0.6    # kleine Pause nach jedem Absatz
+LEAD = 0.15   # Stimme beginnt kurz nach dem Szenenwechsel (Absätze enthalten schon etwas Stille)
+TAIL = 0.35   # kleine Pause nach jedem Absatz
 OUT = os.path.join(WORK, 'voice')
 os.makedirs(OUT, exist_ok=True)
 
@@ -51,7 +51,8 @@ for i in range(N):
     f = os.path.join(OUT, f'absatz-{i + 1:02d}.wav')
     # Stille am Anfang/Ende jedes Absatzes abschneiden
     subprocess.run(['ffmpeg', '-y', '-v', 'error', '-ss', str(a), '-to', str(b), '-i', VOICE,
-                    '-af', 'silenceremove=start_periods=1:start_threshold=-40dB,areverse,silenceremove=start_periods=1:start_threshold=-40dB,areverse',
+                    # nichts wegschneiden (sonst fehlen leise Wortenden) – nur ganz kurz ein-/ausblenden
+                    '-af', f'afade=t=in:d=0.03,afade=t=out:st={max(0, b - a - 0.05)}:d=0.05',
                     '-ar', '48000', '-ac', '1', f], check=True)
     paras.append(f)
     lens.append(dur(f))
