@@ -151,6 +151,7 @@ h3 {
 .app {
   display: grid;
   grid-template-rows: var(--header-h) 1fr;
+  grid-template-columns: minmax(0, 1fr); /* schmale Fenster: nichts darf die Breite aufblähen */
   height: 100%;
 }
 .app.no-header {
@@ -207,6 +208,7 @@ h3 {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
   height: var(--header-h);
   padding: 0 12px 0 16px;
   -webkit-app-region: drag;
@@ -1227,6 +1229,7 @@ h3 {
 .session {
   display: grid;
   grid-template-rows: 1fr auto auto;
+  grid-template-columns: minmax(0, 1fr);
   min-height: 0;
   height: 100%;
   background: var(--bg);
@@ -1420,7 +1423,8 @@ h3 {
   overflow: hidden;
   touch-action: none;
 }
-.single .media {
+.single .media,
+.single .media-ghost {
   position: absolute;
   left: 0;
   top: 0;

@@ -33,6 +33,9 @@ export function SingleView({ s }: { s: SessionState }) {
   const [hiRes, setHiRes] = useState(false);
   // Ein Ladeweg (Vorschau oder Original) ist schon gescheitert → nicht endlos hin- und herwechseln
   const [oneFailed, setOneFailed] = useState(false);
+  // Zuletzt angezeigtes Bild: bleibt stehen, bis das nächste geladen ist (kein schwarzes Aufblitzen)
+  const shown = useRef<{ src: string; style: React.CSSProperties } | null>(null);
+  const [fadeHold, setFadeHold] = useState(false);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<{
     startX: number;
@@ -76,7 +79,15 @@ export function SingleView({ s }: { s: SessionState }) {
     setLivePlaying(false);
     setHiRes(false);
     setOneFailed(false);
+    setFadeHold(true);
   }, [it?.id, it?.path]);
+
+  // Altes Bild noch kurz zeigen, bis das neue eingeblendet ist
+  useEffect(() => {
+    if (!nat || !fadeHold) return;
+    const timer = setTimeout(() => setFadeHold(false), 220);
+    return () => clearTimeout(timer);
+  }, [nat, fadeHold]);
 
   useEffect(() => {
     if (fitMode && nat) setViewState(clampView({ scale: fitScale, x: 0, y: 0 }));
@@ -221,6 +232,9 @@ export function SingleView({ s }: { s: SessionState }) {
     ? { left: 0, top: 0, width: nat.w * view.scale, height: nat.h * view.scale, transform: `translate(${view.x}px, ${view.y}px)` }
     : { opacity: 0 };
   const mod = window.api.platform === 'darwin' ? '⌘' : t('key.ctrl');
+  if (nat && !fadeHold && it.kind === 'image' && !error) shown.current = { src: hiRes ? fullUrl(it) : displayUrl(it, pSize), style: rect };
+  else if (it.kind !== 'image' || error) shown.current = null;
+  const ghostVisible = (!nat || fadeHold) && !error;
 
   return (
     <div
@@ -250,6 +264,15 @@ export function SingleView({ s }: { s: SessionState }) {
         />
       ) : (
         <>
+          {shown.current && (
+            <img
+              className="media-ghost"
+              src={shown.current.src}
+              style={{ ...shown.current.style, visibility: ghostVisible ? 'visible' : 'hidden' }}
+              alt=""
+              draggable={false}
+            />
+          )}
           <img
             key={it.path + (hiRes ? ':hi' : '')}
             className={`media ${nat ? 'ready' : ''}`}
@@ -290,7 +313,7 @@ export function SingleView({ s }: { s: SessionState }) {
         </>
       )}
 
-      {!nat && !error && it.kind === 'image' && (
+      {!nat && !error && it.kind === 'image' && !shown.current && (
         <div className="loading-img">
           <div className="spinner" />
         </div>

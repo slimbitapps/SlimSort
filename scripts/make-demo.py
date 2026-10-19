@@ -1,6 +1,6 @@
 """Erzeugt ansprechende Beispielfotos (Landschaften) für Screenshots und Videos.
 
-  python3 make-demo.py ZIEL
+  python3 make-demo.py ZIEL [--singles | --series]
 
 Ca. 60 Bilder mit EXIF-Aufnahmezeit, darunter Serien (5 Bilder in 0,5 s, eins verwackelt).
 """
@@ -186,8 +186,17 @@ rnd0 = random.Random(7)
 t = datetime.datetime(2025, 8, 3, 9, 12, 0)
 n = 0
 plan = []  # (Szene, Seed, Serie?)
-for k in range(24):
-    plan.append((SCENES[k % 5], 100 + k, k % 4 == 1))
+mode = sys.argv[2] if len(sys.argv) > 2 else ''
+if mode == '--singles':  # nur Einzelfotos (für Sortier-Videos)
+    for k in range(40):
+        plan.append((SCENES[(k * 3) % 5], 300 + k, False))
+elif mode == '--series':  # Serie gleich am Anfang (für Vergleichs-Videos)
+    plan.append((SCENES[1], 100 + 1, True))
+    for k in range(6):
+        plan.append((SCENES[k % 5], 200 + k, False))
+else:
+    for k in range(24):
+        plan.append((SCENES[k % 5], 100 + k, k % 4 == 1))
 for scene, seed, series in plan:
     shots = 5 if series else 1
     t += datetime.timedelta(minutes=rnd0.randint(7, 55))

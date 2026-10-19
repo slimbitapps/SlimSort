@@ -1,0 +1,157 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Folder</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; font-family: Inter, system-ui, sans-serif; }
+  body { background: radial-gradient(ellipse at 30% 20%, #23305a 0%, #10131c 60%); display: grid; place-items: center; }
+  .win { width: 88vw; height: 84vh; background: #1b1e25; border-radius: 16px; box-shadow: 0 30px 90px rgba(0,0,0,.6);
+    display: grid; grid-template-columns: 250px 1fr; grid-template-rows: 64px 1fr; overflow: hidden; border: 1px solid #2b303a; }
+  .bar { grid-column: 1 / 3; display: flex; align-items: center; gap: 16px; padding: 0 22px; background: #22262f; border-bottom: 1px solid #2b303a; color: #e6e9ef; }
+  .dots { display: flex; gap: 9px; } .dots i { width: 14px; height: 14px; border-radius: 50%; background: #3a404c; display: block; }
+  .bar b { font-size: 21px; } .bar span { color: #8d95a5; font-size: 18px; margin-left: auto; }
+  .side { background: #1f232b; border-right: 1px solid #2b303a; padding: 18px 12px; color: #c9cfda; font-size: 18px; }
+  .side h4 { margin: 4px 10px 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: #7d8596; }
+  .fold { display: flex; align-items: center; gap: 12px; padding: 11px 12px; border-radius: 10px; transition: background .2s, transform .2s; }
+  .fold svg { flex: none; } .fold .n { margin-left: auto; color: #8d95a5; font-size: 16px; font-variant-numeric: tabular-nums; }
+  .fold.cur { background: #2c3240; } .fold.hot { background: rgba(91,140,255,.35); transform: scale(1.04); }
+  .main { position: relative; overflow: hidden; }
+  .grid { position: absolute; left: 0; right: 0; top: 0; padding: 22px; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 18px 14px; }
+  .tile { text-align: center; color: #c9cfda; font-size: 14px; }
+  .tile img { width: 100%; aspect-ratio: 3/2; object-fit: cover; border-radius: 6px; display: block; margin-bottom: 7px; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+  .tile.sel img { outline: 3px solid #5b8cff; outline-offset: 2px; }
+  .gone { opacity: 0; transform: scale(.4); transition: all .35s; }
+  #cur { position: fixed; z-index: 9; width: 34px; height: 34px; pointer-events: none; filter: drop-shadow(0 2px 4px rgba(0,0,0,.5)); }
+  #ghost { position: fixed; z-index: 8; width: 130px; opacity: .85; pointer-events: none; display: none; }
+  #ghost img { width: 100%; border-radius: 6px; }
+  /* Ergebnis */
+  .result { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 26px; padding: 40px; align-content: center; }
+  .rf { background: #22262f; border: 1px solid #2f3541; border-radius: 18px; padding: 18px; color: #e6e9ef; opacity: 0; transform: translateY(30px); transition: all .6s cubic-bezier(.2,.8,.2,1); }
+  .rf.on { opacity: 1; transform: none; }
+  .rf .col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+  .rf .col img { width: 100%; aspect-ratio: 3/2; object-fit: cover; border-radius: 6px; }
+  .rf b { font-size: 26px; display: flex; align-items: center; gap: 10px; } .rf b i { width: 14px; height: 14px; border-radius: 50%; display: block; }
+  .rf span { color: #9aa2b2; font-size: 19px; font-variant-numeric: tabular-nums; }
+  @media (max-aspect-ratio: 1.2) {
+    .win { width: 92vw; height: 88vh; grid-template-columns: 1fr; }
+    .side { display: none; } .bar { grid-column: 1; }
+    .result { grid-template-columns: 1fr; padding: 26px; gap: 16px; }
+    .rf { display: grid; grid-template-columns: 220px 1fr; gap: 18px; align-items: center; }
+    .rf .col { margin: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="win">
+  <div class="bar"><div class="dots"><i></i><i></i><i></i></div><b id="title">Summer 2025</b><span id="count"></span></div>
+  <div class="side" id="side"></div>
+  <div class="main" id="main"><div class="grid" id="grid"></div></div>
+</div>
+<svg id="cur" viewBox="0 0 24 24" style="left:-100px;top:-100px"><path d="M4 2l15 10.5-6.6 1.2 3.9 7.6-3 1.5-3.9-7.6L4 20z" fill="#fff" stroke="#111" stroke-width="1.3" stroke-linejoin="round"/></svg>
+<div id="ghost"><img id="ghostImg" /></div>
+<script>
+  const q = new URLSearchParams(location.search);
+  const mode = q.get('mode') || 'chaos';
+  const de = q.get('lang') === 'de';
+  const imgs = JSON.parse(q.get('imgs') || '[]');
+  const T = de
+    ? { title: 'Urlaub 2025', items: 'Objekte', pics: 'Bilder', fam: 'Familie', hol: 'Strand', nat: 'Natur', photos: 'Fotos' }
+    : { title: 'Summer 2025', items: 'items', pics: 'Pictures', fam: 'Family', hol: 'Holiday', nat: 'Nature', photos: 'photos' };
+  const folders = [[T.fam, '#5b8cff'], [T.hol, '#2fbf71'], [T.nat, '#f5a524']];
+  const folderSvg = (c) => `<svg width="24" height="24" viewBox="0 0 24 24"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.6l2 2h8.4A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z" fill="${c}"/></svg>`;
+  document.getElementById('title').textContent = T.title;
+  document.getElementById('side').innerHTML = `<h4>${T.pics}</h4>` +
+    `<div class="fold cur">${folderSvg('#7d8596')}${T.title}</div>` +
+    folders.map(([n, c], i) => `<div class="fold" id="f${i}">${folderSvg(c)}${n}<span class="n" id="n${i}">0</span></div>`).join('');
+  const grid = document.getElementById('grid');
+  const N = mode === 'chaos' ? 240 : 60;
+  let html = '';
+  for (let i = 0; i < N; i++) html += `<div class="tile" id="t${i}"><img src="${imgs[i % imgs.length]}" /><div>IMG_${String(4001 + i).padStart(4, '0')}.JPG</div></div>`;
+  grid.innerHTML = html;
+  const cnt = document.getElementById('count');
+  const fmt = (n) => n.toLocaleString(de ? 'de-DE' : 'en-US');
+  cnt.textContent = `${fmt(2147)} ${T.items}`;
+
+  const cur = document.getElementById('cur');
+  const ghost = document.getElementById('ghost');
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  let cx = innerWidth * 0.6, cy = innerHeight * 0.7;
+  async function move(x, y, ms, drag) {
+    const sx = cx, sy = cy, t0 = performance.now();
+    while (true) {
+      const t = Math.min(1, (performance.now() - t0) / ms);
+      const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      cx = sx + (x - sx) * e; cy = sy + (y - sy) * e;
+      cur.style.left = cx - 4 + 'px'; cur.style.top = cy - 3 + 'px';
+      if (drag) { ghost.style.left = cx - 40 + 'px'; ghost.style.top = cy - 20 + 'px'; }
+      if (t >= 1) break;
+      await new Promise(requestAnimationFrame);
+    }
+  }
+  const center = (el) => { const b = el.getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; };
+
+  async function chaos() {
+    // langsam durch den riesigen Ordner scrollen
+    const t0 = performance.now();
+    const go = () => { grid.style.transform = `translateY(${-(performance.now() - t0) / 1000 * 70}px)`; requestAnimationFrame(go); };
+    go();
+  }
+
+  async function drag() {
+    cur.style.left = cx + 'px'; cur.style.top = cy + 'px';
+    await sleep(500);
+    const counts = [0, 0, 0];
+    const seq = [[0, 1], [1, 0], [2, 1], [3, 2], [4, 1], [5, 0]];
+    for (const [ti, fi] of seq) {
+      const tile = document.getElementById('t' + ti);
+      const [x, y] = center(tile.querySelector('img'));
+      await move(x, y, 750);
+      tile.classList.add('sel');
+      await sleep(250);
+      document.getElementById('ghostImg').src = tile.querySelector('img').src;
+      ghost.style.display = 'block';
+      const target = document.getElementById('f' + fi) || document.getElementById('f0');
+      const [fx, fy] = innerWidth / innerHeight < 1.2 ? [innerWidth * 0.5, 40] : center(target);
+      await move(fx, fy, 1100, true);
+      target && target.classList.add('hot');
+      await sleep(300);
+      ghost.style.display = 'none';
+      tile.classList.add('gone');
+      counts[fi]++;
+      const n = document.getElementById('n' + fi); if (n) n.textContent = counts[fi];
+      await sleep(250);
+      target && target.classList.remove('hot');
+      setTimeout(() => (tile.style.display = 'none'), 350);
+      cnt.textContent = `${fmt(2147 - counts.reduce((a, b) => a + b))} ${T.items}`;
+      await sleep(250);
+    }
+  }
+
+  async function result() {
+    document.getElementById('title').textContent = de ? 'Bilder' : 'Pictures';
+    cnt.textContent = de ? 'Fertig sortiert ✓' : 'All sorted ✓';
+    const totals = [612, 1104, 431];
+    const main = document.getElementById('main');
+    main.innerHTML = '<div class="result">' + folders.map(([n, c], i) =>
+      `<div class="rf" id="r${i}"><div class="col">${[0, 1, 2, 3].map((k) => `<img src="${imgs[(i * 7 + k * 3) % imgs.length]}" />`).join('')}</div>` +
+      `<div><b><i style="background:${c}"></i>${n}</b><span id="rc${i}">0 ${T.photos}</span></div></div>`).join('') + '</div>';
+    for (let i = 0; i < 3; i++) {
+      await sleep(350);
+      document.getElementById('r' + i).classList.add('on');
+      const t0 = performance.now();
+      const tick = () => {
+        const t = Math.min(1, (performance.now() - t0) / 1400);
+        const v = Math.round(totals[i] * (1 - Math.pow(1 - t, 3)));
+        document.getElementById('rc' + i).textContent = `${fmt(v)} ${T.photos}`;
+        const s = document.getElementById('n' + i); if (s) s.textContent = fmt(v);
+        if (t < 1) requestAnimationFrame(tick);
+      };
+      tick();
+    }
+  }
+  window.start = () => ({ chaos, drag, result })[mode]();
+</script>
+</body>
+</html>

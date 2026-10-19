@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; font-family: Inter, system-ui, sans-serif; color: #fff; }
+  body.bg { background: radial-gradient(ellipse at 50% 35%, #15274a 0%, #090b12 70%); }
+  .grad { background: linear-gradient(90deg, #2f7bff, #1ec8f0 55%, #3ee089); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  /* Titel unten */
+  .lower { position: absolute; left: 0; right: 0; display: flex; justify-content: center; }
+  .pill { background: rgba(10, 12, 18, .84); border: 1px solid rgba(255,255,255,.08); border-radius: 26px; padding: 26px 46px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.45); text-align: center; }
+  .pill h1 { margin: 0; font-size: 74px; font-weight: 800; letter-spacing: -1.5px; line-height: 1.08; }
+  .pill p { margin: 10px 0 0; font-size: 34px; color: #b9c2d6; }
+  .chips { display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
+  .chip { background: rgba(10, 12, 18, .86); border: 1px solid rgba(255,255,255,.1); border-radius: 999px; padding: 18px 30px;
+    font-size: 40px; font-weight: 700; display: flex; align-items: center; gap: 14px; box-shadow: 0 14px 40px rgba(0,0,0,.4); }
+  .chip svg { flex: none; }
+  /* Logo-Karte */
+  .appicon { width: 230px; height: 230px; border-radius: 52px; box-shadow: 0 30px 80px rgba(30,140,255,.35); }
+  .name { font-size: 140px; font-weight: 800; letter-spacing: -4px; margin: 34px 0 8px; line-height: 1; }
+  .tag { font-size: 52px; color: #c7d0e2; }
+  .by { margin-top: 36px; display: flex; align-items: center; gap: 14px; font-size: 32px; color: #8d96aa; }
+  .by img { width: 44px; height: 44px; }
+  .btns { display: flex; gap: 22px; margin-top: 44px; }
+  .btn { font-size: 40px; font-weight: 700; padding: 22px 40px; border-radius: 20px; }
+  .btn.dl { background: linear-gradient(90deg, #1560f0, #0a9fd0); box-shadow: 0 12px 34px rgba(21,96,240,.45); }
+  .btn.sub { background: #e62117; }
+  .url { margin-top: 30px; font-size: 38px; color: #9fb4ff; }
+  /* Shorts-Rahmen */
+  .hook { position: absolute; left: 60px; right: 60px; top: 150px; height: 380px; display: flex; align-items: center; justify-content: center;
+    text-align: center; font-size: 76px; font-weight: 800; line-height: 1.1; letter-spacing: -1.5px; }
+  .foot { position: absolute; left: 0; right: 0; bottom: 210px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .foot .row { display: flex; align-items: center; gap: 18px; font-size: 46px; font-weight: 800; }
+  .foot .row img { width: 70px; height: 70px; border-radius: 16px; }
+  .foot .sub2 { font-size: 34px; color: #aab4c8; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  const q = new URLSearchParams(location.search);
+  const kind = q.get('kind');
+  const t = (k) => q.get(k) || '';
+  const root = document.getElementById('root');
+  const check = '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#3ee089" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>';
+  if (kind === 'title') {
+    root.innerHTML = `<div class="lower" style="${t('pos') === 'top' ? 'top:70px' : 'bottom:' + (t('bottom') || '230') + 'px'}"><div class="pill"><h1>${t('h')}</h1>${t('p') ? `<p>${t('p')}</p>` : ''}</div></div>`;
+  } else if (kind === 'chips') {
+    root.innerHTML = `<div class="lower" style="bottom:${t('bottom') || '230'}px;padding:0 40px"><div class="chips">${t('items').split('|').map((x) => `<div class="chip">${check}${x}</div>`).join('')}</div></div>`;
+  } else if (kind === 'step') {
+    root.innerHTML = `<div style="position:absolute;left:50%;top:${t('top') || '70'}px;transform:translateX(-50%);display:flex;align-items:center;gap:18px;
+      background:rgba(10,12,18,.86);border:1px solid rgba(255,255,255,.1);border-radius:999px;padding:14px 34px 14px 14px;box-shadow:0 14px 40px rgba(0,0,0,.4);white-space:nowrap">
+      <span style="width:58px;height:58px;border-radius:50%;display:grid;place-items:center;font-size:32px;font-weight:800;background:linear-gradient(135deg,#2f7bff,#1ec8f0)">${t('n')}</span>
+      <span style="font-size:${t('fs') || '40'}px;font-weight:700">${t('h')}</span></div>`;
+  } else if (kind === 'shortend') {
+    document.body.className = 'bg';
+    root.innerHTML = `<div class="center"><img class="appicon" src="${t('icon')}" style="width:260px;height:260px;border-radius:60px" />
+      <div class="name" style="font-size:150px">Slim<span class="grad">Sort</span></div><div class="tag" style="font-size:56px">${t('tag')}</div>
+      <div class="btns"><div class="btn dl" style="font-size:52px">${t('dl')}</div></div></div>`;
+  } else if (kind === 'logo') {
+    document.body.className = 'bg';
+    root.innerHTML = `<div class="center"><img class="appicon" src="${t('icon')}" /><div class="name">Slim<span class="grad">Sort</span></div>
+      <div class="tag">${t('tag')}</div><div class="by"><img src="${t('mark')}" />by SlimBit Apps</div></div>`;
+  } else if (kind === 'end') {
+    document.body.className = 'bg';
+    root.innerHTML = `<div class="center"><img class="appicon" src="${t('icon')}" style="width:190px;height:190px;border-radius:44px" />
+      <div class="name" style="font-size:120px">Slim<span class="grad">Sort</span></div><div class="tag">${t('tag')}</div>
+      <div class="btns"><div class="btn dl">${t('dl')}</div>${t('sub') ? `<div class="btn sub">${t('sub')}</div>` : ''}</div>
+      <div class="url">${t('url')}</div></div>`;
+  } else if (kind === 'short') {
+    document.body.className = 'bg';
+    root.innerHTML = `<div class="hook">${t('hook')}</div>
+      <div class="foot"><div class="row"><img src="${t('icon')}" />Slim<span class="grad">Sort</span></div><div class="sub2">${t('foot')}</div></div>`;
+  } else if (kind === 'mask') {
+    root.innerHTML = `<div style="position:absolute;inset:0;background:#000"></div><div style="position:absolute;inset:0;border-radius:${t('r')}px;background:#fff"></div>`;
+  }
+</script>
+</body>
+</html>
