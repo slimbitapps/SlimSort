@@ -25,26 +25,57 @@ def dur(f):
 
 
 total = dur(VOICE)
-err = subprocess.run(['ffmpeg', '-i', VOICE, '-af', 'silencedetect=noise=-38dB:d=0.25', '-f', 'null', '-'], capture_output=True, text=True).stderr
-starts = [float(x) for x in re.findall(r'silence_start: ([\d.]+)', err)]
-ends = [float(x) for x in re.findall(r'silence_end: ([\d.]+)', err)]
-gaps = [(e - s, s, e) for s, e in zip(starts, ends) if s > 0.3 and e < total - 0.3]
-if len(gaps) < N - 1:
-    sys.exit(f'Nur {len(gaps)} Pausen gefunden – erwartet {N - 1}. Bitte zwischen den Absätzen Leerzeilen lassen.')
-# Erwartete Absatzgrenzen aus der Wortzahl des Sprechtextes schätzen und dann die jeweils
-# passendste Pause wählen (lange Pausen nahe der erwarteten Stelle bevorzugt).
+
+
+def detect(noise, d):
+    err = subprocess.run(['ffmpeg', '-i', VOICE, '-af', f'silencedetect=noise={noise}dB:d={d}', '-f', 'null', '-'], capture_output=True, text=True).stderr
+    st = [float(x) for x in re.findall(r'silence_start: ([\d.]+)', err)]
+    en = [float(x) for x in re.findall(r'silence_end: ([\d.]+)', err)]
+    return [(e - s, s, e) for s, e in zip(st, en) if s > 0.3 and e < total - 0.3]
+
+
 words = [len(p.split()) for p in paras_txt]
-cuts, last = [], 0.0
-for i in range(1, N):
-    expect = sum(words[:i]) / sum(words) * total
-    rest = N - 1 - i  # so viele Pausen müssen danach noch übrig bleiben
-    later = [g for g in gaps if g[1] > last]
-    cand = later[: len(later) - rest] if rest else later
-    best = min(cand, key=lambda g: abs(g[1] - expect) / 3.0 - g[0] * 4)
-    cuts.append(best)
-    last = best[1]
+# Jedes Komma/jeder Punkt im Text ergibt eine Sprechpause. Finden wir genau so viele Pausen,
+# lassen sich die Absatzgrenzen sicher abzählen.
+inner = [len(re.findall(r'[,.?!;:]', p.strip()[:-1])) for p in paras_txt]
+expected = sum(inner) + N - 1
+cuts, best_spread = None, 9.0
+for d in (0.12, 0.15, 0.18, 0.2, 0.22, 0.25, 0.3):
+    for noise in (-35, -38, -40, -42, -45):
+        g = detect(noise, d)
+        if len(g) != expected:
+            continue
+        idx, cand = 0, []
+        for i in range(N - 1):
+            idx += inner[i]
+            cand.append(g[idx])
+            idx += 1
+        # Plausibilität: Sprechtempo (Wörter pro Sekunde) sollte in allen Absätzen ähnlich sein
+        b = [0.0] + [(x[1] + x[2]) / 2 for x in cand] + [total]
+        rates = [words[i] / max(0.1, b[i + 1] - b[i]) for i in range(N)]
+        spread = max(rates) / min(rates)
+        if spread < best_spread:
+            cuts, best_spread = cand, spread
+if cuts and best_spread > 1.45:
+    cuts = None
+if cuts:
+    print('Absätze über Satzzeichen erkannt')
+else:
+    # Rückfall: Absatzgrenzen anhand der Wortzahl schätzen
+    gaps = detect(-38, 0.25)
+    if len(gaps) < N - 1:
+        sys.exit(f'Nur {len(gaps)} Pausen gefunden – erwartet {N - 1}.')
+    cuts, last = [], 0.0
+    for i in range(1, N):
+        expect = sum(words[:i]) / sum(words) * total
+        rest = N - 1 - i
+        later = [g for g in gaps if g[1] > last]
+        cand = later[: len(later) - rest] if rest else later
+        best = min(cand, key=lambda g: abs(g[1] - expect) / 3.0 - g[0] * 4)
+        cuts.append(best)
+        last = best[1]
+    print('Absätze geschätzt (bitte Ergebnis prüfen)')
 bounds = [0.0] + [(s + e) / 2 for _, s, e in cuts] + [total]
-lead_sil = ends[0] if starts and starts[0] < 0.05 else 0.0
 
 paras, lens = [], []
 for i in range(N):
