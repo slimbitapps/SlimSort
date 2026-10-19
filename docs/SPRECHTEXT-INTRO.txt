@@ -1,21 +1,21 @@
-Two thousand photos. One folder. You know you should sort them. Someday.
+Let's be honest. You probably have thousands of photos sitting in one big folder, and you keep telling yourself you'll sort them someday.
 
-The old way? Drag. Drop. Scroll. Repeat. For hours.
+Doing it by hand means dragging every single photo into the right folder, scrolling down, and doing it all over again, for hours.
 
-Meet SlimSort. The fastest way to sort your photos.
+That's exactly why I built SlimSort, the fastest way to sort your photos.
 
-Pick a folder. Create your target folders. Each one gets its own key.
+You just pick the folder with your photos, create a few target folders, and each of them gets its own key.
 
-Now just press a key, and the photo is sorted. One for family. Two for holiday. Space to skip. The next photo is already waiting.
+Then you simply press a key, and the photo moves into that folder. One for family, two for holiday, and space if you want to skip one. The next photo is already waiting for you.
 
-It gets fast. Really fast. About a thousand photos in ten minutes.
+Once you get into the rhythm, it gets really fast. You can sort about a thousand photos in roughly ten minutes.
 
-And it's safe. Every move can be undone. Nothing is ever overwritten. And if your network drive goes offline, your photos stay right where they are.
+And you don't have to worry about losing anything. Every step can be undone, files are never overwritten, and if your network drive goes offline, your photos simply stay where they are.
 
-Took ten shots of the same moment? SlimSort finds the series, puts them side by side, and suggests the sharpest one. Keep the best. Clear out the rest.
+If you took ten shots of the same moment, SlimSort finds that series for you, shows the photos side by side, and suggests the sharpest one. You keep your favorite and clear out the rest in one go.
 
-Overview mode. Multiple folders. Light and dark design. Five languages. Simple when you start. Powerful when you need it.
+There's also an overview mode, support for multiple folders, a light and a dark design, and five languages. It's simple when you start, and powerful when you need it.
 
-And it's completely free. No ads. No account. No cloud. Your photos never leave your computer.
+And the best part is that it's completely free. There are no ads, no account, and no cloud, so your photos never leave your computer.
 
-SlimSort. For Windows and Mac. Download it for free. The link is in the description.
+SlimSort is available for Windows and Mac, and you can download it for free. You'll find the link in the description.

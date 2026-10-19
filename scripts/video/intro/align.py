@@ -28,7 +28,18 @@ ends = [float(x) for x in re.findall(r'silence_end: ([\d.]+)', err)]
 gaps = [(e - s, s, e) for s, e in zip(starts, ends) if s > 0.3 and e < total - 0.3]
 if len(gaps) < N - 1:
     sys.exit(f'Nur {len(gaps)} Pausen gefunden – erwartet {N - 1}. Bitte zwischen den Absätzen Leerzeilen lassen.')
-cuts = sorted(sorted(gaps, reverse=True)[:N - 1], key=lambda g: g[1])
+# Erwartete Absatzgrenzen aus der Wortzahl des Sprechtextes schätzen und dann die jeweils
+# passendste Pause wählen (lange Pausen nahe der erwarteten Stelle bevorzugt).
+TEXT = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'docs', 'SPRECHTEXT-INTRO.txt')
+paras_txt = [p for p in open(TEXT).read().split('\n\n') if p.strip()]
+words = [len(p.split()) for p in paras_txt]
+cuts, last = [], 0.0
+for i in range(1, N):
+    expect = sum(words[:i]) / sum(words) * total
+    cand = [g for g in gaps if g[1] > last and g not in cuts]
+    best = min(cand, key=lambda g: abs(g[1] - expect) / 3.0 - g[0] * 4)
+    cuts.append(best)
+    last = best[1]
 bounds = [0.0] + [(s + e) / 2 for _, s, e in cuts] + [total]
 lead_sil = ends[0] if starts and starts[0] < 0.05 else 0.0
 
