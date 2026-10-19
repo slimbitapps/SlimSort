@@ -1,6 +1,6 @@
 """Passt das Intro an die gesprochene Stimme an.
 
-  python3 align.py STIMME.mp3 ARBEITSORDNER
+  python3 align.py STIMME.mp3 ARBEITSORDNER [TEXTDATEI] [NAME] [MIN1,MIN2,…]
 Findet die 11 Absätze (längste Pausen), schneidet sie einzeln aus und berechnet
 Szenenlängen, sodass jede Szene zu ihrem Absatz passt. Ergebnis:
   ARBEITSORDNER/voice/absatz-XX.wav, voice-aligned.wav, durations.txt
@@ -8,12 +8,15 @@ Szenenlängen, sodass jede Szene zu ihrem Absatz passt. Ergebnis:
 import os, re, subprocess, sys
 
 VOICE, WORK = sys.argv[1], os.path.abspath(sys.argv[2])
-N = 11
+TEXT = sys.argv[3] if len(sys.argv) > 3 else os.path.join(os.path.dirname(__file__), '..', '..', '..', 'docs', 'SPRECHTEXT-INTRO.txt')
+NAME = sys.argv[4] if len(sys.argv) > 4 else ''   # z. B. "short1" → voice-short1/, durations-short1.txt
+paras_txt = [p for p in open(TEXT).read().split('\n\n') if p.strip()]
+N = len(paras_txt)
 # Mindestlänge je Szene (die Animationen brauchen etwas Zeit)
-MIN = [6.0, 9.0, 4.8, 7.5, 9.5, 5.5, 10.0, 12.0, 8.0, 7.0, 7.0]
+MIN = [float(x) for x in sys.argv[5].split(',')] if len(sys.argv) > 5 else ([6.0, 9.0, 4.8, 7.5, 9.5, 5.5, 10.0, 12.0, 8.0, 7.0, 7.0] if N == 11 else [2.5] * N)
 LEAD = 0.15   # Stimme beginnt kurz nach dem Szenenwechsel (Absätze enthalten schon etwas Stille)
 TAIL = 0.35   # kleine Pause nach jedem Absatz
-OUT = os.path.join(WORK, 'voice')
+OUT = os.path.join(WORK, 'voice' + ('-' + NAME if NAME else ''))
 os.makedirs(OUT, exist_ok=True)
 
 
@@ -30,8 +33,6 @@ if len(gaps) < N - 1:
     sys.exit(f'Nur {len(gaps)} Pausen gefunden – erwartet {N - 1}. Bitte zwischen den Absätzen Leerzeilen lassen.')
 # Erwartete Absatzgrenzen aus der Wortzahl des Sprechtextes schätzen und dann die jeweils
 # passendste Pause wählen (lange Pausen nahe der erwarteten Stelle bevorzugt).
-TEXT = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'docs', 'SPRECHTEXT-INTRO.txt')
-paras_txt = [p for p in open(TEXT).read().split('\n\n') if p.strip()]
 words = [len(p.split()) for p in paras_txt]
 cuts, last = [], 0.0
 for i in range(1, N):
@@ -65,9 +66,9 @@ for i, f in enumerate(paras):
     filt.append(f'[{i}:a]adelay={ms}|{ms}[a{i}]')
     t += durs[i]
 filt.append(''.join(f'[a{i}]' for i in range(N)) + f'amix=inputs={N}:normalize=0,apad=whole_dur={t:.2f}[out]')
-aligned = os.path.join(WORK, 'voice-aligned.wav')
+aligned = os.path.join(WORK, 'voice-aligned' + ('-' + NAME if NAME else '') + '.wav')
 subprocess.run(['ffmpeg', '-y', '-v', 'error', *inputs, '-filter_complex', ';'.join(filt), '-map', '[out]', '-ar', '48000', aligned], check=True)
-open(os.path.join(WORK, 'durations.txt'), 'w').write(','.join(f'{d:.2f}' for d in durs))
+open(os.path.join(WORK, 'durations' + ('-' + NAME if NAME else '') + '.txt'), 'w').write(','.join(f'{d:.2f}' for d in durs))
 for i in range(N):
     print(f'Absatz {i + 1:2d}: Stimme {lens[i]:5.1f} s → Szene {durs[i]:5.1f} s')
 print(f'Gesamt: {t:.1f} s')
