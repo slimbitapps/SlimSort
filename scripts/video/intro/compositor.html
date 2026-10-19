@@ -137,6 +137,134 @@ function place(o, { x = 0, y = 0, s = 1, rx = 0, ry = 0, rz = 0, op = 1 }) {
   o.win.style.opacity = op;
 }
 
+
+// ======================================================================= "Gefilmt"-Look
+/** Leichtes Wackeln wie aus der Hand gefilmt */
+function shake(t, a = 1) {
+  const x = (Math.sin(t * 1.7) * 2.2 + Math.sin(t * 3.1 + 1) * 1.1 + Math.sin(t * 7.3 + 2) * 0.35) * a;
+  const y = (Math.sin(t * 1.3 + 3) * 1.8 + Math.sin(t * 2.7) * 1.0 + Math.sin(t * 6.9 + 1) * 0.3) * a;
+  const r = (Math.sin(t * 0.9 + 2) * 0.12 + Math.sin(t * 2.3) * 0.05) * a;
+  return `translate(${x}px, ${y}px) rotate(${r}deg)`;
+}
+/** Schreibtisch mit Lampenlicht und unscharfem Raum dahinter */
+function desk(parent) {
+  const d = el('div', 'abs', parent);
+  css(d, { inset: '-40px', background: [
+    'radial-gradient(ellipse at 78% 18%, rgba(255,196,120,.35) 0%, transparent 38%)',
+    'radial-gradient(circle at 12% 30%, rgba(255,220,160,.22) 0%, transparent 9%)',
+    'radial-gradient(circle at 22% 22%, rgba(140,170,255,.18) 0%, transparent 7%)',
+    'radial-gradient(circle at 90% 40%, rgba(255,200,140,.2) 0%, transparent 6%)',
+    'radial-gradient(circle at 65% 12%, rgba(255,240,200,.14) 0%, transparent 5%)',
+    'linear-gradient(180deg, #24201d 0%, #1a1715 55%, #000 55.2%, #3a2a1f 56%, #2b1f17 75%, #1c140f 100%)',
+  ].join(',') });
+  // Holzmaserung
+  const wood = el('div', 'abs', d);
+  css(wood, { left: 0, right: 0, top: '56%', bottom: 0, opacity: 0.35,
+    background: 'repeating-linear-gradient(92deg, rgba(0,0,0,.25) 0 2px, transparent 2px 9px, rgba(255,255,255,.04) 9px 11px, transparent 11px 23px)' });
+  return d;
+}
+/** Laptop von vorne (Bildschirm zeigt den Rohclip) */
+function laptopWin(parent, w = 1500) {
+  const h = Math.round((w * 9) / 16);
+  const rig = el('div', 'abs', parent);
+  const L = w + 60, H = h + 60;
+  css(rig, { width: L + 'px', height: H + 60 + 'px', left: (1920 - L) / 2 + 'px', top: (1080 - H) / 2 - 10 + 'px', transformOrigin: '50% 60%' });
+  const lid = el('div', 'abs', rig);
+  css(lid, { left: 0, top: 0, width: L + 'px', height: H + 'px', borderRadius: '28px 28px 8px 8px',
+    background: 'linear-gradient(180deg, #2c2f35, #1d1f23)', boxShadow: '0 50px 120px rgba(0,0,0,.7), inset 0 0 0 2px #3a3e46' });
+  const bez = el('div', 'abs', lid);
+  css(bez, { left: '14px', top: '14px', right: '14px', bottom: '14px', borderRadius: '18px', background: '#050506' });
+  const cam = el('div', 'abs', lid);
+  css(cam, { left: L / 2 - 4 + 'px', top: '19px', width: '8px', height: '8px', borderRadius: '50%', background: '#1b2433', boxShadow: '0 0 0 2px #0c0d10' });
+  const scr = el('div', 'abs', lid);
+  css(scr, { left: '30px', top: '30px', width: w + 'px', height: h + 'px', overflow: 'hidden', borderRadius: '6px', background: '#000' });
+  const img = el('img', '', scr);
+  css(img, { width: '100%', height: '100%', display: 'block' });
+  const glare = el('div', 'abs', scr);
+  css(glare, { inset: 0, background: 'linear-gradient(115deg, rgba(255,255,255,.07) 0%, rgba(255,255,255,0) 35%, rgba(255,255,255,0) 70%, rgba(255,255,255,.04) 100%)' });
+  const base = el('div', 'abs', rig);
+  css(base, { left: '-70px', top: H + 'px', width: L + 140 + 'px', height: '34px', borderRadius: '0 0 30px 30px',
+    background: 'linear-gradient(180deg, #4a4e57 0%, #2a2d33 40%, #15161a 100%)', boxShadow: '0 30px 60px rgba(0,0,0,.6)' });
+  const notch = el('div', 'abs', base);
+  css(notch, { left: (L + 140) / 2 - 90 + 'px', top: 0, width: '180px', height: '10px', borderRadius: '0 0 10px 10px', background: '#24272c' });
+  return { win: rig, img, w, h };
+}
+/** Nahaufnahme Tastatur – Tasten werden gedrückt */
+function keyboardInsert(parent) {
+  const r = el('div', 'abs', parent);
+  css(r, { inset: 0, overflow: 'hidden', background: 'radial-gradient(ellipse at 50% 40%, #34373e 0%, #121316 80%)', display: 'none' });
+  const plane = el('div', 'abs', r);
+  css(plane, { left: '-500px', top: '60px', width: '2900px', height: '1200px', transformOrigin: '50% 40%' });
+  const rows = ['` 1 2 3 4 5 6 7 8 9 0 - =', 'Q W E R T Y U I O P [ ]', 'A S D F G H J K L ; \'', 'Z X C V B N M , . /'];
+  const keys = {};
+  rows.forEach((row, ri) => {
+    const rr = el('div', 'abs', plane);
+    css(rr, { left: 60 + ri * 70 + 'px', top: ri * 215 + 'px', display: 'flex', gap: '26px', filter: `blur(${Math.abs(ri - 0.6) * 2.2}px)` });
+    row.split(' ').forEach((k) => {
+      const key = el('div', '', rr, `<span>${k}</span>`);
+      css(key, { width: '190px', height: '190px', borderRadius: '22px', position: 'relative', display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-start',
+        padding: '26px 30px', boxSizing: 'border-box', fontSize: '58px', fontWeight: 500, color: '#d8dde6',
+        background: 'linear-gradient(180deg, #2c2f35 0%, #1c1e22 100%)',
+        boxShadow: '0 10px 0 #0b0c0e, 0 14px 22px rgba(0,0,0,.6), inset 0 2px 0 rgba(255,255,255,.08)' });
+      keys[k] = key;
+    });
+  });
+  const light = el('div', 'abs', r);
+  css(light, { inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,.0) 40%, rgba(0,0,0,.65) 100%), radial-gradient(ellipse at 30% 10%, rgba(255,210,150,.12), transparent 50%)' });
+  return {
+    r,
+    draw(lt, presses, cam) {
+      plane.style.transform = `perspective(1300px) rotateX(48deg) translate(${cam.x}px, ${cam.y}px) scale(${cam.s})`;
+      for (const k in keys) {
+        let d = 0;
+        for (const [pk, pt] of presses) if (pk === k) d = Math.max(d, kf(lt, [[pt - 0.06, 0], [pt, 1], [pt + 0.12, 1], [pt + 0.22, 0]], E.lin));
+        keys[k].style.transform = `translateY(${d * 8}px)`;
+        keys[k].style.boxShadow = `0 ${10 - d * 8}px 0 #0b0c0e, 0 ${14 - d * 10}px ${22 - d * 12}px rgba(0,0,0,.6), inset 0 2px 0 rgba(255,255,255,${0.08 - d * 0.05}), 0 0 ${18 + d * 20}px rgba(190,215,255,${0.1 + d * 0.25})`;
+        keys[k].style.color = d > 0 ? '#ffffff' : '#d8dde6';
+        keys[k].style.background = d > 0 ? `linear-gradient(180deg, #25282d 0%, #18191c 100%)` : 'linear-gradient(180deg, #2c2f35 0%, #1c1e22 100%)';
+      }
+    },
+  };
+}
+/** Nahaufnahme Maus – Foto wird gezogen */
+function mouseInsert(parent) {
+  const r = el('div', 'abs', parent);
+  css(r, { inset: 0, overflow: 'hidden', display: 'none',
+    background: 'radial-gradient(ellipse at 40% 30%, #2b2f38 0%, #14161b 70%)' });
+  const pad = el('div', 'abs', r);
+  css(pad, { left: '-200px', top: '-200px', width: '2400px', height: '1600px',
+    background: 'repeating-linear-gradient(45deg, rgba(255,255,255,.015) 0 2px, transparent 2px 5px), repeating-linear-gradient(-45deg, rgba(0,0,0,.08) 0 2px, transparent 2px 6px), linear-gradient(160deg, #23262d, #16181d)' });
+  const shadow = el('div', 'abs', r);
+  css(shadow, { width: '330px', height: '460px', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(0,0,0,.65) 0%, transparent 70%)' });
+  const m = el('div', 'abs', r);
+  css(m, { width: '300px', height: '440px', borderRadius: '150px 150px 140px 140px / 190px 190px 250px 250px',
+    background: 'radial-gradient(ellipse at 38% 22%, #6a6f7a 0%, #3a3e46 30%, #1e2025 70%, #121316 100%)',
+    boxShadow: 'inset -16px -24px 40px rgba(0,0,0,.55), inset 8px 10px 18px rgba(255,255,255,.12), 0 2px 0 rgba(255,255,255,.05)' });
+  const spec = el('div', 'abs', m);
+  css(spec, { left: '70px', top: '40px', width: '60px', height: '200px', borderRadius: '50%', background: 'linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0))', transform: 'rotate(-12deg)' });
+  const lb = el('div', 'abs', m);
+  css(lb, { left: 0, top: 0, width: '150px', height: '190px', borderRadius: '150px 0 0 0 / 190px 0 0 0' });
+  const seam = el('div', 'abs', m);
+  css(seam, { left: '149px', top: '10px', width: '2px', height: '170px', background: 'rgba(0,0,0,.25)' });
+  const wheel = el('div', 'abs', m);
+  css(wheel, { left: '138px', top: '50px', width: '24px', height: '64px', borderRadius: '12px',
+    background: 'repeating-linear-gradient(180deg, #8a909c 0 3px, #2a2d33 3px 7px)', boxShadow: '0 0 0 3px #0d0e10' });
+  return {
+    r,
+    draw(lt, path, down, cam) {
+      const x = kf(lt, path.map(([t, x]) => [t, x])), y = kf(lt, path.map(([t, , y]) => [t, y]));
+      const rot = kf(lt, path.map(([t, , , a]) => [t, a || 0]));
+      const isDown = down.some(([a, b]) => lt >= a && lt <= b);
+      css(m, { left: x + 'px', top: y + 'px', transform: `rotate(${rot}deg)` });
+      css(shadow, { left: x - 5 + 'px', top: y + 30 + 'px', transform: `rotate(${rot}deg)` });
+      lb.style.background = isDown ? 'rgba(0,0,0,.35)' : 'transparent';
+      r.style.transform = `perspective(1600px) rotateX(28deg) scale(${cam.s}) translate(${cam.x}px, ${cam.y}px)`;
+    },
+  };
+}
+/** Insert-Fenster ein-/ausblenden (harter Schnitt wie im Videoschnitt) */
+const showIf = (e, on) => (e.style.display = on ? 'block' : 'none');
+
 // ======================================================================= Hintergrund
 const bg = document.getElementById('bg');
 function drawBg(t) {
@@ -200,6 +328,7 @@ scene('oldway', (r, s) => {
   s.grid = grid;
   s.ghost = el('div', 'ghost', s.cam, '<img/>');
   s.cur = el('div', 'cursor', s.cam, CURSOR);
+  s.mouse = mouseInsert(r);
   s.overlay = el('div', 'abs', r);
   css(s.overlay, { inset: 0 });
   s.label = el('div', 'pill', s.overlay, '<span class="n" style="background:#ef4f5f">✕</span>The old way');
@@ -284,6 +413,14 @@ scene('oldway', (r, s) => {
   s.hours.style.opacity = p(lt, T(8.7), 0.2);
   s.hours.style.transform = `scale(${0.7 + 0.3 * kh})`;
   s.label.style.opacity = E.out(p(lt, 0.1, 0.4)) * (1 - p(lt, T(8.6), 0.3));
+  // Nahaufnahme der Maus während des ersten Ziehens
+  const ma = d0.grab - 0.35, mb = d0.grab + 1.5;
+  showIf(s.mouse.r, lt >= ma && lt < mb);
+  if (lt >= ma && lt < mb) {
+    const q = lt - ma;
+    s.mouse.draw(q, [[0, 1080, 360, -6], [0.3, 1080, 360, -6], [1.25, 660, 300, -12], [1.85, 620, 296, -12]], [[0.3, 1.85]], { s: 1.55 + q * 0.04, x: -q * 6, y: 40 });
+    s.mouse.r.style.transform += ' ' + shake(lt, 1.6);
+  }
 });
 
 // ---------- 3: Logo-Auftritt
@@ -317,7 +454,9 @@ scene('logo', (r, s) => {
 
 // ---------- 4: Einrichtung – Fenster dreht sich ins Bild
 scene('setup', (r, s) => {
-  s.a = appWin(r, 1500, 844);
+  s.handheld = 1;
+  desk(r);
+  s.a = laptopWin(r, 1500);
   s.steps = [['1', 'Pick a folder'], ['2', 'Create target folders'], ['3', 'Each one gets a key']].map(([n, t], i) => {
     const e = el('div', 'pill', r, `<span class="n">${n}</span>${t}`);
     css(e, { left: 70 + i * 610 + 'px', top: '980px', fontSize: '32px', padding: '12px 26px 12px 12px' });
@@ -334,7 +473,7 @@ scene('setup', (r, s) => {
   else ct = lerp(m.sorting - 1.1, m.sorting + 0.1, (lt - (k2 + D) / 2) / ((D - k2) / 2));
   setImg(s.a.img, frame('main', ct));
   const k = E.out(p(lt, 0, 1.6));
-  place(s.a, { y: -40 + (1 - k) * 80, ry: -28 * (1 - k), rx: 10 * (1 - k), s: 0.88 + 0.12 * k, rz: -2 * (1 - k) });
+  place(s.a, { y: -10 + (1 - k) * 60, ry: -24 * (1 - k), rx: 6 * (1 - k), s: 0.84 + 0.1 * k, rz: -1.5 * (1 - k) });
   const at = [0.3, k1 + 0.1, k1 + (k2 - k1) * 0.55];
   s.steps.forEach((e, i) => {
     const kk = E.back(p(lt, at[i], 0.45));
@@ -345,18 +484,32 @@ scene('setup', (r, s) => {
 
 // ---------- 5: Sortieren – Kamera fährt an Foto und Tasten
 scene('sort', (r, s) => {
-  s.a = appWin(r, 1640, 922);
+  s.handheld = 1;
+  desk(r);
+  s.a = laptopWin(r, 1500);
+  s.kb = keyboardInsert(r);
 }, (s, lt, D) => {
   const m = M.main;
   setImg(s.a.img, frame('main', m.sorting + 0.3 + lt * ((m.fast - m.sorting - 0.6) / D)));
-  const z = kf(lt, [[0, 1.0], [1.6, 1.32], [D - 1.6, 1.38], [D, 1.12]]);
-  const y = kf(lt, [[0, 0], [1.6, -150], [D - 1.6, -170], [D, -60]]);
-  place(s.a, { s: z, y, ry: kf(lt, [[0, 6], [2, 0]]) });
+  const z = kf(lt, [[0, 0.9], [2.2, 0.9], [3.6, 1.42], [D - 1.6, 1.48], [D, 1.2]]);
+  const y = kf(lt, [[0, 0], [2.2, 0], [3.6, -175], [D - 1.6, -190], [D, -80]]);
+  place(s.a, { s: z, y });
+  // Nahaufnahme: Taste "1" wird gedrückt
+  const on = lt >= 0.25 && lt < 2.2;
+  showIf(s.kb.r, on);
+  if (on) {
+    const q = lt - 0.25;
+    s.kb.draw(q, [['1', 0.75], ['2', 1.45]], { s: 1.0 + q * 0.06, x: 120 - q * 30, y: -20 });
+    s.kb.r.style.transform = shake(lt, 1.3);
+  }
 });
 
 // ---------- 6: Schnell – Zähler
 scene('fast', (r, s) => {
-  s.a = appWin(r, 1220, 686);
+  s.handheld = 1;
+  desk(r);
+  s.a = laptopWin(r, 1200);
+  s.kb = keyboardInsert(r);
   s.num = el('div', 'abs', r);
   css(s.num, { left: '1300px', top: '330px', width: '600px', textAlign: 'center', fontSize: '170px', fontWeight: 800, letterSpacing: '-5px', fontVariantNumeric: 'tabular-nums' });
   s.lbl = el('div', 'abs', r, 'photos sorted');
@@ -367,7 +520,13 @@ scene('fast', (r, s) => {
   const m = M.main;
   setImg(s.a.img, frame('main', m.fast + lt * ((m.fastEnd - m.fast + 0.3) / D)));
   const k = E.out(p(lt, 0, 0.9));
-  place(s.a, { x: -330 * k, s: 1.0 - 0.1 * k, ry: 16 * k, y: 10 });
+  place(s.a, { x: -330 * k, s: 0.95 - 0.1 * k, ry: 14 * k, y: 10 });
+  const on = lt < 1.3;
+  showIf(s.kb.r, on);
+  if (on) {
+    s.kb.draw(lt, [['1', 0.15], ['2', 0.38], ['3', 0.6], ['2', 0.82], ['1', 1.04]], { s: 0.9, x: 260, y: 0 });
+    s.kb.r.style.transform = shake(lt, 1.2);
+  }
   const n = Math.round(1000 * E.io(p(lt, 0.5, D - 1.4)));
   s.num.innerHTML = `<span class="grad">${n.toLocaleString('en-US')}</span>`;
   s.num.style.opacity = s.lbl.style.opacity = p(lt, 0.4, 0.4);
@@ -378,7 +537,9 @@ scene('fast', (r, s) => {
 
 // ---------- 7: Sicher – Funktions-Karten
 scene('safe', (r, s) => {
-  s.a = appWin(r, 1240, 698);
+  s.handheld = 1;
+  desk(r);
+  s.a = laptopWin(r, 1200);
   const items = [
     ['↺', '#2f7bff', 'Unlimited undo', 'Ctrl + Z – as often as you like'],
     ['⛨', '#3ee089', 'Never overwrites', 'Duplicates get a number'],
@@ -393,7 +554,7 @@ scene('safe', (r, s) => {
   const m = M.main;
   setImg(s.a.img, frame('main', m.undo - 0.3 + lt * ((m.nasEnd - m.undo + 0.3) / D)));
   const k = E.out(p(lt, 0, 0.9));
-  place(s.a, { x: -310 * k, ry: 14 * k, s: 1 - 0.06 * k });
+  place(s.a, { x: -330 * k, ry: 12 * k, s: 0.95 - 0.06 * k });
   const nasAt = ((m.nas - m.undo + 0.3) / (m.nasEnd - m.undo + 0.3)) * D;
   const at = [0.5, 0.5 + D * 0.22, nasAt + 0.2];
   s.cards.forEach((e, i) => {
@@ -405,7 +566,9 @@ scene('safe', (r, s) => {
 
 // ---------- 8: Serien – Zoom auf das empfohlene Foto
 scene('series', (r, s) => {
-  s.a = appWin(r, 1680, 945);
+  s.handheld = 1;
+  desk(r);
+  s.a = laptopWin(r, 1600);
   s.t = words(r, 'Finds the series. Suggests the sharpest.', { left: 0, right: 0, top: '30px', textAlign: 'center', fontSize: '60px', fontWeight: 800, textShadow: '0 8px 30px rgba(0,0,0,.8)' });
 }, (s, lt, D) => {
   const m = M.series;
@@ -514,6 +677,22 @@ scene('cta', (r, s) => {
 });
 
 // ======================================================================= Zeitleiste
+// Filmkorn + Vignette über allem
+const grain = el('div', 'abs', stage);
+css(grain, { inset: 0, pointerEvents: 'none', mixBlendMode: 'overlay', opacity: 0.09, zIndex: 50 });
+const grains = [];
+for (let i = 0; i < 6; i++) {
+  const cv = document.createElement('canvas');
+  cv.width = 480; cv.height = 270;
+  const g = cv.getContext('2d');
+  const im = g.createImageData(480, 270);
+  for (let k = 0; k < im.data.length; k += 4) { const v = Math.random() * 255; im.data[k] = im.data[k + 1] = im.data[k + 2] = v; im.data[k + 3] = 255; }
+  g.putImageData(im, 0, 0);
+  grains.push(cv.toDataURL());
+}
+const vig = el('div', 'abs', stage);
+css(vig, { inset: 0, pointerEvents: 'none', zIndex: 51, background: 'radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0,0,0,.45) 100%)' });
+
 const DUR = C.durations; // Sekunden je Szene (aus den Sprechtext-Absätzen)
 const FADE = 0.4;
 const starts = [];
@@ -521,6 +700,7 @@ const starts = [];
 window.render = async (t) => {
   pending.length = 0;
   drawBg(t);
+  grain.style.background = `url(${grains[Math.floor(t * 30) % grains.length]}) 0 0 / 480px 270px repeat`;
   scenes.forEach((s, i) => {
     const lt = t - starts[i], D = DUR[i];
     const on = lt >= -FADE && lt < D + 0.001;
@@ -528,7 +708,7 @@ window.render = async (t) => {
     if (!on) return;
     const fin = E.out(clamp((lt + FADE) / FADE)), fout = i === scenes.length - 1 ? 1 : 1 - E.in(clamp((lt - (D - FADE)) / FADE));
     s.root.style.opacity = Math.min(fin, fout);
-    s.root.style.transform = `scale(${1 + 0.04 * (1 - fin) - 0.03 * (1 - fout)})`;
+    s.root.style.transform = `scale(${1 + 0.04 * (1 - fin) - 0.03 * (1 - fout)})` + (s.handheld ? ' ' + shake(t, s.handheld) : '');
     s.draw(s, Math.max(0, lt), D);
   });
   await Promise.all(pending);
