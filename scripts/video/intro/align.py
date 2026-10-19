@@ -36,7 +36,9 @@ words = [len(p.split()) for p in paras_txt]
 cuts, last = [], 0.0
 for i in range(1, N):
     expect = sum(words[:i]) / sum(words) * total
-    cand = [g for g in gaps if g[1] > last and g not in cuts]
+    rest = N - 1 - i  # so viele Pausen müssen danach noch übrig bleiben
+    later = [g for g in gaps if g[1] > last]
+    cand = later[: len(later) - rest] if rest else later
     best = min(cand, key=lambda g: abs(g[1] - expect) / 3.0 - g[0] * 4)
     cuts.append(best)
     last = best[1]
