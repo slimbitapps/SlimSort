@@ -35,6 +35,8 @@ for (const c of fs.readdirSync(path.join(WORK, 'frames'))) {
   frames[c] = { dir: 'file://' + path.join(WORK, 'frames', c), count: fs.readdirSync(path.join(WORK, 'frames', c)).length };
 }
 const photos = fs.readdirSync(path.join(WORK, 'thumbs')).sort().map((f) => 'file://' + path.join(WORK, 'thumbs', f));
+const hdDir = path.join(WORK, 'photos-hd');
+const photosHD = fs.existsSync(hdDir) ? fs.readdirSync(hdDir).sort().map((f) => 'file://' + path.join(hdDir, f)) : photos;
 // Untertitel: je Absatz in Gruppen zu 3 Wörtern, Zeit verteilt nach Zeichenzahl
 const captions = [];
 if (TEXT) {
@@ -58,7 +60,7 @@ if (TEXT) {
     start += DURATIONS[i];
   });
 }
-const CONFIG = { marks, frames, photos, durations: DURATIONS, captions, w: VW, h: VH,
+const CONFIG = { marks, frames, photos, photosHD, durations: DURATIONS, captions, w: VW, h: VH,
   icon: 'file://' + path.join(ROOT, 'build', 'icon.png'), mark: 'file://' + path.join(ROOT, 'brand-site', 'logo-mark.png') };
 
 (async () => {
@@ -79,18 +81,39 @@ const CONFIG = { marks, frames, photos, durations: DURATIONS, captions, w: VW, h
     await browser.close();
     return console.log('Standbilder:', path.dirname(OUT), 'Länge', total);
   }
+  // Soundeffekte (Tastenklick, Wusch …) mit der Stimme zu einer Tonspur mischen
+  const sfx = await page.evaluate(() => window.SFX || []);
+  let voice = VOICE;
+  if (sfx.length) {
+    const { execFileSync } = require('node:child_process');
+    const dir = path.join(__dirname, '..', 'motion', 'sfx');
+    const VOL = { click: 0.55, whoosh: 0.32, 'whoosh-back': 0.32, pop: 0.38 };
+    const ins = [], fl = [];
+    let k = 0;
+    if (VOICE) { ins.push('-i', VOICE); fl.push(`[${k}:a]aformat=sample_rates=48000:channel_layouts=mono[v]`); k++; }
+    else { ins.push('-f', 'lavfi', '-t', String(total), '-i', 'anullsrc=r=48000:cl=mono'); fl.push(`[${k}:a]anull[v]`); k++; }
+    sfx.forEach((e, i) => {
+      ins.push('-i', path.join(dir, e.type + '.wav'));
+      const ms = Math.max(0, Math.round(e.t * 1000));
+      fl.push(`[${k}:a]volume=${VOL[e.type] || 0.4},adelay=${ms}|${ms}[s${i}]`);
+      k++;
+    });
+    fl.push('[v]' + sfx.map((_, i) => `[s${i}]`).join('') + `amix=inputs=${sfx.length + 1}:normalize=0:duration=first[out]`);
+    voice = path.join(path.dirname(OUT), path.basename(OUT, '.mp4') + '-ton.wav');
+    execFileSync('ffmpeg', ['-y', '-v', 'error', ...ins, '-filter_complex', fl.join(';'), '-map', '[out]', '-ar', '48000', voice]);
+  }
   const fps = PREVIEW ? 15 : 30;
   const from = Number(opt('--from', 0)), to = Number(opt('--to', total));
   const n = Math.round((to - from) * fps);
   const ff = ['-y', '-v', 'error', '-f', 'image2pipe', '-framerate', String(fps), '-c:v', 'mjpeg', '-i', '-'];
-  if (VOICE) ff.push('-i', VOICE);
+  if (voice) ff.push('-i', voice);
   if (MUSIC) ff.push('-stream_loop', '-1', '-i', MUSIC);
   const vf = PREVIEW ? ['-vf', `scale=${VW / 2}:${VH / 2}`] : [];
   let af = [];
-  if (VOICE && MUSIC) af = ['-filter_complex', `[2:a]volume=0.12,afade=t=out:st=${total - 3}:d=3[m];[1:a][m]amix=inputs=2:duration=first:normalize=0[a]`, '-map', '0:v', '-map', '[a]'];
-  else if (VOICE) af = ['-map', '0:v', '-map', '1:a'];
+  if (voice && MUSIC) af = ['-filter_complex', `[2:a]volume=0.12,afade=t=out:st=${total - 3}:d=3[m];[1:a][m]amix=inputs=2:duration=first:normalize=0[a]`, '-map', '0:v', '-map', '[a]'];
+  else if (voice) af = ['-map', '0:v', '-map', '1:a'];
   ff.push(...vf, ...af, '-t', String(to - from), '-c:v', 'libx264', '-preset', PREVIEW ? 'veryfast' : 'medium', '-crf', PREVIEW ? '26' : '16',
-    '-pix_fmt', 'yuv420p', '-r', '30', ...(VOICE ? ['-c:a', 'aac', '-b:a', '192k'] : []), '-movflags', '+faststart', OUT);
+    '-pix_fmt', 'yuv420p', '-r', '30', ...(voice ? ['-c:a', 'aac', '-b:a', '192k'] : []), '-movflags', '+faststart', OUT);
   const enc = spawn('ffmpeg', ff, { stdio: ['pipe', 'inherit', 'inherit'] });
   const t0 = Date.now();
   for (let i = 0; i < n; i++) {

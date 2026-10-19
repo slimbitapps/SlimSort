@@ -154,9 +154,11 @@ function drawBg(t) {
   ].join(',');
 }
 const scenes = [];
-function scene(key, build, draw) {
+/** Szene über `span` Sprechtext-Absätze. s.pOff = Startzeiten der Absätze relativ zur Szene,
+ *  s.sfx(D) kann Soundeffekte liefern: [{ t, type }] (Zeit relativ zur Szene). */
+function scene(key, build, draw, span = 1) {
   const root = el('div', 'scene', stage);
-  const s = { key, root, draw };
+  const s = { key, root, draw, span };
   build(root, s);
   scenes.push(s);
 }
@@ -176,10 +178,23 @@ function start({ captionTop = 1420 } = {}) {
   }
   const vig = el('div', 'abs', stage);
   css(vig, { inset: 0, pointerEvents: 'none', zIndex: 51, background: 'radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0,0,0,.4) 100%)' });
-  const DUR = C.durations;
+  // Absatz-Längen zu Szenen-Längen zusammenfassen
+  const DUR = [], starts = [];
+  window.SFX = [];
+  {
+    let t = 0, pi = 0;
+    for (const s of scenes) {
+      const ds = C.durations.slice(pi, pi + s.span);
+      s.pOff = ds.map((_, k) => ds.slice(0, k).reduce((a, b) => a + b, 0));
+      starts.push(t);
+      DUR.push(ds.reduce((a, b) => a + b, 0));
+      if (s.sfx) for (const e of s.sfx(DUR[DUR.length - 1])) window.SFX.push({ t: t + e.t, type: e.type });
+      t += DUR[DUR.length - 1];
+      pi += s.span;
+    }
+    window.TOTAL = t;
+  }
   const FADE = 0.25;
-  const starts = [];
-  { let t = 0; for (const d of DUR) { starts.push(t); t += d; } window.TOTAL = t; }
   window.render = async (t) => {
     pending.length = 0;
     drawBg(t);
