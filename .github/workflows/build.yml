@@ -13,8 +13,8 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-    # Nur Texte/Webseiten geändert → keine neuen Installer bauen
-    paths-ignore: ['website/**', 'brand-site/**', 'docs/**', '*.md', '.github/workflows/pages.yml']
+    # Nur Texte/Webseiten/Videos geändert → keine neuen Installer bauen
+    paths-ignore: ['website/**', 'brand-site/**', 'docs/**', 'marketing/**', 'scripts/video/**', '*.md', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 jobs:
