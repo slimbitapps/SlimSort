@@ -76,6 +76,11 @@ else:
         last = best[1]
     print('Absätze geschätzt (bitte Ergebnis prüfen)')
 bounds = [0.0] + [(s + e) / 2 for _, s, e in cuts] + [total]
+# Absatzgrenzen von Hand (Sekunden), falls die Erkennung danebenliegt: ALIGN_BOUNDS=4.96,8.01,…
+if os.environ.get('ALIGN_BOUNDS'):
+    bounds = [0.0] + [float(x) for x in os.environ['ALIGN_BOUNDS'].split(',')] + [total]
+    assert len(bounds) == N + 1, f'ALIGN_BOUNDS braucht {N - 1} Werte'
+    print('Absatzgrenzen von Hand gesetzt')
 
 paras, lens = [], []
 for i in range(N):
