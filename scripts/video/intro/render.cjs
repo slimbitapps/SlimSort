@@ -87,20 +87,24 @@ const CONFIG = { marks, frames, photos, photosHD, durations: DURATIONS, captions
   if (sfx.length) {
     const { execFileSync } = require('node:child_process');
     const dir = path.join(__dirname, '..', 'motion', 'sfx');
-    const VOL = { click: 0.55, whoosh: 0.32, 'whoosh-back': 0.32, pop: 0.38 };
+    const VOL = { click: 0.24, whoosh: 0.13, 'whoosh-back': 0.13, pop: 0.16 };
     const ins = [], fl = [];
     let k = 0;
-    if (VOICE) { ins.push('-i', VOICE); fl.push(`[${k}:a]aformat=sample_rates=48000:channel_layouts=mono[v]`); k++; }
-    else { ins.push('-f', 'lavfi', '-t', String(total), '-i', 'anullsrc=r=48000:cl=mono'); fl.push(`[${k}:a]anull[v]`); k++; }
+    if (VOICE) { ins.push('-i', VOICE); fl.push(`[${k}:a]aformat=sample_rates=48000:channel_layouts=mono,asplit[v][key]`); k++; }
+    else { ins.push('-f', 'lavfi', '-t', String(total), '-i', 'anullsrc=r=48000:cl=mono'); fl.push(`[${k}:a]anull,asplit[v][key]`); k++; }
     sfx.forEach((e, i) => {
       ins.push('-i', path.join(dir, e.type + '.wav'));
       const ms = Math.max(0, Math.round(e.t * 1000));
       fl.push(`[${k}:a]volume=${VOL[e.type] || 0.4},adelay=${ms}|${ms}[s${i}]`);
       k++;
     });
-    fl.push('[v]' + sfx.map((_, i) => `[s${i}]`).join('') + `amix=inputs=${sfx.length + 1}:normalize=0:duration=first[out]`);
+    // Effekte leiser, solange gesprochen wird (Ducking), damit die Stimme verständlich bleibt
+    fl.push(sfx.map((_, i) => `[s${i}]`).join('') + `amix=inputs=${sfx.length}:normalize=0[fx]`);
+    fl.push('[fx][key]sidechaincompress=threshold=0.02:ratio=6:attack=15:release=250[fxd]');
+    fl.push('[v][fxd]amix=inputs=2:normalize=0:duration=first[out]');
     voice = path.join(path.dirname(OUT), path.basename(OUT, '.mp4') + '-ton.wav');
     execFileSync('ffmpeg', ['-y', '-v', 'error', ...ins, '-filter_complex', fl.join(';'), '-map', '[out]', '-ar', '48000', voice]);
+    if (args.includes('--audio-only')) { await browser.close(); return console.log('Tonspur:', voice); }
   }
   const fps = PREVIEW ? 15 : 30;
   const from = Number(opt('--from', 0)), to = Number(opt('--to', total));
