@@ -113,12 +113,12 @@ scene('board', (r, s) => {
   if (!s.ev) {
     const ev = [];
     const L3 = L(1), L4 = L(2), L5 = L(3), L6 = L(4);
-    for (const [f, k] of [[0, 0.36], [0, 0.6], [1, 0.76], [2, 0.91]]) ev.push({ t: o3 + k * L3, kind: 'send', f });
-    ev.push({ t: o4 + 0.45 * L4, kind: 'skip' });
+    for (const [f, k] of [[0, 0.19], [0, 0.53], [1, 0.675], [2, 0.81]]) ev.push({ t: o3 + k * L3, kind: 'send', f });
+    ev.push({ t: o4 + 0.38 * L4, kind: 'skip' });
     const seq = [1, 0, 2, 1, 1, 0, 2, 1, 0, 1, 2, 1, 0, 1, 1, 2, 0, 1];
     const n = Math.floor((0.88 * L5) / 0.3);
     for (let i = 0; i < n; i++) ev.push({ t: o5 + 0.08 * L5 + i * 0.3, kind: 'send', f: seq[i % seq.length], fast: true });
-    ev.push({ t: o6 + 0.25 * L6, kind: 'undo' });
+    ev.push({ t: o6 + 0.28 * L6, kind: 'undo' });
     // Fotos zuordnen
     let ptr = 0;
     const stack = [];
