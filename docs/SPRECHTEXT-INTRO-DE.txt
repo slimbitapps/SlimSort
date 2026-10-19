@@ -1,0 +1,21 @@
+Mal ehrlich. Du hast wahrscheinlich tausende Fotos in einem einzigen großen Ordner und nimmst dir vor, sie irgendwann zu sortieren.
+
+Von Hand heißt das: jedes einzelne Foto in den richtigen Ordner ziehen, runterscrollen und alles wieder von vorn, stundenlang.
+
+Genau deshalb habe ich SlimSort gebaut, den schnellsten Weg, deine Fotos zu sortieren.
+
+Du wählst einfach den Ordner mit deinen Fotos, legst ein paar Zielordner an, und jeder bekommt seine eigene Taste.
+
+Dann drückst du einfach eine Taste, und das Foto landet in diesem Ordner. Eins für Familie, zwei für Urlaub und Leertaste, wenn du eins überspringen willst. Das nächste Foto wartet schon auf dich.
+
+Sobald du im Rhythmus bist, geht es richtig schnell. Etwa tausend Fotos schaffst du in ungefähr zehn Minuten.
+
+Und du musst keine Angst haben, etwas zu verlieren. Jeder Schritt lässt sich rückgängig machen, Dateien werden nie überschrieben, und wenn dein Netzlaufwerk offline geht, bleiben deine Fotos einfach, wo sie sind.
+
+Wenn du zehn Fotos vom selben Moment gemacht hast, findet SlimSort diese Serie, zeigt die Fotos nebeneinander und schlägt das schärfste vor. Du behältst dein Lieblingsfoto und räumst den Rest in einem Rutsch weg.
+
+Außerdem gibt es eine Übersicht, mehrere Ordner, ein helles und ein dunkles Design und fünf Sprachen. Einfach, wenn du anfängst, und stark, wenn du es brauchst.
+
+Und das Beste: Es ist komplett kostenlos. Keine Werbung, kein Konto und keine Cloud, deine Fotos verlassen nie deinen Computer.
+
+SlimSort gibt es für Windows und Mac, und du kannst es kostenlos herunterladen. Den Link findest du in der Beschreibung.

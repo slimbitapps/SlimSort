@@ -1,0 +1,107 @@
+1
+00:00:00,350 --> 00:00:01,112
+Let's be honest.
+
+2
+00:00:01,162 --> 00:00:04,363
+You probably have thousands of photos sitting in one big folder,
+
+3
+00:00:04,413 --> 00:00:07,156
+and you keep telling yourself you'll sort them someday.
+
+4
+00:00:08,160 --> 00:00:12,287
+Doing it by hand means dragging every single photo into the right folder,
+
+5
+00:00:12,337 --> 00:00:15,434
+scrolling down, and doing it all over again, for hours.
+
+6
+00:00:17,159 --> 00:00:21,134
+That's exactly why I built SlimSort, the fastest way to sort your photos.
+
+7
+00:00:22,129 --> 00:00:25,652
+You just pick the folder with your photos, create a few target folders,
+
+8
+00:00:25,702 --> 00:00:27,363
+and each of them gets its own key.
+
+9
+00:00:29,629 --> 00:00:33,159
+Then you simply press a key, and the photo moves into that folder.
+
+10
+00:00:33,209 --> 00:00:36,792
+One for family, two for holiday, and space if you want to skip one.
+
+11
+00:00:36,842 --> 00:00:39,070
+The next photo is already waiting for you.
+
+12
+00:00:40,070 --> 00:00:42,623
+Once you get into the rhythm, it gets really fast.
+
+13
+00:00:42,673 --> 00:00:45,746
+You can sort about a thousand photos in roughly ten minutes.
+
+14
+00:00:46,750 --> 00:00:49,427
+And you don't have to worry about losing anything.
+
+15
+00:00:49,477 --> 00:00:52,373
+Every step can be undone, files are never overwritten,
+
+16
+00:00:52,423 --> 00:00:56,684
+and if your network drive goes offline, your photos simply stay where they are.
+
+17
+00:00:57,679 --> 00:01:01,745
+If you took ten shots of the same moment, SlimSort finds that series for you,
+
+18
+00:01:01,795 --> 00:01:05,006
+shows the photos side by side, and suggests the sharpest one.
+
+19
+00:01:05,056 --> 00:01:07,999
+You keep your favorite and clear out the rest in one go.
+
+20
+00:01:09,680 --> 00:01:12,940
+There's also an overview mode, support for multiple folders,
+
+21
+00:01:12,990 --> 00:01:15,478
+a light and a dark design, and five languages.
+
+22
+00:01:15,528 --> 00:01:18,678
+It's simple when you start, and powerful when you need it.
+
+23
+00:01:19,680 --> 00:01:22,290
+And the best part is that it's completely free.
+
+24
+00:01:22,340 --> 00:01:24,725
+There are no ads, no account, and no cloud,
+
+25
+00:01:24,775 --> 00:01:27,046
+so your photos never leave your computer.
+
+26
+00:01:28,050 --> 00:01:31,788
+SlimSort is available for Windows and Mac, and you can download it for free.
+
+27
+00:01:31,838 --> 00:01:33,782
+You'll find the link in the description.
