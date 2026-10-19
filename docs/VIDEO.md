@@ -4,6 +4,8 @@ Alles, was gesprochen wird, steht **auf Englisch** in den grauen Kästen. Die ka
 in das KI-Sprach-Tool kopieren. Alles andere (Bild, Schnitt) ist auf Deutsch erklärt.
 
 
+> **Fertig geschnittene Videos (ohne Ton) + Anleitung zum Fertigstellen:** `docs/VIDEO-FERTIGSTELLEN.md`.
+> Neu erzeugen: `node scripts/video/record-all.cjs ORDNER` und `python3 scripts/video/edit.py ORDNER`.
 > **Sprechtexte zum Kopieren** (aktuelle Fassung, ohne Regieanweisungen): **`docs/SPRECHTEXT.md`**.
 > **KI-Stimme:** Clipchamp (kostenlos, von Microsoft) oder TTSMaker (kostenlos, ohne Konto).
 > ElevenLabs erst ab 18.

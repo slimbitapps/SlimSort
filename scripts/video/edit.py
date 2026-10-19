@@ -154,25 +154,27 @@ def shorts():
     defs = [
         ('1', 'en', 'POV: 2,000 vacation photos in ONE folder', [
             dict(src='sq-chaos', a=0.5, b=4.5),
-            dict(src='sq-sort-en', a=sq['sorting'], b=sq['fastEnd'] + 0.3),
+            dict(src='sq-sort-en', a=sq['sorting'], b=sq['fastEnd'] + 0.3, zoom=(1.18, 1.18, 0.1, 0.85)),
             dict(src='sq-result', a=0.3, b=6.0)]),
         ('2', 'en', 'Still dragging photos into folders one by one?', [
             dict(src='sq-drag', a=0.3, b=8.6),
-            dict(src='sq-sort-en', a=sq['sorting'], b=sq['fast'] + 0.2)]),
+            dict(src='sq-sort-en', a=sq['sorting'], b=sq['fast'] + 0.2, zoom=(1.18, 1.18, 0.1, 0.85))]),
         ('3', 'en', '10 shots of the same moment. Which one is sharp?', [
-            dict(src='sq-series', a=ss['cmp'] + 0.2, b=ss['end'])]),
+            dict(src='sq-series', a=ss['cmp'] + 0.2, b=ss['end'], speed=0.85)]),
         ('4', 'en', 'I just moved 500 photos into the wrong folder…', [
+            dict(src='sq-sort-en', a=sq['sorting'], b=sq['sorting'] + 4.0, zoom=(1.18, 1.18, 0.1, 0.85)),
             dict(src='sq-sort-en', a=sq['multi'], b=sq['end'])]),
         ('5', 'en', 'Sorting photos onto a NAS? Watch this.', [
-            dict(src='sq-sort-en', a=sq['sorting'], b=sq['sorting'] + 3.2),
-            dict(src='sq-sort-en', a=sq['nas'] - 0.3, b=sq['multi'])]),
+            dict(src='sq-sort-en', a=sq['sorting'], b=sq['sorting'] + 6.0, zoom=(1.18, 1.18, 0.1, 0.85)),
+            dict(src='sq-sort-en', a=sq['nas'] - 0.3, b=sq['multi'], zoom=(1.18, 1.18, 0.1, 0.85)),
+            dict(src='sq-sort-en', a=sq['fast'], b=sq['fastEnd'], zoom=(1.18, 1.18, 0.1, 0.85))]),
         ('6', 'en', 'A photo app with no ads, no account, no cloud?', [
-            dict(src='sq-sort-en', a=sq['fast'], b=sq['fastEnd']),
+            dict(src='sq-sort-en', a=sq['fast'], b=sq['fastEnd'], zoom=(1.18, 1.18, 0.1, 0.85)),
             dict(src='sq-series', a=ss['zoom'] - 0.3, b=ss['move'] + 1.5),
             dict(src='sq-sort-en', a=sq['multi'] + 1.0, b=sq['multiUndo'] - 0.2)]),
         ('7-DE', 'de', '2.000 Urlaubsfotos in 10 Minuten sortieren?', [
             dict(src='sq-chaos-de', a=0.5, b=4.5),
-            dict(src='sq-sort-de', a=sqd['sorting'], b=sqd['end']),
+            dict(src='sq-sort-de', a=sqd['sorting'], b=sqd['end'], zoom=(1.18, 1.18, 0.1, 0.85)),
             dict(src='sq-result-de', a=0.3, b=5.5)]),
     ]
     frames = {}
@@ -196,11 +198,12 @@ def shorts():
         concat(pieces, body)
         # in den Hochformat-Rahmen setzen (abgerundete Ecken)
         framed = os.path.join(TMP, f'short{key}-framed.mp4')
-        run(['ffmpeg', '-y', '-v', 'error', '-i', body, '-loop', '1', '-i', frames[key], '-loop', '1', '-i', mask,
+        bd = float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', body], capture_output=True, text=True).stdout)
+        run(['ffmpeg', '-y', '-v', 'error', '-i', body, '-loop', '1', '-t', f'{bd}', '-i', frames[key], '-loop', '1', '-t', f'{bd}', '-i', mask,
              '-filter_complex',
              '[0:v]scale=1000:1000,format=rgba[v];[2:v]format=gray,scale=1000:1000[m];[v][m]alphamerge[r];'
              '[1:v]format=rgba[bg];[bg][r]overlay=40:560:shortest=1,format=yuv420p[o]',
-             '-map', '[o]', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '17', '-r', str(FPS), framed])
+             '-map', '[o]', '-t', f'{bd}', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '17', '-r', str(FPS), framed])
         endseg = os.path.join(TMP, f'short{key}-end.mp4')
         seg(endseg, still=ends[lang], dur=3.0, size=(W, 1920))
         final = os.path.join(OUT, f'SlimSort-Short-{key}.mp4')
