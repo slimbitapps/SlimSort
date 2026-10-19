@@ -16,6 +16,11 @@ One key per folder – that's it. SlimSort is a free photo sorter for Windows & 
 
 #photography #organization #freesoftware
 ```
+**Tags** (YouTube Studio → Details → „Mehr anzeigen“ → Tags):
+```
+sort photos,how to sort photos,organize photos,photo organizer,sort vacation photos,organize vacation photos,photo sorter,free photo organizer,sort pictures into folders,organize photos windows 11,organize photos mac,photo culling,photo tips,productivity hacks,computer tips,free software,SlimSort,shorts
+```
+
 **Beim Hochladen:**
 - **Ähnliches Video:** das Intro-Video auswählen (so führt der Short zum langen Video)
 - Zielgruppe: nicht speziell für Kinder
