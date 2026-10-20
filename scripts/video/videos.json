@@ -1,0 +1,61 @@
+{
+  "app": "SlimSort",
+  "marker": "Next video.",
+  "music": "pop",
+  "assets": {
+    "avatar": "brand-site/youtube-avatar.png",
+    "banner": "brand-site/youtube-banner.jpg",
+    "logos": {
+      "Symbol-1024.png": "build/icon.png",
+      "Logo.png": "brand-site/logo-full.png",
+      "Symbol.png": "brand-site/logo-icon.png"
+    },
+    "screenshots": "marketing/screenshots/en-*.png",
+    "srt": "docs/SlimSort-Intro-EN.srt"
+  },
+  "videos": [],
+  "done": [
+    {
+      "batch": 1,
+      "videos": [
+        {
+          "id": "intro",
+          "folder": "1-Intro",
+          "title": "Intro",
+          "w": 1920,
+          "h": 1080,
+          "thumb": "SlimSort-Thumbnail.jpg",
+          "upload": "docs/upload/intro.json"
+        },
+        {
+          "id": "short1",
+          "folder": "2-Short1-Sorting",
+          "title": "Short 1",
+          "w": 1080,
+          "h": 1920,
+          "thumb": "SlimSort-Short1-Thumbnail.jpg",
+          "upload": "docs/upload/short1.json"
+        },
+        {
+          "id": "short2",
+          "folder": "3-Short2-Keys",
+          "title": "Short 2",
+          "w": 1080,
+          "h": 1920,
+          "thumb": "SlimSort-Short2-Thumbnail.jpg",
+          "upload": "docs/upload/short2.json"
+        },
+        {
+          "id": "short3",
+          "folder": "4-Short3-Burst",
+          "title": "Short 3",
+          "w": 1080,
+          "h": 1920,
+          "thumb": "SlimSort-Short3-Thumbnail.jpg",
+          "upload": "docs/upload/short3.json"
+        }
+      ]
+    }
+  ],
+  "batch": 1
+}
