@@ -1,0 +1,119 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="common.css" />
+<style>
+  .tile { position: absolute; left: 0; top: 0; width: 270px; height: 180px; border-radius: 14px; overflow: hidden; box-shadow: 0 16px 40px rgba(0,0,0,.55), 0 0 0 2px rgba(255,255,255,.1); }
+  .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .folder { width: 240px; height: 230px; top: 1420px; }
+  .folder .nm { font-size: 34px; }
+  .folder .ct { font-size: 30px; }
+  .folder .kb { min-width: 64px; font-size: 36px; padding: 8px 12px; }
+  .bar { position: absolute; left: 90px; right: 90px; top: 1330px; height: 16px; border-radius: 8px; background: rgba(255,255,255,.1); overflow: hidden; }
+  .bar i { display: block; height: 100%; background: linear-gradient(90deg, #3b8bff, #1ec8f0, #3ee089); }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="../motion/core.js"></script>
+<script src="common.js"></script>
+<script>
+// Kein Sprechtext: Chaos → Taste für Taste wird alles in Ordner sortiert (immer schneller)
+let seed = 7;
+const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+const N = 36;
+const PILE = Array.from({ length: N }, (_, i) => ({ x: 150 + rnd() * 780, y: 520 + rnd() * 700, r: (rnd() - 0.5) * 40, f: [1, 0, 2, 1, 3, 0, 1, 2, 0, 3, 1, 1][i % 12], img: (i * 5 + 3) % HD.length }));
+const FX = (f) => 20 + f * 262 + 120, FY = 1535;
+const TARGET = [512, 803, 421, 411];   // zusammen 2.147
+
+scene('sort', (r, s) => {
+  s.t1 = words(r, 'POV: 2,147 photos', { top: '170px', fontSize: '96px' });
+  s.t1.className += ' head';
+  s.t2 = words(r, 'in ONE folder 😵', { top: '290px', fontSize: '96px', color: '#ff7b7b' });
+  s.t2.className += ' head';
+  s.count = el('div', 'abs head', r);
+  css(s.count, { top: '190px', fontSize: '120px', fontVariantNumeric: 'tabular-nums' });
+  s.cap = el('div', 'cap', r);
+  css(s.cap, { top: '360px' });
+  s.tiles = PILE.map((t, i) => {
+    const e = el('div', 'tile', r, '<img/>');
+    e.querySelector('img').src = HD[t.img];
+    e.style.zIndex = 2 + i;
+    return e;
+  });
+  s.folders = [0, 1, 2, 3].map((i) => folderEl(r, i, 20 + i * 262, 1420));
+  s.folders.forEach((f) => (f.querySelector('svg').style.width = '90px'));
+  s.bar = el('div', 'bar', r, '<i></i>');
+  s.done = el('div', 'abs head', r, '<span class="grad" style="font-size:260px">✓</span><br>Done in ~20 min');
+  css(s.done, { top: '560px', fontSize: '96px' });
+}, (s, lt, D) => {
+  const [, o2] = s.pOff;
+  // Sende-Zeiten: anfangs gemütlich, dann immer schneller
+  if (!s.ev) {
+    s.ev = [];
+    let t = o2 + 0.5, dt = 0.55;
+    for (let i = N - 1; i >= 0; i--) { s.ev.push({ t, i, f: PILE[i].f }); t += dt; dt = Math.max(0.085, dt * 0.88); }
+    s.endT = t;
+  }
+  drawWords(s.t1, lt, 0.05, 0.1);
+  drawWords(s.t2, lt, 0.45, 0.1);
+  s.t1.style.opacity = s.t2.style.opacity = 1 - p(lt, o2 - 0.2, 0.3);
+  // Stapel erscheint
+  const flown = {};
+  for (const e of s.ev) flown[e.i] = e;
+  s.tiles.forEach((el2, i) => {
+    const t = PILE[i], e = flown[i];
+    const k = E.back(p(lt, 0.3 + i * 0.04, 0.35));
+    let x = t.x, y = t.y, sc = 0.6 + 0.4 * k, rot = t.r, op = p(lt, 0.3 + i * 0.04, 0.1);
+    if (e && lt >= e.t) {
+      const f = E.io(p(lt, e.t, 0.42));
+      x = lerp(t.x, FX(e.f), f); y = lerp(t.y, FY, f) - Math.sin(f * Math.PI) * 160;
+      sc = lerp(1, 0.25, f); rot = lerp(t.r, 0, f); op = 1 - p(f, 0.8, 0.2);
+      el2.style.zIndex = 100;
+    }
+    css(el2, { transform: `translate(${x - 135}px, ${y - 90}px) rotate(${rot}deg) scale(${sc})`, opacity: op, display: op > 0.01 ? 'block' : 'none' });
+  });
+  // Zähler: erst echte Landungen, am Ende rasen sie bis 2.147 hoch
+  const landed = s.ev.filter((e) => lt >= e.t + 0.42);
+  const ramp = E.io(p(lt, s.endT - 0.6, 1.6));
+  let total = 0;
+  s.folders.forEach((f, i) => {
+    const mine = landed.filter((e) => e.f === i);
+    const n = lerp(mine.length, TARGET[i], ramp);
+    total += Math.round(n);
+    f.querySelector('.ct').textContent = photosLabel(n);
+    const hit = mine.some((e) => lt < e.t + 0.62);
+    const ka = E.back(p(lt, o2 - 0.4 + i * 0.1, 0.45));
+    f.style.opacity = p(lt, o2 - 0.4 + i * 0.1, 0.2);
+    f.style.transform = `translateY(${(1 - ka) * 60}px) scale(${(hit ? 1.08 : 1) * (0.8 + 0.2 * ka)})`;
+    f.style.borderColor = hit ? FOLDERS[i][1] : 'rgba(255,255,255,.08)';
+  });
+  s.count.style.opacity = p(lt, o2 + 0.3, 0.3);
+  s.count.innerHTML = `<span class="grad">${total.toLocaleString('en-US')}</span><span style="font-size:56px;color:#c7d0e2;letter-spacing:0"> / 2,147</span>`;
+  s.bar.style.opacity = p(lt, o2 + 0.3, 0.3);
+  s.bar.firstChild.style.width = (total / 2147) * 100 + '%';
+  drawKeys(s.cap, lt, s.ev.map((e) => [e.t, [String(e.f + 1)]]));
+  const kd = E.back(p(lt, s.endT + 1.1, 0.5));
+  s.done.style.opacity = p(lt, s.endT + 1.1, 0.2);
+  s.done.style.transform = `scale(${0.6 + 0.4 * kd})`;
+}, 2);
+scenes[scenes.length - 1].sfx = function (D) {
+  this.draw(this, 0, D);
+  const out = [];
+  for (let i = 0; i < N; i += 6) out.push({ t: 0.3 + i * 0.04, type: 'pop' });
+  this.ev.forEach((e, k) => {
+    out.push({ t: e.t - 0.03, type: 'click' });
+    if (k < 10 || k % 3 === 0) out.push({ t: e.t + 0.02, type: 'whoosh' });
+    if (k < 14 || k % 2 === 0) out.push({ t: e.t + 0.42, type: 'pop' });
+  });
+  out.push({ t: this.endT + 1.1, type: 'pop' });
+  return out;
+};
+
+ctaScene({ label: '✓ All sorted' });
+
+start({ captionTop: 1700 });
+</script>
+</body>
+</html>

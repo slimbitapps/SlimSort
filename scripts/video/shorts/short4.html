@@ -1,0 +1,204 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="common.css" />
+<style>
+  .num { position: absolute; top: 1010px; width: 250px; height: 250px; border-radius: 60px; display: flex; align-items: center; justify-content: center;
+    font: 900 150px Inter, sans-serif; background: rgba(16,20,30,.92); border: 2px solid rgba(255,255,255,.1); box-shadow: 0 30px 80px rgba(0,0,0,.5); }
+  .num.hot { background: linear-gradient(135deg, #1560f0, #0aa5d8); border-color: transparent; }
+  .tile { position: absolute; width: 292px; }
+  .tile .im { width: 292px; height: 195px; border-radius: 14px; overflow: hidden; border: 4px solid transparent; }
+  .tile .im img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .tile .nm { margin-top: 8px; height: 44px; text-align: center; font: 600 27px Inter, sans-serif; color: #d6dbe6; white-space: nowrap; overflow: hidden;
+    border-radius: 8px; padding-top: 4px; }
+  .search { position: absolute; left: 24px; right: 24px; top: 104px; height: 92px; border-radius: 18px; background: #262b36; display: flex; align-items: center;
+    gap: 18px; padding: 0 26px; font: 600 44px Inter, sans-serif; border: 3px solid #2f7bff; }
+  .search .q { font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace; }
+  .search .caret { width: 4px; height: 52px; background: #fff; }
+  .res { position: absolute; width: 168px; height: 112px; border-radius: 10px; overflow: hidden; }
+  .res img { width: 100%; height: 100%; object-fit: cover; display: block; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="../motion/core.js"></script>
+<script src="common.js"></script>
+<script>
+const NAMES = ['IMG_4821.JPG', 'DSC00137.JPG', 'IMG_4830.JPG', 'PXL_2025_07.jpg', 'IMG_4902.JPG', 'DSC00211.JPG',
+  'WA0013.jpg', 'IMG_5017.JPG', 'DSC00256.JPG', 'IMG_5120.JPG', 'PXL_2025_08.jpg', 'IMG_5133.JPG'];
+
+// ---------- 1: Hook
+scene('hook', (r, s) => {
+  s.t1 = words(r, '3 photo tricks', { top: '420px', fontSize: '128px' });
+  s.t1.className += ' head';
+  s.t1._w[0].className += ' grad';
+  s.t2 = words(r, 'for Windows', { top: '570px', fontSize: '84px', color: '#c7d0e2' });
+  s.t2.className += ' head';
+  s.t3 = words(r, 'nobody uses 🤫', { top: '680px', fontSize: '84px', color: '#ff7b7b' });
+  s.t3.className += ' head';
+  s.nums = [1, 2, 3].map((n, i) => {
+    const e = el('div', 'num' + (i === 2 ? ' hot' : ''), r, n);
+    css(e, { left: 75 + i * 340 + 'px' });
+    return e;
+  });
+  s.chip = el('div', 'chip', r, '⏱ #3 saves me hours');
+  css(s.chip, { left: '50%', top: '1330px', fontSize: '46px' });
+}, (s, lt, D) => {
+  drawWords(s.t1, lt, 0.05, 0.1);
+  drawWords(s.t2, lt, 0.3, 0.1);
+  drawWords(s.t3, lt, 0.5, 0.1);
+  s.nums.forEach((e, i) => {
+    const k = E.back(p(lt, 0.6 + i * 0.18, 0.45));
+    e.style.opacity = p(lt, 0.6 + i * 0.18, 0.15);
+    e.style.transform = `translateY(${(1 - k) * 60}px) scale(${(0.6 + 0.4 * k) * (i === 2 ? 1 + 0.04 * Math.sin(lt * 6) * p(lt, 0.62 * D, 0.2) : 1)})`;
+  });
+  popIn(s.chip, lt, 0.62 * D);
+});
+scenes[scenes.length - 1].sfx = (D) => [0, 1, 2].map((i) => ({ t: 0.62 + i * 0.18, type: 'pop' })).concat([{ t: 0.62 * D, type: 'whoosh' }]);
+
+// ---------- 2: Trick 1 – alle auf einmal umbenennen (F2)
+scene('rename', (r, s) => {
+  s.title = el('div', 'abs head', r, '① Rename all at once');
+  css(s.title, { top: '190px', fontSize: '84px' });
+  s.cap = el('div', 'cap', r);
+  css(s.cap, { top: '320px' });
+  s.win = el('div', 'win', r, '<div class="bar"><span class="dots"><i></i><i></i><i></i></span>📁 Vacation 2025<span class="right">12 items</span></div>');
+  css(s.win, { left: '60px', top: '470px', width: '960px', height: '1170px' });
+  s.tiles = NAMES.map((n, i) => {
+    const t = el('div', 'tile', s.win, `<div class="im"><img/></div><div class="nm">${n}</div>`);
+    t.querySelector('img').src = HD[(i * 5 + 1) % HD.length];
+    css(t, { left: 24 + (i % 3) * 310 + 'px', top: 110 + Math.floor(i / 3) * 262 + 'px' });
+    t.im = t.querySelector('.im');
+    t.nm = t.querySelector('.nm');
+    return t;
+  });
+}, (s, lt, D) => {
+  fadeIn(s.title, lt, 0.05);
+  const selAt = 0.12 * D, f2At = 0.3 * D, typeAt = 0.4 * D, enterAt = 0.6 * D;
+  s.ev = { selAt, f2At, typeAt, enterAt };
+  drawKeys(s.cap, lt, [[selAt, ['Ctrl', 'A']], [f2At, ['F2']], [enterAt, ['Enter']]]);
+  const typed = 'Holiday'.slice(0, Math.floor(p(lt, typeAt, 0.6) * 7.999));
+  s.tiles.forEach((t, i) => {
+    const sel = lt >= selAt + i * 0.015;
+    t.im.style.borderColor = sel && lt < enterAt + 1.2 ? '#2f7bff' : 'transparent';
+    t.im.style.filter = sel && lt < enterAt + 1.2 ? 'brightness(.8)' : 'none';
+    const done = lt >= enterAt + 0.1 + i * 0.07;
+    if (i === 0 && lt >= f2At && lt < enterAt) {
+      t.nm.innerHTML = `${typed}<span style="display:inline-block;width:3px;height:28px;background:#fff;vertical-align:-4px;opacity:${Math.floor(lt * 3) % 2 ? 1 : 0.2}"></span>`;
+      css(t.nm, { background: '#fff', color: '#111' });
+    } else if (done) {
+      t.nm.textContent = `Holiday (${i + 1}).jpg`;
+      const k = p(lt, enterAt + 0.1 + i * 0.07, 0.3);
+      css(t.nm, { background: `rgba(62,224,137,${0.35 * (1 - k)})`, color: '#fff' });
+    } else {
+      t.nm.textContent = NAMES[i];
+      css(t.nm, { background: 'transparent', color: '#d6dbe6' });
+    }
+  });
+});
+scenes[scenes.length - 1].sfx = function (D) {
+  this.draw(this, 0, D);
+  const e = this.ev;
+  const out = [{ t: e.selAt - 0.03, type: 'click' }, { t: e.f2At - 0.03, type: 'click' }, { t: e.enterAt - 0.03, type: 'click' }];
+  for (let i = 0; i < 12; i += 3) out.push({ t: e.enterAt + 0.1 + i * 0.07, type: 'pop' });
+  return out;
+};
+
+// ---------- 3: Trick 2 – alle Fotos finden (kind:picture)
+scene('search', (r, s) => {
+  s.title = el('div', 'abs head', r, '② Find every photo');
+  css(s.title, { top: '190px', fontSize: '84px' });
+  s.win = el('div', 'win', r, '<div class="bar"><span class="dots"><i></i><i></i><i></i></span>💻 This PC<span class="right"></span></div><div class="search">🔍 <span class="q"></span><span class="caret"></span></div>');
+  css(s.win, { left: '60px', top: '380px', width: '960px', height: '1260px' });
+  s.q = s.win.querySelector('.q');
+  s.caret = s.win.querySelector('.caret');
+  s.count = s.win.querySelector('.right');
+  s.res = [];
+  for (let i = 0; i < 45; i++) {
+    const e = el('div', 'res', s.win, '<img/>');
+    e.querySelector('img').src = C.photos[(i * 7 + 2) % C.photos.length];
+    css(e, { left: 24 + (i % 5) * 183 + 'px', top: 222 + Math.floor(i / 5) * 124 + 'px' });
+    s.res.push(e);
+  }
+}, (s, lt, D) => {
+  fadeIn(s.title, lt, 0.05);
+  const typeAt = 0.2 * D, showAt = 0.55 * D;
+  s.ev = { typeAt, showAt };
+  const q = 'kind:picture';
+  const n = Math.floor(p(lt, typeAt, 1.1) * (q.length + 0.999));
+  s.q.innerHTML = q.slice(0, n).replace('kind:', '<span style="color:#7fb2ff">kind:</span>');
+  s.caret.style.opacity = lt < showAt && Math.floor(lt * 3) % 2 ? 1 : 0.15;
+  s.res.forEach((e, i) => {
+    const k = E.out(p(lt, showAt + i * 0.03, 0.3));
+    e.style.opacity = k;
+    e.style.transform = `scale(${0.7 + 0.3 * k})`;
+  });
+  const c = Math.round(12408 * E.out(p(lt, showAt, 0.35 * D)));
+  s.count.textContent = lt >= showAt ? `${c.toLocaleString('en-US')} items` : '';
+});
+scenes[scenes.length - 1].sfx = function (D) {
+  this.draw(this, 0, D);
+  const out = [];
+  for (let i = 0; i < 12; i++) out.push({ t: this.ev.typeAt + (i / 12) * 1.1, type: 'click' });
+  out.push({ t: this.ev.showAt, type: 'whoosh' });
+  return out;
+};
+
+// ---------- 4: Trick 3 – SlimSort: Taste drücken, Foto fliegt in den Ordner
+const CX = 540, CY = 800;
+scene('sort', (r, s) => {
+  s.title = el('div', 'abs head', r, '③ Sort with one key');
+  css(s.title, { top: '190px', fontSize: '84px' });
+  s.app = el('div', 'chip', r, `<img src="${ICON}" style="width:56px;height:56px;border-radius:14px">SlimSort · free`);
+  css(s.app, { left: '50%', top: '320px', fontSize: '44px' });
+  s.cap = el('div', 'cap', r);
+  css(s.cap, { top: '310px' });
+  s.folders = [0, 1, 2].map((i) => folderEl(r, i, 30 + i * 360, 1250));
+  s.pool = [];
+  s.r = r;
+}, (s, lt, D) => {
+  fadeIn(s.title, lt, 0.05);
+  const sends = [[0.55, 0], [0.71, 1], [0.86, 2]].map(([k, f], i) => ({ t: k * D, f, photo: i }));
+  s.ev = sends;
+  popIn(s.app, lt, 0.12 * D);
+  s.app.style.opacity = p(lt, 0.12 * D, 0.15) * (1 - p(lt, sends[0].t - 0.4, 0.2));
+  drawKeys(s.cap, lt, sends.map((e) => [e.t, [String(e.f + 1)]]));
+  const photo = (i) => {
+    if (!s.pool[i]) { const d = el('div', 'photo', s.r, '<img/>'); d.querySelector('img').src = HD[(i * 7 + 3) % HD.length]; s.pool[i] = d; }
+    return s.pool[i];
+  };
+  s.pool.forEach((d) => d && (d.style.display = 'none'));
+  const show = (i, x, y, sc, rot, op, z) => css(photo(i), { display: 'block', opacity: op, zIndex: z, transform: `translate(${x - 450}px, ${y - 300}px) rotate(${rot}deg) scale(${sc})` });
+  const past = sends.filter((e) => lt >= e.t);
+  const cur = past.length;
+  const kin = cur ? E.out(p(lt, sends[cur - 1].t + 0.06, 0.32)) : E.out(p(lt, 0.08 * D, 0.5));
+  show(cur, CX + (1 - kin) * 260, CY, 0.85 + 0.05 * kin, 0, kin, 2);
+  for (const e of past) {
+    const k = E.io(p(lt, e.t, 0.48));
+    if (k >= 1) continue;
+    const fx = 30 + e.f * 360 + 160, fy = 1250 + 120;
+    show(e.photo, lerp(CX, fx, k), lerp(CY, fy, k) - Math.sin(k * Math.PI) * 180, lerp(0.9, 0.12, k), lerp(0, e.f === 0 ? -12 : e.f === 2 ? 12 : 4, k), 1 - p(k, 0.85, 0.15), 4);
+  }
+  s.folders.forEach((f, i) => {
+    const landed = past.filter((e) => e.f === i && lt >= e.t + 0.48);
+    const hit = landed.some((e) => lt < e.t + 0.7);
+    f.querySelector('.ct').textContent = photosLabel(landed.length);
+    const ka = E.back(p(lt, 0.4 * D + i * 0.12, 0.45));
+    f.style.opacity = p(lt, 0.4 * D + i * 0.12, 0.2);
+    f.style.transform = `translateY(${(1 - ka) * 60}px) scale(${(hit ? 1.08 : 1) * (0.8 + 0.2 * ka)})`;
+    f.style.borderColor = hit ? FOLDERS[i][1] : 'rgba(255,255,255,.08)';
+  });
+});
+scenes[scenes.length - 1].sfx = function (D) {
+  this.draw(this, 0, D);
+  return this.ev.flatMap((e) => [{ t: e.t - 0.03, type: 'click' }, { t: e.t + 0.02, type: 'whoosh' }, { t: e.t + 0.48, type: 'pop' }]);
+};
+
+// ---------- 5: Merken + Link
+ctaScene({ label: '🔖 Save for later' });
+
+start({ captionTop: 1700 });
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+I came back from vacation with two thousand photos, and I kept putting off sorting them for months.
+
+Every app I tried was either complicated, expensive, or wanted my photos in the cloud.
+
+So I decided to build my own. It took a lot of evenings, and the first version looked like this.
+
+Today it looks like this. One key per folder, and two thousand photos are sorted in about twenty minutes.
+
+It's called SlimSort, and it's free for everyone. The link is in my profile, and tell me what I should build next.

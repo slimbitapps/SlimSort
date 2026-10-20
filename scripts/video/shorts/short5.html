@@ -1,0 +1,172 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="common.css" />
+<style>
+  .big { position: absolute; left: 190px; top: 640px; width: 700px; height: 560px; border-radius: 48px; background: rgba(16,20,30,.94);
+    border: 2px solid rgba(255,255,255,.1); box-shadow: 0 40px 100px rgba(0,0,0,.55); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+  .big .nm { font-size: 64px; font-weight: 900; }
+  .big .ct { font-size: 48px; color: #a9b3c8; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .peek { position: absolute; width: 300px; height: 200px; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,.5); }
+  .peek img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .cal { position: absolute; left: 340px; top: 1260px; width: 400px; height: 190px; border-radius: 28px; background: #fff; color: #111; overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0,0,0,.5); text-align: center; }
+  .cal .top { height: 54px; background: #ff5b5b; }
+  .cal .m { font: 900 72px Inter, sans-serif; line-height: 136px; }
+  .card { position: absolute; left: 90px; width: 900px; height: 320px; border-radius: 36px; background: rgba(16,20,30,.94); border: 2px solid rgba(255,255,255,.1);
+    box-shadow: 0 30px 80px rgba(0,0,0,.5); display: flex; align-items: center; gap: 36px; padding: 0 230px 0 50px; font-size: 58px; font-weight: 800; }
+  .card .ic { font-size: 110px; }
+  .card .x { position: absolute; right: 40px; top: 50%; width: 150px; height: 150px; margin-top: -75px; border-radius: 50%; border: 10px solid #ff5b5b; color: #ff5b5b;
+    display: flex; align-items: center; justify-content: center; font: 900 100px Inter, sans-serif; }
+  .code { position: absolute; left: 60px; top: 380px; width: 960px; height: 760px; border-radius: 26px; background: #12151b; overflow: hidden;
+    box-shadow: 0 40px 100px rgba(0,0,0,.6), 0 0 0 1px #2b303a; font: 500 31px 'JetBrains Mono', ui-monospace, Menlo, monospace; }
+  .code .bar { height: 70px; background: #1b1f27; display: flex; align-items: center; gap: 12px; padding: 0 24px; font: 600 28px Inter, sans-serif; color: #a9b3c8; }
+  .code .ln { white-space: pre; padding-left: 34px; line-height: 44px; }
+  .old { position: absolute; left: 110px; top: 980px; width: 860px; height: 640px; background: #c0c0c0; color: #000; font-family: 'Times New Roman', Times, serif;
+    border: 3px solid #fff; border-right-color: #404040; border-bottom-color: #404040; box-shadow: 0 40px 100px rgba(0,0,0,.6); }
+  .old .tb { height: 52px; background: linear-gradient(90deg, #000080, #1084d0); color: #fff; font: bold 30px Arial, sans-serif; padding: 8px 14px; }
+  .old img { position: absolute; left: 30px; top: 80px; width: 470px; height: 320px; object-fit: cover; border: 2px inset #808080; }
+  .old .btn { position: absolute; left: 530px; width: 300px; height: 70px; background: #c0c0c0; border: 3px solid #fff; border-right-color: #404040; border-bottom-color: #404040;
+    font-size: 34px; display: flex; align-items: center; justify-content: center; }
+  .old .txt { position: absolute; left: 30px; top: 420px; right: 30px; font-size: 34px; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="../motion/core.js"></script>
+<script src="common.js"></script>
+<script>
+// ---------- 1: 2.147 Fotos, monatelang unsortiert
+scene('months', (r, s) => {
+  s.t1 = words(r, '2,147 photos.', { top: '210px', fontSize: '120px' });
+  s.t1.className += ' head';
+  s.t1._w[0].className += ' grad';
+  s.t2 = words(r, 'Sort them… later.', { top: '360px', fontSize: '80px', color: '#c7d0e2' });
+  s.t2.className += ' head';
+  s.peek = [0, 1, 2].map((i) => {
+    const e = el('div', 'peek', r, '<img/>');
+    e.querySelector('img').src = HD[(i * 5 + 4) % HD.length];
+    return e;
+  });
+  s.big = el('div', 'big', r, `${folderSvg('#f5a524', 230)}<div class="nm">Unsorted</div><div class="ct">2,147 photos</div>`);
+  s.cal = el('div', 'cal', r, '<div class="top"></div><div class="m"></div>');
+  s.m = s.cal.querySelector('.m');
+  s.stamp = el('div', 'chip', r, '😩 Still unsorted');
+  css(s.stamp, { left: '50%', top: '1500px', fontSize: '46px', color: '#ff8a8a' });
+}, (s, lt, D) => {
+  drawWords(s.t1, lt, 0.05, 0.1);
+  drawWords(s.t2, lt, 0.4, 0.1);
+  const k = E.back(p(lt, 0.2, 0.5));
+  s.big.style.opacity = p(lt, 0.2, 0.2);
+  s.big.style.transform = `scale(${0.8 + 0.2 * k})`;
+  s.peek.forEach((e, i) => {
+    const kk = E.out(p(lt, 0.5 + i * 0.1, 0.5));
+    css(e, { left: 220 + i * 230 + 'px', top: 640 - 120 * kk + 'px', transform: `rotate(${(i - 1) * 9}deg)`, opacity: kk });
+  });
+  const months = ['August', 'September', 'October', 'November', 'December', 'January', 'February'];
+  const mi = Math.min(months.length - 1, Math.floor(p(lt, 0.4 * D, 0.5 * D) * months.length));
+  s.cal.style.opacity = p(lt, 0.4 * D, 0.2);
+  s.m.textContent = months[mi];
+  s.cal.style.transform = `rotateX(${(1 - p((lt - 0.4 * D) % (0.5 * D / months.length), 0, 0.12)) * 30 * (lt > 0.4 * D && mi < months.length - 1 ? 1 : 0)}deg)`;
+  popIn(s.stamp, lt, 0.82 * D);
+});
+scenes[scenes.length - 1].sfx = (D) => Array.from({ length: 7 }, (_, i) => ({ t: 0.4 * D + (i * 0.5 * D) / 7, type: 'click' })).concat([{ t: 0.82 * D, type: 'pop' }]);
+
+// ---------- 2: Jede App war kompliziert, teuer oder Cloud
+scene('apps', (r, s) => {
+  s.title = el('div', 'abs head', r, 'Every app I tried:');
+  css(s.title, { top: '200px', fontSize: '92px' });
+  s.cards = [['⚙️', 'Way too complicated'], ['💳', '€9.99 / month'], ['☁️', 'Upload all photos?']].map(([ic, t], i) => {
+    const e = el('div', 'card', r, `<span class="ic">${ic}</span>${t}<div class="x">✕</div>`);
+    css(e, { top: 420 + i * 370 + 'px' });
+    e.x = e.querySelector('.x');
+    return e;
+  });
+}, (s, lt, D) => {
+  fadeIn(s.title, lt, 0.05);
+  s.at = [0.12, 0.38, 0.62].map((k) => k * D);
+  s.cards.forEach((c, i) => {
+    const k = E.out(p(lt, s.at[i], 0.4));
+    c.style.opacity = k;
+    c.style.transform = `translateX(${(1 - k) * 200}px)`;
+    const kx = E.back(p(lt, s.at[i] + 0.55, 0.35));
+    c.x.style.opacity = p(lt, s.at[i] + 0.55, 0.1);
+    c.x.style.transform = `scale(${1.6 - 0.6 * kx}) rotate(${(1 - kx) * -20}deg)`;
+    c.style.filter = lt > s.at[i] + 0.7 ? 'saturate(.4) brightness(.8)' : 'none';
+  });
+});
+scenes[scenes.length - 1].sfx = function (D) {
+  this.draw(this, 0, D);
+  return this.at.flatMap((t) => [{ t, type: 'whoosh' }, { t: t + 0.55, type: 'pop' }]);
+};
+
+// ---------- 3: Selbst gebaut – Code und die erste Version
+const CODE = [
+  ['<span style="color:#c792ea">function</span> <span style="color:#82aaff">sortPhoto</span>(photo, key) {'],
+  ['  <span style="color:#c792ea">const</span> folder = folders[key];'],
+  ['  <span style="color:#c792ea">if</span> (!folder) <span style="color:#c792ea">return</span>;'],
+  ['  moveSafely(photo, folder);  <span style="color:#5c6773">// never overwrite</span>'],
+  ['  history.push({ photo, folder });'],
+  ['  showNext();'],
+  ['}'],
+  [''],
+  ['<span style="color:#c792ea">function</span> <span style="color:#82aaff">undo</span>() {'],
+  ['  <span style="color:#c792ea">const</span> last = history.pop();'],
+  ['  moveBack(last);'],
+  ['}'],
+];
+scene('build', (r, s) => {
+  s.title = el('div', 'abs head', r, 'So I built my own.');
+  css(s.title, { top: '200px', fontSize: '92px' });
+  s.code = el('div', 'code', r, '<div class="bar">● ● ●&nbsp;&nbsp; sort.ts</div>');
+  s.lines = CODE.map(([h]) => el('div', 'ln', s.code, h));
+  s.old = el('div', 'old', r, `<div class="tb">Fotosortierer v0.1</div><img/><div class="btn" style="top:90px">Ordner 1</div><div class="btn" style="top:180px">Ordner 2</div><div class="btn" style="top:270px">Weiter &gt;</div><div class="txt">Bild 1 von 2147</div>`);
+  s.old.querySelector('img').src = HD[4 % HD.length];
+  s.chip = el('div', 'chip', r, 'First version 😅');
+  css(s.chip, { left: '50%', top: '900px', fontSize: '46px' });
+}, (s, lt, D) => {
+  fadeIn(s.title, lt, 0.05);
+  s.oldAt = 0.6 * D;
+  s.lines.forEach((e, i) => {
+    const t = 0.08 * D + (i / s.lines.length) * 0.45 * D;
+    e.style.opacity = p(lt, t, 0.08);
+    e.style.transform = `translateX(${(1 - E.out(p(lt, t, 0.2))) * 30}px)`;
+  });
+  const k = E.out(p(lt, s.oldAt, 0.5));
+  s.old.style.opacity = p(lt, s.oldAt, 0.15);
+  s.old.style.transform = `translateY(${(1 - k) * 500}px) rotate(${(1 - k) * 6 - 2}deg)`;
+  s.code.style.filter = lt > s.oldAt ? `brightness(${1 - 0.4 * k})` : 'none';
+  popIn(s.chip, lt, s.oldAt + 0.4);
+});
+scenes[scenes.length - 1].sfx = function (D) {
+  this.draw(this, 0, D);
+  const out = Array.from({ length: 12 }, (_, i) => ({ t: 0.08 * D + (i / 12) * 0.45 * D, type: 'click' }));
+  return out.concat([{ t: this.oldAt, type: 'whoosh' }, { t: this.oldAt + 0.4, type: 'pop' }]);
+};
+
+// ---------- 4: Heute – die echte App
+scene('today', (r, s) => {
+  s.handheld = 1;
+  s.title = el('div', 'abs head', r, 'Today <span class="grad">✨</span>');
+  css(s.title, { top: '200px', fontSize: '100px' });
+  s.a = laptopWin(r, 980, 540, 780);
+  s.chip = el('div', 'chip', r, '<span class="grad" style="font-size:52px">2,000</span> photos · ~20 min');
+  css(s.chip, { left: '50%', top: '1180px', fontSize: '46px' });
+}, (s, lt, D) => {
+  fadeIn(s.title, lt, 0.05);
+  const m = M.main;
+  setImg(s.a.img, frame('main', m.sorting + 1 + lt * ((m.fastEnd - m.sorting - 2) / D)));
+  const k = E.out(p(lt, 0, 0.8));
+  place(s.a, { s: 0.9 + 0.1 * k, rx: 10 * (1 - k), y: 40 * (1 - k) });
+  popIn(s.chip, lt, 0.55 * D);
+});
+scenes[scenes.length - 1].sfx = (D) => [{ t: 0.55 * D, type: 'pop' }];
+
+// ---------- 5: Kostenlos + „Was soll ich als Nächstes bauen?“
+ctaScene({ sub: 'Free for everyone', extra: '💬 What should I build next?' });
+
+start({ captionTop: 1700 });
+</script>
+</body>
+</html>
