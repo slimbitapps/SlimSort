@@ -26,7 +26,12 @@ den Ordner `scripts/video/` übernehmen; nur die Szenen (HTML) und die Aufnahme-
 6. **Fertig machen:** `ffmpeg -i master.mp4 -c:v libx264 -preset slow -crf 20 -af loudnorm=I=-14:TP=-1.5:LRA=11 -c:a aac -b:a 192k -ar 48000 -movflags +faststart FINAL.mp4`
    (Intro: `I=-15`). Untertitel fürs lange Video: `subtitles.py`. Danach **Sync prüfen**: `words.py FINAL.mp4`
    und Standbilder an den Schlüsselwörtern ansehen.
-7. **Paket für den Nutzer:** Video, Thumbnail (1280×720 bzw. 1080×1920, großer Text + echtes Motiv),
+7. **Titelbilder – immer zwei pro Short:** `node scripts/video/shorts/covers.cjs covers.json AUSGABE/`
+   macht pro Eintrag `<name>-YouTube.jpg` (randlos, Titel oben) und `<name>-TikTok-Instagram.jpg`
+   (alles Wichtige in der sicheren Mitte: Profilraster schneidet auf 3:4, TikTok legt unten Text und rechts Knöpfe darüber).
+   Eintrag: `{ "name", "video", "t" | "image", "crop": [x, y, w, h], "title": "… <span class=\"g\">…</span>", "sub" }`.
+   Bei Shorts ohne fertige Stimme ein Standbild mit `render.cjs --stills` erzeugen und als `image` nehmen.
+8. **Paket für den Nutzer:** Video, beide Titelbilder (Intro: 1280×720),
    `UPLOAD.md` mit Titel, Beschreibung (Download-Link), Tags, max. 3 Hashtags, Kapitel (je ≥ 10 s), angepinntem
    Kommentar und Texten für TikTok/Instagram. Kanalbanner 2560×1440 (Inhalt in der Mitte 1546×423).
 
