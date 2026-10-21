@@ -159,10 +159,10 @@ scene('sort', (r, s) => {
   s.r = r;
 }, (s, lt, D) => {
   fadeIn(s.title, lt, 0.05);
-  const sends = [[0.6, 0], [0.74, 1], [0.87, 2]].map(([k, f], i) => ({ t: k * D, f, photo: i }));
+  const sends = [[0.66, 0], [0.76, 1], [0.87, 2]].map(([k, f], i) => ({ t: k * D, f, photo: i }));
   s.ev = sends;
-  popIn(s.app, lt, 0.33 * D);
-  s.app.style.opacity = p(lt, 0.33 * D, 0.15) * (1 - p(lt, sends[0].t - 0.4, 0.2));
+  popIn(s.app, lt, 0.4 * D);
+  s.app.style.opacity = p(lt, 0.4 * D, 0.15) * (1 - p(lt, sends[0].t - 0.4, 0.2));
   drawKeys(s.cap, lt, sends.map((e) => [e.t, [String(e.f + 1)]]));
   const photo = (i) => {
     if (!s.pool[i]) { const d = el('div', 'photo', s.r, '<img/>'); d.querySelector('img').src = HD[(i * 7 + 3) % HD.length]; s.pool[i] = d; }

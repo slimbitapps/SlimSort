@@ -10,11 +10,11 @@ bash "$(dirname "$0")/add-cover.sh" "$M" "$IMG" "$TMP" 0.5 >/dev/null
 if [ "$MUS" != "none" ]; then
   D=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$TMP")
   python3 "$(dirname "$0")/music.py" "$MUS" "$D" "${OUT%.mp4}-music.wav" --seed "$SEED" >/dev/null
-  # Musik ca. 16 % Lautstärke, zusätzlich Ducking über die Stimme (+ Effekte); NODUCK=1 → ohne Ducking
+  # Musik ca. 8 % Lautstärke (geprüft: Stimme bleibt verständlich), zusätzlich Ducking über die Stimme (+ Effekte); NODUCK=1 → ohne Ducking
   if [ -n "$NODUCK" ]; then
-    F="[0:a]aformat=channel_layouts=stereo[v];[1:a]volume=${MUSIC_VOL:-0.16}[md];[v][md]amix=inputs=2:normalize=0:duration=first[a]"
+    F="[0:a]aformat=channel_layouts=stereo[v];[1:a]volume=${MUSIC_VOL:-0.08}[md];[v][md]amix=inputs=2:normalize=0:duration=first[a]"
   else
-    F="[0:a]aformat=channel_layouts=stereo,asplit[v][k];[1:a]volume=${MUSIC_VOL:-0.16}[m];[m][k]sidechaincompress=threshold=0.03:ratio=4:attack=30:release=400[md];[v][md]amix=inputs=2:normalize=0:duration=first[a]"
+    F="[0:a]aformat=channel_layouts=stereo,asplit[v][k];[1:a]volume=${MUSIC_VOL:-0.08}[m];[m][k]sidechaincompress=threshold=0.03:ratio=4:attack=30:release=400[md];[v][md]amix=inputs=2:normalize=0:duration=first[a]"
   fi
   ffmpeg -v error -y -i "$TMP" -i "${OUT%.mp4}-music.wav" -filter_complex "$F" \
     -map 0:v -map "[a]" -c:v copy -c:a pcm_s16le "${OUT%.mp4}-mix.mov"
