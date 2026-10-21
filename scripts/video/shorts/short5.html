@@ -65,13 +65,13 @@ scene('months', (r, s) => {
     css(e, { left: 220 + i * 230 + 'px', top: 640 - 120 * kk + 'px', transform: `rotate(${(i - 1) * 9}deg)`, opacity: kk });
   });
   const months = ['August', 'September', 'October', 'November', 'December', 'January', 'February'];
-  const mi = Math.min(months.length - 1, Math.floor(p(lt, 0.4 * D, 0.5 * D) * months.length));
-  s.cal.style.opacity = p(lt, 0.4 * D, 0.2);
+  const mi = Math.min(months.length - 1, Math.floor(p(lt, 0.58 * D, 0.3 * D) * months.length));
+  s.cal.style.opacity = p(lt, 0.58 * D, 0.2);
   s.m.textContent = months[mi];
-  s.cal.style.transform = `rotateX(${(1 - p((lt - 0.4 * D) % (0.5 * D / months.length), 0, 0.12)) * 30 * (lt > 0.4 * D && mi < months.length - 1 ? 1 : 0)}deg)`;
-  popIn(s.stamp, lt, 0.82 * D);
+  s.cal.style.transform = `rotateX(${(1 - p((lt - 0.58 * D) % (0.3 * D / months.length), 0, 0.12)) * 30 * (lt > 0.58 * D && mi < months.length - 1 ? 1 : 0)}deg)`;
+  popIn(s.stamp, lt, 0.88 * D);
 });
-scenes[scenes.length - 1].sfx = (D) => Array.from({ length: 7 }, (_, i) => ({ t: 0.4 * D + (i * 0.5 * D) / 7, type: 'click' })).concat([{ t: 0.82 * D, type: 'pop' }]);
+scenes[scenes.length - 1].sfx = (D) => Array.from({ length: 7 }, (_, i) => ({ t: 0.58 * D + (i * 0.3 * D) / 7, type: 'click' })).concat([{ t: 0.88 * D, type: 'pop' }]);
 
 // ---------- 2: Jede App war kompliziert, teuer oder Cloud
 scene('apps', (r, s) => {
@@ -85,7 +85,7 @@ scene('apps', (r, s) => {
   });
 }, (s, lt, D) => {
   fadeIn(s.title, lt, 0.05);
-  s.at = [0.12, 0.38, 0.62].map((k) => k * D);
+  s.at = [0.26, 0.43, 0.68].map((k) => k * D);
   s.cards.forEach((c, i) => {
     const k = E.out(p(lt, s.at[i], 0.4));
     c.style.opacity = k;
@@ -127,7 +127,7 @@ scene('build', (r, s) => {
   css(s.chip, { left: '50%', top: '900px', fontSize: '46px' });
 }, (s, lt, D) => {
   fadeIn(s.title, lt, 0.05);
-  s.oldAt = 0.6 * D;
+  s.oldAt = 0.66 * D;
   s.lines.forEach((e, i) => {
     const t = 0.08 * D + (i / s.lines.length) * 0.45 * D;
     e.style.opacity = p(lt, t, 0.08);
@@ -164,7 +164,7 @@ scene('today', (r, s) => {
 scenes[scenes.length - 1].sfx = (D) => [{ t: 0.55 * D, type: 'pop' }];
 
 // ---------- 5: Kostenlos + „Was soll ich als Nächstes bauen?“
-ctaScene({ sub: 'Free for everyone', extra: '💬 What should I build next?' });
+ctaScene({ sub: 'Free for everyone', extra: '💬 What should I build next?', extraAt: 0.7 });
 
 start({ captionTop: 1700 });
 </script>

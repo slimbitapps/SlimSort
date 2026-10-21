@@ -1,0 +1,138 @@
+{
+  "app": "SlimSort",
+  "marker": "Next video.",
+  "music": "pop",
+  "assets": {
+    "avatar": "brand-site/youtube-avatar.png",
+    "banner": "/tmp/claude-0/-home-user/7e052256-d540-5a8d-a0b3-4c46550e68e4/scratchpad/vw2/out/SlimBit-YouTube-Banner.jpg",
+    "logos": {
+      "Symbol-1024.png": "build/icon.png",
+      "Logo.png": "brand-site/logo-full.png",
+      "Logo-Zeichen.png": "brand-site/logo-mark.png"
+    },
+    "screenshots": "marketing/screenshots/en-*.png",
+    "srt": "docs/SlimSort-Intro-EN.srt"
+  },
+  "videos": [
+    {
+      "id": "short4",
+      "folder": "1-Short4-Tricks",
+      "title": "Short 4",
+      "text": "docs/shorts/short4.txt",
+      "page": "scripts/video/shorts/short4.html",
+      "w": 1080,
+      "h": 1920,
+      "lufs": -14,
+      "thumb": "SlimSort-Short4-YouTube.jpg",
+      "upload": "docs/upload/short4.json",
+      "min": "4,5,5,5,4",
+      "thumb_social": "SlimSort-Short4-TikTok-Instagram.jpg",
+      "music": "pop",
+      "seed": 4
+    },
+    {
+      "id": "short5",
+      "folder": "2-Short5-Story",
+      "title": "Short 5",
+      "text": "docs/shorts/short5.txt",
+      "page": "scripts/video/shorts/short5.html",
+      "w": 1080,
+      "h": 1920,
+      "lufs": -14,
+      "thumb": "SlimSort-Short5-YouTube.jpg",
+      "upload": "docs/upload/short5.json",
+      "min": "4,4,5,5,5",
+      "thumb_social": "SlimSort-Short5-TikTok-Instagram.jpg",
+      "music": "lofi",
+      "seed": 5
+    },
+    {
+      "id": "short6",
+      "folder": "3-Short6-Satisfying",
+      "title": "Short 6",
+      "text": null,
+      "page": "scripts/video/shorts/short6.html",
+      "w": 1080,
+      "h": 1920,
+      "lufs": -14,
+      "thumb": "SlimSort-Short6-YouTube.jpg",
+      "upload": "docs/upload/short6.json",
+      "min": "3.5,11.5,4.5",
+      "thumb_social": "SlimSort-Short6-TikTok-Instagram.jpg",
+      "music": "pop",
+      "seed": 6,
+      "novoice": true
+    }
+  ],
+  "done": [
+    {
+      "batch": 1,
+      "videos": [
+        {
+          "id": "intro",
+          "folder": "1-Intro",
+          "title": "Intro",
+          "text": "docs/SPRECHTEXT-INTRO.txt",
+          "page": "scripts/video/intro/compositor.html",
+          "w": 1920,
+          "h": 1080,
+          "lufs": -15,
+          "thumb": "SlimSort-Thumbnail.jpg",
+          "upload": "docs/upload/intro.json",
+          "min": "",
+          "music": "lofi",
+          "seed": 1
+        },
+        {
+          "id": "short1",
+          "folder": "2-Short1-2000-Photos",
+          "title": "Short 1",
+          "text": "docs/shorts/short1.txt",
+          "page": "scripts/video/shorts/short1.html",
+          "w": 1080,
+          "h": 1920,
+          "lufs": -14,
+          "thumb": "SlimSort-Short1-YouTube.jpg",
+          "upload": "docs/upload/short1.json",
+          "min": "",
+          "thumb_social": "SlimSort-Short1-TikTok-Instagram.jpg",
+          "music": "pop",
+          "seed": 1
+        },
+        {
+          "id": "short2",
+          "folder": "3-Short2-One-Key",
+          "title": "Short 2",
+          "text": "docs/shorts/short2.txt",
+          "page": "scripts/video/shorts/short2.html",
+          "w": 1080,
+          "h": 1920,
+          "lufs": -14,
+          "thumb": "SlimSort-Short2-YouTube.jpg",
+          "upload": "docs/upload/short2.json",
+          "min": "4.2,2.8,5.5,3.5,4,3.5,4.5",
+          "thumb_social": "SlimSort-Short2-TikTok-Instagram.jpg",
+          "music": "pop",
+          "seed": 2
+        },
+        {
+          "id": "short3",
+          "folder": "4-Short3-Bursts",
+          "title": "Short 3",
+          "text": "docs/shorts/short3.txt",
+          "page": "scripts/video/shorts/short3.html",
+          "w": 1080,
+          "h": 1920,
+          "lufs": -14,
+          "thumb": "SlimSort-Short3-YouTube.jpg",
+          "upload": "docs/upload/short3.json",
+          "min": "5.5,3,4.5,5,6.5,4.5",
+          "thumb_social": "SlimSort-Short3-TikTok-Instagram.jpg",
+          "music": "pop",
+          "seed": 3
+        }
+      ]
+    }
+  ],
+  "batch": 2
+}

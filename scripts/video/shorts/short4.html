@@ -53,9 +53,9 @@ scene('hook', (r, s) => {
     e.style.opacity = p(lt, 0.6 + i * 0.18, 0.15);
     e.style.transform = `translateY(${(1 - k) * 60}px) scale(${(0.6 + 0.4 * k) * (i === 2 ? 1 + 0.04 * Math.sin(lt * 6) * p(lt, 0.62 * D, 0.2) : 1)})`;
   });
-  popIn(s.chip, lt, 0.62 * D);
+  popIn(s.chip, lt, 0.65 * D);
 });
-scenes[scenes.length - 1].sfx = (D) => [0, 1, 2].map((i) => ({ t: 0.62 + i * 0.18, type: 'pop' })).concat([{ t: 0.62 * D, type: 'whoosh' }]);
+scenes[scenes.length - 1].sfx = (D) => [0, 1, 2].map((i) => ({ t: 0.62 + i * 0.18, type: 'pop' })).concat([{ t: 0.65 * D, type: 'whoosh' }]);
 
 // ---------- 2: Trick 1 – alle auf einmal umbenennen (F2)
 scene('rename', (r, s) => {
@@ -75,7 +75,7 @@ scene('rename', (r, s) => {
   });
 }, (s, lt, D) => {
   fadeIn(s.title, lt, 0.05);
-  const selAt = 0.12 * D, f2At = 0.3 * D, typeAt = 0.4 * D, enterAt = 0.6 * D;
+  const selAt = 0.15 * D, f2At = 0.39 * D, typeAt = 0.48 * D, enterAt = 0.6 * D;
   s.ev = { selAt, f2At, typeAt, enterAt };
   drawKeys(s.cap, lt, [[selAt, ['Ctrl', 'A']], [f2At, ['F2']], [enterAt, ['Enter']]]);
   const typed = 'Holiday'.slice(0, Math.floor(p(lt, typeAt, 0.6) * 7.999));
@@ -123,7 +123,7 @@ scene('search', (r, s) => {
   }
 }, (s, lt, D) => {
   fadeIn(s.title, lt, 0.05);
-  const typeAt = 0.2 * D, showAt = 0.55 * D;
+  const typeAt = 0.2 * D, showAt = 0.6 * D;
   s.ev = { typeAt, showAt };
   const q = 'kind:picture';
   const n = Math.floor(p(lt, typeAt, 1.1) * (q.length + 0.999));
@@ -159,10 +159,10 @@ scene('sort', (r, s) => {
   s.r = r;
 }, (s, lt, D) => {
   fadeIn(s.title, lt, 0.05);
-  const sends = [[0.55, 0], [0.71, 1], [0.86, 2]].map(([k, f], i) => ({ t: k * D, f, photo: i }));
+  const sends = [[0.6, 0], [0.74, 1], [0.87, 2]].map(([k, f], i) => ({ t: k * D, f, photo: i }));
   s.ev = sends;
-  popIn(s.app, lt, 0.12 * D);
-  s.app.style.opacity = p(lt, 0.12 * D, 0.15) * (1 - p(lt, sends[0].t - 0.4, 0.2));
+  popIn(s.app, lt, 0.33 * D);
+  s.app.style.opacity = p(lt, 0.33 * D, 0.15) * (1 - p(lt, sends[0].t - 0.4, 0.2));
   drawKeys(s.cap, lt, sends.map((e) => [e.t, [String(e.f + 1)]]));
   const photo = (i) => {
     if (!s.pool[i]) { const d = el('div', 'photo', s.r, '<img/>'); d.querySelector('img').src = HD[(i * 7 + 3) % HD.length]; s.pool[i] = d; }
@@ -184,8 +184,8 @@ scene('sort', (r, s) => {
     const landed = past.filter((e) => e.f === i && lt >= e.t + 0.48);
     const hit = landed.some((e) => lt < e.t + 0.7);
     f.querySelector('.ct').textContent = photosLabel(landed.length);
-    const ka = E.back(p(lt, 0.4 * D + i * 0.12, 0.45));
-    f.style.opacity = p(lt, 0.4 * D + i * 0.12, 0.2);
+    const ka = E.back(p(lt, 0.52 * D + i * 0.12, 0.45));
+    f.style.opacity = p(lt, 0.52 * D + i * 0.12, 0.2);
     f.style.transform = `translateY(${(1 - ka) * 60}px) scale(${(hit ? 1.08 : 1) * (0.8 + 0.2 * ka)})`;
     f.style.borderColor = hit ? FOLDERS[i][1] : 'rgba(255,255,255,.08)';
   });

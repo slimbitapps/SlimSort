@@ -67,6 +67,6 @@ function ctaScene(opts = {}) {
       e.style.opacity = kk;
       e.style.transform = `translateY(${(1 - kk) * 40}px)` + (i === 2 ? ` scale(${1 + 0.035 * Math.sin(lt * 5) * p(lt, 1.6, 0.3)})` : '');
     });
-    if (s.extra) popIn(s.extra, lt, 1.4);
+    if (s.extra) popIn(s.extra, lt, opts.extraAt ? opts.extraAt * D : 1.4);
   });
 }
