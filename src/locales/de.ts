@@ -486,4 +486,8 @@ export const de = {
   'unit.photos': 'Fotos',
   'unit.video': 'Video',
   'unit.videos': 'Videos',
+
+  'win.minimize': 'Minimieren',
+  'win.maximize': 'Maximieren',
+  'win.restore': 'Verkleinern',
 };

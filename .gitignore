@@ -5,3 +5,5 @@ release/
 .DS_Store
 private/
 video-out/
+src-tauri/target/
+src-tauri/gen/

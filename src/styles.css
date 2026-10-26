@@ -222,9 +222,34 @@ h3 {
 .platform-darwin .header {
   padding-left: 86px; /* Platz für die Ampel-Knöpfe */
 }
-.platform-win32 .header,
-.platform-linux .header {
+.platform-win32 .header {
   padding-right: 148px; /* Platz für die Fensterknöpfe */
+}
+/* Fensterknöpfe (Windows) */
+.win-controls {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 60;
+  display: flex;
+  height: var(--header-h);
+}
+.win-controls button {
+  width: 46px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: default;
+}
+.win-controls button:hover {
+  background: var(--line);
+}
+.win-controls button.close:hover {
+  background: #c42b1c;
+  color: #fff;
 }
 .fullscreen .header {
   padding-left: 16px;

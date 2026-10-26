@@ -1,11 +1,12 @@
 'use strict';
 /**
- * End-to-End-Test: startet die echte App (Electron) und spielt alles durch –
+ * End-to-End-Test: startet die echte App (Tauri, über tauri-driver) und spielt alles durch –
  * Einführung, Einrichtung, Sortieren, Rückgängig, NAS-Ausfall, Einstellungen.
  * Prüft danach, wo die Dateien wirklich liegen.
  *
- *   xvfb-run -a node test/e2e/run.cjs [screenshot-ordner]
- *   FOTOSORT_EXE=release/linux-unpacked/slimsort …   (fertig gebaute App testen)
+ *   npx tauri build --debug --no-bundle && xvfb-run -a node test/e2e/run.cjs [screenshot-ordner]
+ *   FOTOSORT_EXE=src-tauri/target/release/slimsort …   (andere Fassung testen)
+ * Braucht: tauri-driver (cargo install tauri-driver) und WebKitWebDriver (Paket webkit2gtk-driver).
  */
 const path = require('node:path');
 const fs = require('node:fs');
@@ -13,13 +14,7 @@ const os = require('node:os');
 const assert = require('node:assert/strict');
 const { execFileSync } = require('node:child_process');
 
-let playwright;
-try {
-  playwright = require('playwright');
-} catch {
-  playwright = require('/opt/node22/lib/node_modules/playwright');
-}
-const { _electron: electron } = playwright;
+const { launch } = require('./driver.cjs');
 
 const ROOT = path.join(__dirname, '..', '..');
 const SHOTS = process.argv[2] || path.join(os.tmpdir(), 'fotosort-shots');
@@ -59,16 +54,13 @@ async function waitFor(fn, ms = 6000, label = '') {
     })
   );
 
-  const app = await electron.launch({
-    executablePath: process.env.FOTOSORT_EXE || require('electron'),
-    args: process.env.FOTOSORT_EXE ? ['--no-sandbox'] : [ROOT, '--no-sandbox'],
-    env: { ...process.env, FOTOSORT_TEST: '1', FOTOSORT_USERDATA: userData, FOTOSORT_PICK: `${src}|${src2}`, LANG: 'de_DE.UTF-8' },
+  const app = await launch({
+    app: process.env.FOTOSORT_EXE || path.join(ROOT, 'src-tauri', 'target', 'debug', 'slimsort'),
+    env: { FOTOSORT_TEST: '1', FOTOSORT_USERDATA: userData, FOTOSORT_PICK: `${src}|${src2}`, LANG: 'de_DE.UTF-8', WEBKIT_DISABLE_DMABUF_RENDERER: '1' },
   });
-  const win = await app.firstWindow();
-  const errors = [];
-  win.on('pageerror', (e) => errors.push(String(e)));
-  win.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1400, 900));
+  const win = app.page;
+  process.on('exit', () => app.close());
+  globalThis.__app = app;
   const shot = async (name) => {
     await sleep(350);
     await win.screenshot({ path: path.join(SHOTS, name + '.png') });
@@ -264,7 +256,7 @@ async function waitFor(fn, ms = 6000, label = '') {
   await sleep(900);
   await win.keyboard.press('Escape');
   await sleep(900);
-  assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isFullScreen()), false);
+  assert.equal(await win.evaluate(() => window.api.isFullscreen()), false);
 
   // Nie überschreiben
   const cur = (await win.textContent('[data-testid="single-info"]')).match(/IMG_\d+\.JPG/)[0];
@@ -316,6 +308,8 @@ async function waitFor(fn, ms = 6000, label = '') {
   assert.equal(await win.$('[data-testid="coach"]'), null, 'Einführung nur beim ersten Mal');
 
   assert.ok(fs.readFileSync(path.join(userData, 'protokoll.log'), 'utf8').includes('"op"'));
+  // Fehler der Oberfläche landen im Protokoll der App
+  const errors = fs.readFileSync(path.join(userData, 'app.log'), 'utf8').split('\n').filter((l) => / renderer /.test(l));
   const real = errors.filter((e) => !/Autofill|DevTools|404/.test(e));
   if (real.length) console.log('Konsolenfehler:', real);
   assert.equal(real.length, 0, 'keine Fehler in der Oberfläche');
@@ -323,5 +317,9 @@ async function waitFor(fn, ms = 6000, label = '') {
   console.log('\nE2E: alle Prüfungen bestanden ✔  Screenshots:', SHOTS);
 })().catch(async (e) => {
   console.error('E2E FEHLER:', e);
+  if (globalThis.__app) {
+    await globalThis.__app.page.screenshot({ path: path.join(SHOTS, 'zz-fehler.png') }).catch(() => {});
+    await globalThis.__app.close();
+  }
   process.exit(1);
 });

@@ -132,10 +132,30 @@ export interface ProgressEvent {
 export interface AppInfo {
   version: string;
   platform: string;
-  electron: string;
-  chrome: string;
+  arch: string;
   userData: string;
   journal: string;
+}
+
+/** Details zum Foto für die Info-Anzeige (nur, was vorhanden ist) */
+export interface PhotoInfo {
+  width?: number | null;
+  height?: number | null;
+  taken?: number | null;
+  camera?: string | null;
+  lens?: string | null;
+  focal?: string | null;
+  aperture?: string | null;
+  exposure?: string | null;
+  iso?: string | null;
+  flash?: boolean | null;
+  lat?: number | null;
+  lon?: number | null;
+}
+
+export interface FileDropEvent {
+  type: 'enter' | 'leave' | 'drop';
+  paths: string[];
 }
 
 export interface Api {
@@ -158,11 +178,15 @@ export interface Api {
     destDir?: string;
     action: 'move' | 'copy' | 'trash';
     liveVideo: Prefs['liveVideo'];
+    /** Unterordner je Eintrag, z. B. "2025/08" */
+    subdirs?: Record<number, string>;
+    /** neuer Dateiname (ohne Endung) je Eintrag */
+    names?: Record<number, string>;
   }): Promise<boolean>;
   undo(opId: number): Promise<boolean>;
   pending(): Promise<number>;
   trashInfo(dir?: string): Promise<{ dir: string; dirs?: string[]; count: number; bytes: number }>;
-  emptyTrash(): Promise<{ removed: number; pruned: number[] }>;
+  emptyTrash(systemTrash?: boolean): Promise<{ removed: number; pruned: number[]; kept: number }>;
   setWatchedDirs(dirs: string[]): Promise<Record<string, boolean>>;
   checkReach(): Promise<Record<string, boolean>>;
   findLost(o: { missing: string[]; hints: string[] }): Promise<Record<string, string[]>>;
@@ -172,9 +196,21 @@ export interface Api {
   openPath(p: string): Promise<string>;
   openExternal(url: string): Promise<void>;
   clearCache(): Promise<void>;
+  photoInfo(path: string): Promise<PhotoInfo>;
+  fileHashes(paths: string[]): Promise<Record<string, string>>;
+  openWithDefault(p: string): Promise<void>;
+  showWindow(): Promise<void>;
   pathForFile(f: File): string;
   platform: string;
   on(channel: string, cb: (payload: any) => void): () => void;
+  onFileDrop(cb: (e: FileDropEvent) => void): () => void;
+  win: {
+    minimize(): Promise<void>;
+    toggleMaximize(): Promise<void>;
+    close(): Promise<void>;
+    isMaximized(): Promise<boolean>;
+    onResized(cb: () => void): () => void;
+  };
 }
 
 declare global {

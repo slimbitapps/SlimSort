@@ -1,0 +1,60 @@
+[package]
+name = "slimsort"
+version = "2.0.0"
+description = "SlimSort – Fotos per Tastendruck in Ordner sortieren"
+authors = ["SlimBit Apps"]
+edition = "2021"
+rust-version = "1.83"
+
+[lib]
+name = "slimsort_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["sync", "time", "rt", "macros"] }
+sha1 = "0.10"
+hex = "0.4"
+filetime = "0.2"
+dirs = "6"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+kamadak-exif = "0.6"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp", "bmp", "tiff"] }
+jpeg-decoder = "0.3"
+percent-encoding = "2"
+trash = "5"
+num_cpus = "1"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.10"
+core-foundation-sys = "0.8"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_System_Com",
+  "Win32_UI_Shell",
+  "Win32_UI_Shell_Common",
+  "Win32_Graphics_Gdi",
+] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "unwind"
+strip = true
+
+# Bild-Dekodierung auch im Entwicklungsmodus flott
+[profile.dev.package."*"]
+opt-level = 2

@@ -1,0 +1,57 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "SlimSort",
+  "version": "../package.json",
+  "identifier": "app.slimbit.slimsort",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5199",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [],
+    "withGlobalTauri": false,
+    "security": {
+      "csp": {
+        "default-src": "'self' ipc: http://ipc.localhost",
+        "img-src": "'self' data: blob: media: thumb: preview: http://media.localhost http://thumb.localhost http://preview.localhost",
+        "media-src": "'self' blob: media: http://media.localhost",
+        "connect-src": "'self' ipc: http://ipc.localhost media: thumb: preview: http://media.localhost http://thumb.localhost http://preview.localhost https://api.github.com",
+        "worker-src": "'self' blob:",
+        "script-src": "'self' 'wasm-unsafe-eval'",
+        "style-src": "'self' 'unsafe-inline'",
+        "font-src": "'self' data:"
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "dmg", "app", "appimage"],
+    "category": "Photography",
+    "shortDescription": "Sort photos into folders with one key",
+    "longDescription": "SlimSort sorts photos and videos into folders with one key press – safely, without ever overwriting anything.",
+    "copyright": "SlimBit Apps",
+    "publisher": "SlimBit Apps",
+    "homepage": "https://slimbitapps.github.io/SlimSort/",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["German", "English"],
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico",
+        "installerHooks": "./windows/hooks.nsh"
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "dmg": {
+        "background": "../build/background.png",
+        "windowSize": { "width": 660, "height": 420 },
+        "appPosition": { "x": 170, "y": 215 },
+        "applicationFolderPosition": { "x": 490, "y": 215 }
+      }
+    }
+  }
+}

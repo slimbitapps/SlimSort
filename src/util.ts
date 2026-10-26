@@ -2,9 +2,14 @@ import { getLocale, t } from './i18n';
 import type { Item, SortBy } from './types';
 
 const enc = encodeURIComponent;
-export const mediaUrl = (p: string) => `media://f/?p=${enc(p)}`;
-export const thumbUrl = (p: string, s = 256) => `thumb://f/?p=${enc(p)}&s=${s}`;
-export const previewUrl = (p: string, s = 2048) => `preview://f/?p=${enc(p)}&s=${s}`;
+// Eigene Adressen der App (Tauri): Windows nutzt http://<name>.localhost, macOS/Linux <name>://localhost
+const scheme = (name: string) => (navigator.userAgent.includes('Windows') ? `http://${name}.localhost/` : `${name}://localhost/`);
+const MEDIA = scheme('media');
+const THUMB = scheme('thumb');
+const PREVIEW = scheme('preview');
+export const mediaUrl = (p: string) => `${MEDIA}?p=${enc(p)}`;
+export const thumbUrl = (p: string, s = 256) => `${THUMB}?p=${enc(p)}&s=${s}`;
+export const previewUrl = (p: string, s = 2048) => `${PREVIEW}?p=${enc(p)}&s=${s}`;
 
 const BROWSER_IMG = new Set(['.jpg', '.jpeg', '.jpe', '.png', '.gif', '.webp', '.avif', '.bmp']);
 export const browserCanShow = (ext: string) => BROWSER_IMG.has(ext);

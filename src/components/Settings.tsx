@@ -630,7 +630,7 @@ function AboutTab() {
       <div className="row small faint" style={{ justifyContent: 'space-between' }}>
         <span>{t('about.copyright', { year: new Date().getFullYear() })}</span>
         <span>
-          Electron {info?.electron} · {info?.platform}
+          {info?.platform} · {info?.arch}
         </span>
       </div>
     </>

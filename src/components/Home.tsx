@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { t } from '../i18n';
 import {
   useStore, beginSetup, pickSetupSource, runQuickStart, sortedRecents, forgetRecent, togglePinRecent, openDialog,
@@ -15,12 +15,25 @@ export function Home() {
   const [drag, setDrag] = useState(false);
   const recents = sortedRecents(quick);
 
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDrag(false);
-    const paths = [...e.dataTransfer.files].map((f) => window.api.pathForFile(f)).filter(Boolean);
-    if (paths.length) beginSetup(paths);
-  };
+  // Ordner (oder Fotos) aus dem Explorer/Finder hineinziehen – bei Dateien zählt ihr Ordner
+  useEffect(
+    () =>
+      window.api.onFileDrop(async (e) => {
+        if (e.type === 'enter') setDrag(true);
+        else if (e.type === 'leave') setDrag(false);
+        else {
+          setDrag(false);
+          const dirs: string[] = [];
+          for (const p of e.paths) {
+            const r = await window.api.checkDir(p);
+            const d = r.ok || r.code !== 'ENOTDIR' ? p : await window.api.parentDir(p);
+            if (!dirs.includes(d)) dirs.push(d);
+          }
+          if (dirs.length) beginSetup(dirs);
+        }
+      }),
+    []
+  );
 
   return (
     <div className="screen" data-testid="home">
@@ -30,15 +43,7 @@ export function Home() {
           <p>{t('home.sub')}</p>
         </div>
 
-        <div
-          className={`dropzone ${drag ? 'drag' : ''}`}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDrag(true);
-          }}
-          onDragLeave={() => setDrag(false)}
-          onDrop={onDrop}
-        >
+        <div className={`dropzone ${drag ? 'drag' : ''}`}>
           <div className="dz-icon">
             <IconFolderPlus size={30} />
           </div>

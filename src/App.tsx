@@ -7,6 +7,7 @@ import {
   comparePage,
 } from './store';
 import { TooltipLayer } from './components/Tooltip';
+import { WindowControls } from './components/WindowControls';
 import { Header } from './components/Header';
 import { Onboarding } from './components/Onboarding';
 import { Home } from './components/Home';
@@ -301,13 +302,16 @@ export function App() {
   useTheme();
 
   useEffect(() => {
-    init();
+    init().finally(() => requestAnimationFrame(() => window.api.showWindow()));
     window.addEventListener('keydown', onKeyDown);
     const onErr = (e: ErrorEvent) => window.api.log(`window.error: ${e.message} ${e.error?.stack || ''}`);
+    const onRej = (e: PromiseRejectionEvent) => window.api.log(`unhandledrejection: ${e.reason?.stack || e.reason}`);
     window.addEventListener('error', onErr);
+    window.addEventListener('unhandledrejection', onRej);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('error', onErr);
+      window.removeEventListener('unhandledrejection', onRej);
     };
   }, []);
 
@@ -344,6 +348,7 @@ export function App() {
           {t('ses.focusExit')}
         </button>
       )}
+      {window.api.platform === 'win32' && !fullscreen && !zen && <WindowControls />}
       <Dialogs />
       <Coach />
       <TooltipLayer />

@@ -472,4 +472,8 @@ export const en: Dict = {
   'unit.photos': 'photos',
   'unit.video': 'video',
   'unit.videos': 'videos',
+
+  'win.minimize': 'Minimize',
+  'win.maximize': 'Maximize',
+  'win.restore': 'Restore',
 };
