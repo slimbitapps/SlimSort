@@ -162,7 +162,7 @@ export const fr: Dict = {
   'menu.help': 'Aide',
   'menu.shortcuts': 'Raccourcis clavier',
   'menu.summary': 'Afficher le bilan',
-  'menu.trash': 'Vider la corbeille …',
+  'menu.trash': 'Vider le dossier des supprimés …',
   'menu.lost': 'Rechercher des dossiers perdus …',
   'menu.about': 'À propos',
 
@@ -210,7 +210,7 @@ export const fr: Dict = {
   'summary.continue': 'Continuer le tri',
   'summary.home': 'Retour à l’accueil',
 
-  'trash.title': 'Vider la corbeille',
+  'trash.title': 'Vider le dossier des supprimés',
   'trash.info': 'La corbeille de l’app contient {n} fichiers ({size}).',
   'trash.warn': 'Ces fichiers seront supprimés définitivement. Cette action est irréversible.',
   'trash.empty': 'Supprimer définitivement',
@@ -554,4 +554,8 @@ export const fr: Dict = {
   'update.current': 'Vous avez la dernière version ({v}).',
   'update.download': 'Télécharger',
   'update.failed': 'Impossible de vérifier les mises à jour (pas de connexion ?)',
+
+  'trash.emptySystem': 'Mettre à la corbeille',
+
+  'dupes.found1': '1 doublon trouvé ({size})',
 };

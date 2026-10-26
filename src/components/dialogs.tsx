@@ -181,7 +181,7 @@ function TrashDialog() {
               closeDialog();
             }}
           >
-            {t('trash.empty')}
+            {sysTrash ? t('trash.emptySystem') : t('trash.empty')}
           </button>
         </>
       }

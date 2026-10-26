@@ -162,7 +162,7 @@ export const en: Dict = {
   'menu.help': 'Help',
   'menu.shortcuts': 'Keyboard shortcuts',
   'menu.summary': 'Show summary',
-  'menu.trash': 'Empty trash …',
+  'menu.trash': 'Empty deleted folder …',
   'menu.lost': 'Find lost folders …',
   'menu.about': 'About',
 
@@ -210,7 +210,7 @@ export const en: Dict = {
   'summary.continue': 'Keep sorting',
   'summary.home': 'Back to start',
 
-  'trash.title': 'Empty trash',
+  'trash.title': 'Empty deleted folder',
   'trash.info': 'The app trash contains {n} files ({size}).',
   'trash.warn': 'These files will be deleted permanently. This cannot be undone.',
   'trash.empty': 'Delete permanently',
@@ -554,4 +554,8 @@ export const en: Dict = {
   'update.current': 'You have the latest version ({v}).',
   'update.download': 'Download',
   'update.failed': 'Could not check for updates (no connection?)',
+
+  'trash.emptySystem': 'Move to trash',
+
+  'dupes.found1': 'Found 1 duplicate photo ({size})',
 };

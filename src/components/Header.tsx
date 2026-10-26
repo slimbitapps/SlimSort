@@ -162,7 +162,7 @@ function SessionHeader() {
       </button>
       {expert && (
         <>
-          <button className="btn icon ghost" onClick={(e) => viewMenu.open(e, 'right', 250)} {...tip(t('ses.options'), t('tip.options'))}>
+          <button className="btn icon ghost" data-testid="view-menu" onClick={(e) => viewMenu.open(e, 'right', 250)} {...tip(t('ses.options'), t('tip.options'))}>
             <IconSliders size={18} />
           </button>
           <button className="btn icon ghost" onClick={() => setZen(true)} {...tip(t('ses.focus'), t('tip.zen'), 'F10')}>
@@ -184,7 +184,7 @@ function SessionHeader() {
       <MenuPopup at={viewMenu.at} onClose={viewMenu.close}>
         <div className="mh">{t('ses.filter')}</div>
         {(['all', 'images', 'videos', 'skipped', ...(s.dupes.size ? ['duplicates'] : [])] as Filter[]).map((f) => (
-          <button key={f} className="mi" onClick={() => updatePrefs({ filter: f })}>
+          <button key={f} className="mi" data-testid={`filter-${f}`} onClick={() => updatePrefs({ filter: f })}>
             {check(prefs.filter === f)}
             {t(`ses.filter.${f}`)}
           </button>

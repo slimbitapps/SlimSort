@@ -156,6 +156,41 @@ class Page {
     await sleep(120); // der Oberfläche Zeit zum Neuzeichnen geben (wie Playwrights Auto-Warten)
   }
 
+  /** Mit der Maus von einem Element zu einem anderen ziehen (echte Zeiger-Ereignisse) */
+  async dragTo(fromId, toSelector) {
+    const to = await this.waitForSelector(toSelector);
+    const steps = [];
+    for (let i = 1; i <= 6; i++) steps.push({ type: 'pointerMove', duration: 40, origin: { [ELEMENT]: to }, x: Math.round(-60 + i * 10), y: 0 });
+    await this.cmd('POST', '/actions', {
+      actions: [
+        {
+          type: 'pointer',
+          id: 'mouse',
+          parameters: { pointerType: 'mouse' },
+          actions: [
+            { type: 'pointerMove', duration: 0, origin: { [ELEMENT]: fromId }, x: 0, y: 0 },
+            { type: 'pointerDown', button: 0 },
+            { type: 'pointerMove', duration: 60, origin: { [ELEMENT]: fromId }, x: 15, y: 10 },
+            ...steps,
+            { type: 'pointerUp', button: 0 },
+          ],
+        },
+      ],
+    });
+    await this.cmd('DELETE', '/actions');
+    await sleep(150);
+  }
+
+  /** Rechtsklick auf ein Element */
+  async rightClick(selector) {
+    const id = await this.waitForSelector(selector);
+    await this.cmd('POST', '/actions', {
+      actions: [{ type: 'pointer', id: 'mouse', parameters: { pointerType: 'mouse' }, actions: [{ type: 'pointerMove', duration: 0, origin: { [ELEMENT]: id }, x: 0, y: 0 }, { type: 'pointerDown', button: 2 }, { type: 'pointerUp', button: 2 }] }],
+    });
+    await this.cmd('DELETE', '/actions');
+    await sleep(150);
+  }
+
   async hover(selector) {
     const id = await this.waitForSelector(selector);
     await this.cmd('POST', '/actions', { actions: [{ type: 'pointer', id: 'mouse', parameters: { pointerType: 'mouse' }, actions: [{ type: 'pointerMove', duration: 0, origin: { [ELEMENT]: id }, x: 0, y: 0 }] }] });

@@ -780,7 +780,7 @@ export async function findDuplicates() {
       set({ session: { ...s, rev: s.rev + 1 } });
       return;
     }
-    toast('success', t('dupes.found', { n: s.dupes.size, size: fmtBytes(bytes) }), {
+    toast('success', t(s.dupes.size === 1 ? 'dupes.found1' : 'dupes.found', { n: s.dupes.size, size: fmtBytes(bytes) }), {
       timeout: 12000,
       action: {
         label: t('dupes.show'),

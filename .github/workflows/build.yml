@@ -39,7 +39,9 @@ jobs:
       - name: App bauen + E2E-Test
         run: |
           npx tauri build --debug --no-bundle
+          pip install --break-system-packages pillow-heif || true
           xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/run.cjs e2e-shots
+          xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/v2.cjs e2e-shots/v2
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: e2e-screenshots, path: e2e-shots, if-no-files-found: ignore }

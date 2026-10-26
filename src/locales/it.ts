@@ -162,7 +162,7 @@ export const it: Dict = {
   'menu.help': 'Aiuto',
   'menu.shortcuts': 'Scorciatoie da tastiera',
   'menu.summary': 'Mostra riepilogo',
-  'menu.trash': 'Svuota cestino …',
+  'menu.trash': 'Svuota cartella eliminati …',
   'menu.lost': 'Cerca cartelle perse …',
   'menu.about': 'Informazioni',
 
@@ -210,7 +210,7 @@ export const it: Dict = {
   'summary.continue': 'Continua a smistare',
   'summary.home': 'Torna alla home',
 
-  'trash.title': 'Svuota cestino',
+  'trash.title': 'Svuota cartella eliminati',
   'trash.info': 'Il cestino dell’app contiene {n} file ({size}).',
   'trash.warn': 'Questi file verranno eliminati definitivamente. L’operazione non si può annullare.',
   'trash.empty': 'Elimina definitivamente',
@@ -554,4 +554,8 @@ export const it: Dict = {
   'update.current': 'Hai l’ultima versione ({v}).',
   'update.download': 'Scarica',
   'update.failed': 'Impossibile controllare (nessuna connessione?)',
+
+  'trash.emptySystem': 'Sposta nel cestino',
+
+  'dupes.found1': 'Trovata 1 foto doppia ({size})',
 };

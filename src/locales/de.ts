@@ -167,7 +167,7 @@ export const de = {
   'menu.help': 'Hilfe',
   'menu.shortcuts': 'Tastenkürzel',
   'menu.summary': 'Bilanz anzeigen',
-  'menu.trash': 'Papierkorb leeren …',
+  'menu.trash': 'Löschordner leeren …',
   'menu.lost': 'Verlorene Ordner suchen …',
   'menu.about': 'Über die App',
 
@@ -219,7 +219,7 @@ export const de = {
   'summary.home': 'Zur Startseite',
 
   // Papierkorb
-  'trash.title': 'Papierkorb leeren',
+  'trash.title': 'Löschordner leeren',
   'trash.info': 'Im Papierkorb der App liegen {n} Dateien ({size}).',
   'trash.warn': 'Diese Dateien werden endgültig gelöscht. Das kann nicht rückgängig gemacht werden.',
   'trash.empty': 'Endgültig löschen',
@@ -568,4 +568,8 @@ export const de = {
   'update.current': 'Du hast die neueste Version ({v}).',
   'update.download': 'Herunterladen',
   'update.failed': 'Konnte nicht nach Updates schauen (keine Verbindung?)',
+
+  'trash.emptySystem': 'In den Papierkorb',
+
+  'dupes.found1': '1 doppeltes Foto gefunden ({size})',
 };

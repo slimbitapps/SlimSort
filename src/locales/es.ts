@@ -162,7 +162,7 @@ export const es: Dict = {
   'menu.help': 'Ayuda',
   'menu.shortcuts': 'Atajos de teclado',
   'menu.summary': 'Ver resumen',
-  'menu.trash': 'Vaciar papelera …',
+  'menu.trash': 'Vaciar carpeta de eliminados …',
   'menu.lost': 'Buscar carpetas perdidas …',
   'menu.about': 'Acerca de',
 
@@ -210,7 +210,7 @@ export const es: Dict = {
   'summary.continue': 'Seguir ordenando',
   'summary.home': 'Volver al inicio',
 
-  'trash.title': 'Vaciar papelera',
+  'trash.title': 'Vaciar carpeta de eliminados',
   'trash.info': 'La papelera de la app contiene {n} archivos ({size}).',
   'trash.warn': 'Estos archivos se eliminarán definitivamente. No se puede deshacer.',
   'trash.empty': 'Eliminar definitivamente',
@@ -554,4 +554,8 @@ export const es: Dict = {
   'update.current': 'Tienes la última versión ({v}).',
   'update.download': 'Descargar',
   'update.failed': 'No se pudo comprobar (¿sin conexión?)',
+
+  'trash.emptySystem': 'Mover a la papelera',
+
+  'dupes.found1': 'Se encontró 1 foto duplicada ({size})',
 };
