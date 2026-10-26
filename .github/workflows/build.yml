@@ -16,6 +16,11 @@ on:
     paths-ignore: ['website/**', 'brand-site/**', 'docs/**', 'marketing/**', 'scripts/video/**', '*.md', '.github/workflows/pages.yml']
   workflow_dispatch:
 
+# Neuer Push auf denselben Zweig bricht ältere, noch laufende Durchläufe ab
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # Tests: Rust-Logik + Oberfläche + kompletter Durchlauf mit der echten App (Linux)
   test:
@@ -36,12 +41,22 @@ jobs:
       - run: npm test
       - name: tauri-driver
         run: cargo install tauri-driver --locked
-      - name: App bauen + E2E-Test
+      - name: App bauen
+        run: npx tauri build --debug --no-bundle
+      - name: E2E-Test
+        shell: bash
         run: |
-          npx tauri build --debug --no-bundle
           pip install --break-system-packages pillow-heif || true
-          xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/run.cjs e2e-shots
-          xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/v2.cjs e2e-shots/v2
+          mkdir -p e2e-shots
+          set -o pipefail
+          ok=0
+          xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/run.cjs e2e-shots 2>&1 | tee e2e-shots/run.log || ok=1
+          xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/v2.cjs e2e-shots/v2 2>&1 | tee e2e-shots/v2.log || ok=1
+          if [ $ok != 0 ]; then
+            # letzte Zeilen als Hinweise anzeigen (Logs sind sonst nicht überall abrufbar)
+            for f in e2e-shots/*.log; do tail -n 12 "$f" | sed "s|^|::error title=$f::|"; done
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: e2e-screenshots, path: e2e-shots, if-no-files-found: ignore }
