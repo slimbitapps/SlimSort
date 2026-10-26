@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { heicUrl, isHeic } from '../heic';
-import { goTo, currentIndex, step, type SessionState } from '../store';
+import { goTo, currentIndex, step, openPhotoMenu, type SessionState } from '../store';
 import { browserCanShow, mediaUrl, thumbUrl } from '../util';
 import { IconVideo } from '../icons';
 
@@ -46,6 +46,10 @@ export function Filmstrip({ s }: { s: SessionState }) {
         className={`fs-item ${k === cur ? 'current' : ''} ${s.skipped.has(id) ? 'skipped' : ''} ${s.seriesOf.has(id) ? 'in-series' : ''}`}
         style={{ left: x }}
         title={it.name}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          openPhotoMenu(id, e.clientX, e.clientY);
+        }}
       >
         <img src={thumbUrl(it.path, 256)} loading="lazy" decoding="async" alt="" draggable={false} onError={(e) => {
             // Ersatz: Original (der Browser verkleinert selbst), sonst ausblenden
@@ -70,6 +74,7 @@ export function Filmstrip({ s }: { s: SessionState }) {
       data-testid="filmstrip"
       onWheel={(e) => step(Math.sign(e.deltaY || e.deltaX))}
       onPointerDown={(e) => {
+        if (e.button !== 0) return;
         e.currentTarget.setPointerCapture(e.pointerId);
         setDrag({ startX: e.clientX, startIdx: cur, dx: 0, moved: false });
       }}
