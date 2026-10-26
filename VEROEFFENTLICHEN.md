@@ -35,6 +35,7 @@ Hier liegt der Code, hier werden die Installer automatisch gebaut, hier liegt di
 4. Bei GitHub unter **Settings → Secrets and variables → Actions** eintragen:
    - `MAC_CERT_P12_BASE64` – die `.p12`-Datei als Base64 (Terminal: `base64 -i zertifikat.p12 | pbcopy`)
    - `MAC_CERT_PASSWORD` – Passwort der `.p12`
+   - `APPLE_SIGNING_IDENTITY` – Name des Zertifikats, z. B. `Developer ID Application: Vorname Nachname (TEAMID)`
    - `APPLE_ID` – deine Apple-ID (E-Mail)
    - `APPLE_APP_SPECIFIC_PASSWORD` – das app-spezifische Passwort
    - `APPLE_TEAM_ID` – 10-stellige Team-ID (steht im Developer-Portal unter „Membership“)
@@ -46,16 +47,17 @@ Ab dann ist jede neue Mac-Version automatisch signiert und notarisiert.
 
 1. Auf storedeveloper.microsoft.com als **Einzelentwickler** registrieren.
 2. Im Partner Center **neue App** anlegen, Namen „SlimSort“ reservieren.
-3. Unter **Produktidentität** stehen drei Werte. Diese in `package.json` im Abschnitt `"appx"` eintragen:
+3. Unter **Produktidentität** stehen drei Werte. Diese in `src-tauri/windows/store.json` eintragen:
    `identityName`, `publisher` (beginnt mit `CN=`), `publisherDisplayName`.
-4. GitHub baut dann zusätzlich `SlimSort-Store.appx` – diese Datei im Partner Center hochladen.
+4. GitHub baut bei jedem Lauf zusätzlich `SlimSort-Store.msix` (unter „Actions“ → Lauf → „Artifacts“) –
+   diese Datei im Partner Center hochladen.
 5. Nach der Prüfung durch Microsoft: Store-Link in `website/index.html` bei `STORE_URL` eintragen
    und `WIN_SIGNED = true` setzen.
 
 Der direkte Download (`SlimSort-Setup.exe`) bleibt zusätzlich bestehen. Ohne eigenes
 Zertifikat zeigt Windows dort weiterhin „Weitere Informationen → Trotzdem ausführen“.
-Wer das auch wegbekommen will, braucht ein Code-Signing-Zertifikat und trägt es als
-`WIN_CERT_P12_BASE64` / `WIN_CERT_PASSWORD` bei GitHub ein.
+Wer das auch wegbekommen will, braucht ein (kostenpflichtiges) Code-Signing-Zertifikat;
+das muss dann zusätzlich in `.github/workflows/build.yml` eingebaut werden.
 
 ---
 

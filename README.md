@@ -14,6 +14,9 @@ Free · no ads · no account · works offline · never overwrites anything.
 - **NAS-friendly** – target folders can be on a network drive; if it goes offline, the photo simply stays where it is.
 - **Burst shots** – finds series of similar photos, compares them side by side with synchronized zoom and suggests the sharpest one.
 - **Real-world libraries** – tens of thousands of photos stay smooth; JPG, PNG, HEIC, WebP, TIFF, RAW (DNG, CR2, CR3, NEF, ARW, RAF, ORF, RW2) and videos; Live Photos and sidecar files (.xmp, .aae) move along.
+- **Sort by date** – optional year/month subfolders per target and renaming by capture date.
+- **Duplicates, search, info** – find exact duplicates, filter by name, show EXIF details (camera, lens, GPS).
+- **Small & fast** – under 10 MB download, starts instantly (built with Tauri).
 - **Private** – no telemetry, no cloud. Your photos never leave your computer.
 - English, German, French, Spanish, Italian · light & dark theme · simple and expert mode.
 
@@ -66,6 +69,8 @@ Französisch, Spanisch, Italienisch), **Aussehen** (hell, dunkel, automatisch), 
 | F11 | Vollbild · **Esc** beendet es immer |
 | F10 | Nur Bild |
 | F1 | Hilfe & Tastenkürzel |
+| I | Foto-Infos ein/aus (Kamera, Objektiv, Ort …) |
+| Rechtsklick auf ein Foto | Menü: verschieben, vergleichen, im Ordner zeigen, öffnen, löschen |
 | Shift + Ordner-Taste | Ganze Serie in diesen Ordner |
 | Im Vergleich: Shift + 1…6 | Nur dieses Foto behalten |
 | Im Vergleich: Enter | Fertig – Behaltene bleiben, Rest in den Papierkorb |
@@ -89,6 +94,20 @@ Zuletzt verwendete Sortierungen erscheinen auf der Startseite und starten per Kl
 
 ## Stand der Entwicklung
 
+**Version 2.0** – komplett neu gebaut mit **Tauri** statt Electron: Download unter 10 MB statt über 100 MB,
+startet schneller und braucht weniger Arbeitsspeicher. Neu:
+- **Vergleich ohne Abdunkeln** – alle Fotos werden gleich hell gezeigt, das ausgewählte nur mit Rahmen.
+- **Fotos per Maus auf einen Zielordner ziehen** (auch mehrere ausgewählte).
+- **Rechtsklick-Menü** auf jedem Foto und **Info-Anzeige** (Taste I) mit Aufnahmedatum, Kamera, Objektiv, Belichtung, Ort.
+- **Datums-Unterordner je Ziel** (Jahr, Jahr/Monat oder Jahr/Monat/Tag) und **Umbenennen nach Aufnahmedatum**.
+- **Doppelte Fotos finden** (inhaltsgleich, per Prüfsumme) und **Suche** nach Namen in der Übersicht.
+- **Weitermachen, wo du aufgehört hast**, beim erneuten Öffnen einer Sortierung.
+- **Eigene Tasten** für Überspringen, Löschen und „Anderer Ordner“.
+- **Aussehen anpassen**: Akzentfarbe, Hintergrund der Bildansicht, Größe der Oberfläche.
+- Löschordner auf Wunsch in den **Papierkorb des Systems** leeren (wiederherstellbar).
+- HEIC-Fotos werden überall angezeigt, Videos zeigen ein Standbild als Vorschau.
+- Hinweis, wenn eine neue Version erscheint (abschaltbar).
+
 **Version 1.0** – erste offizielle Version unter dem Namen SlimSort.
 
 **Version 0.3** – Serien erkennen & vergleichen (gemeinsames Zoomen, Empfehlung des schärfsten Fotos,
@@ -105,27 +124,30 @@ Verschieben/Kopieren, unbegrenztes Rückgängig, Filter & Reihenfolge, Profile, 
 Live Photos, Zielvorschlag, Fortschritt mit Restzeit, Bilanz, NAS-Überwachung,
 „Verlorene Ordner suchen“, Hell/Dunkel, Deutsch/Englisch, Hilfe-„?“.
 
-**Als Nächstes:** Version 2 mit neuen Funktionen, danach Android.
+**Als Nächstes:** Android.
 
 ---
 
 ## Für Entwickler
 
-Technik: Electron (Fenster + Dateizugriff), React + TypeScript (Oberfläche), Vite (Bauen).
+Technik: Tauri 2 (Rust: Fenster, Dateizugriff, Vorschaubilder), React + TypeScript (Oberfläche), Vite (Bauen).
+Voraussetzungen: Node.js 22 und Rust (https://rustup.rs). Unter Linux zusätzlich die WebKitGTK-Pakete.
 
 ```bash
 npm install
-npm start            # App bauen und starten
-npm test             # Sicherheitstests (Verschieben, Rückgängig, NAS …)
-npm run test:e2e     # echte App automatisch durchklicken (braucht Playwright)
-npm run dist:win     # Windows-Installer (auf Windows)
-npm run dist:mac     # Mac-DMG (auf einem Mac)
+npm start            # App im Entwicklungsmodus starten
+npm test             # Tests (Rust-Dateilogik + Oberfläche)
+npm run test:e2e     # echte App automatisch durchklicken (Linux, braucht tauri-driver)
+npm run dist         # Installer für das aktuelle System bauen
 ```
 
 Aufbau:
-- `electron/core/` – Dateilogik ohne Oberfläche (sicheres Verschieben, Warteschlange, Rückgängig, NAS-Prüfung)
-- `electron/main.cjs` – Fenster, Vorschaubilder, Verbindung zur Oberfläche
-- `src/` – Oberfläche (React); Texte aller Sprachen in `src/i18n.ts`
+- `src-tauri/src/fsops.rs` – sicheres Verschieben/Kopieren mit Prüfsumme
+- `src-tauri/src/session.rs` – Warteschlange, Rückgängig, Löschordner, Protokoll
+- `src-tauri/src/reach.rs` – NAS-/Laufwerks-Überwachung
+- `src-tauri/src/thumbs.rs`, `protocol.rs` – Vorschaubilder und Auslieferung an die Oberfläche
+- `src-tauri/src/lib.rs` – Fenster und Befehle für die Oberfläche
+- `src/` – Oberfläche (React); `src/bridge.ts` verbindet sie mit Rust; Texte in `src/locales/`
 - `test/` – automatische Tests
 
 Installer werden per GitHub Actions automatisch gebaut (`.github/workflows/build.yml`).

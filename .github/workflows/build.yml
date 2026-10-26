@@ -65,12 +65,17 @@ jobs:
           cp src-tauri/target/release/slimsort.exe release/SlimSort.exe
           cd release && 7z a -tzip SlimSort-Windows-portable.zip SlimSort.exe && rm SlimSort.exe
           ls -la
+      - name: Microsoft-Store-Paket (.msix)
+        continue-on-error: true
+        shell: pwsh
+        run: ./src-tauri/windows/make-msix.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: SlimSort-Windows
           path: |
             release/*.exe
             release/*.zip
+            release/*.msix
           if-no-files-found: error
 
   mac:
