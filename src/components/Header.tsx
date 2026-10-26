@@ -1,7 +1,7 @@
 import { t } from '../i18n';
 import {
   useStore, goHome, openDialog, setView, undo, setZen, toggleFullscreen, updatePrefs, setActiveProfile, otherFolder,
-  openCompare, seriesCount, type Progress,
+  openCompare, seriesCount, setQuery, findDuplicates, type Progress,
 } from '../store';
 import type { Filter, SortBy } from '../types';
 import { Logo, MenuPopup, useMenu } from './ui';
@@ -9,7 +9,7 @@ import { SetupStepper } from './Setup';
 import { tip } from './Tooltip';
 import {
   IconArrowLeft, IconGrid, IconImage, IconUndo, IconEye, IconMaximize, IconMinimize, IconSettings, IconHelp,
-  IconMore, IconSliders, IconCheck, IconTrash, IconSearch, IconChart, IconKeyboard, IconInfo, IconFolderOut, IconLayers,
+  IconMore, IconSliders, IconCheck, IconTrash, IconSearch, IconChart, IconKeyboard, IconInfo, IconFolderOut, IconLayers, IconCopy,
 } from '../icons';
 import { basename, fmtBytes, fmtDuration, fmtNum, modKey } from '../util';
 
@@ -124,6 +124,23 @@ function SessionHeader() {
 
       <span className="spacer" />
 
+      {s.view === 'grid' && !s.compare && (
+        <input
+          className="input sm ses-search no-drag"
+          type="search"
+          placeholder={t('ses.search')}
+          defaultValue={s.query}
+          data-testid="search"
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.currentTarget.value = '';
+              setQuery('');
+              e.currentTarget.blur();
+            }
+          }}
+        />
+      )}
       {s.view === 'grid' && s.selection.size >= 2 && !s.compare && (
         <button className="btn sm primary" onClick={openCompare} data-testid="compare-selection" {...tip(t('series.compareSel'), t('tip.compareSel'))}>
           <IconLayers size={15} />
@@ -166,7 +183,7 @@ function SessionHeader() {
 
       <MenuPopup at={viewMenu.at} onClose={viewMenu.close}>
         <div className="mh">{t('ses.filter')}</div>
-        {(['all', 'images', 'videos', 'skipped'] as Filter[]).map((f) => (
+        {(['all', 'images', 'videos', 'skipped', ...(s.dupes.size ? ['duplicates'] : [])] as Filter[]).map((f) => (
           <button key={f} className="mi" onClick={() => updatePrefs({ filter: f })}>
             {check(prefs.filter === f)}
             {t(`ses.filter.${f}`)}
@@ -227,6 +244,17 @@ function SessionHeader() {
           <IconChart size={16} />
           {t('menu.summary')}
         </button>
+        <button className="mi" onClick={findDuplicates} data-testid="find-dupes">
+          <IconCopy size={16} />
+          {t('menu.dupes')}
+        </button>
+        {s.dupes.size > 0 && prefs.filter !== 'duplicates' && (
+          <button className="mi" onClick={() => { setView('grid'); updatePrefs({ filter: 'duplicates' }); }}>
+            <IconLayers size={16} />
+            {t('dupes.show')}
+            <span className="k">{s.dupes.size}</span>
+          </button>
+        )}
         <button className="mi" onClick={() => openDialog({ type: 'trash' })}>
           <IconTrash size={16} />
           {t('menu.trash')}

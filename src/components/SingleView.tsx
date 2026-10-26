@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
 import {
-  useStore, currentItem, currentIndex, step, setView, openSeriesOf, openCompare, type SessionState,
+  useStore, currentItem, currentIndex, step, setView, openSeriesOf, openCompare, photoDrag, openPhotoMenu, type SessionState,
 } from '../store';
+import { beginDrag } from '../dnd';
+import { InfoPanel } from './InfoPanel';
 import { browserCanShow, displayUrl, fullUrl, mediaUrl, fmtBytes, fmtDate, fmtNum, itemTime, clamp, previewSize } from '../util';
 import { IconChevronLeft, IconChevronRight, IconFolderOut, IconLive, IconMaximize, IconLayers } from '../icons';
 import { tip } from './Tooltip';
@@ -22,6 +24,7 @@ export function zoomCommand(cmd: 'in' | 'out' | 'reset') {
 export function SingleView({ s }: { s: SessionState }) {
   const it = currentItem(s);
   const liveAuto = useStore((st) => st.settings.prefs.liveAutoplay);
+  const showInfo = useStore((st) => st.settings.prefs.showInfo);
   const expert = useStore((st) => st.settings.prefs.mode === 'expert');
   const ref = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ w: 800, h: 600 });
@@ -184,6 +187,11 @@ export function SingleView({ s }: { s: SessionState }) {
     } else {
       gesture.current = { type: zoomed ? 'pan' : 'swipe', startX: e.clientX, startY: e.clientY, view, pointerType: e.pointerType };
       if (zoomed) setPanning(true);
+      // Nicht gezoomt: Foto mit der Maus auf einen Zielordner ziehen
+      else if (e.pointerType === 'mouse' && it) {
+        const cur = it;
+        beginDrag(e, () => photoDrag(cur));
+      }
     }
   };
 
@@ -252,6 +260,11 @@ export function SingleView({ s }: { s: SessionState }) {
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
+      onContextMenu={(e) => {
+        if (!it || (e.target as HTMLElement).closest('button, video[controls]')) return;
+        e.preventDefault();
+        openPhotoMenu(it.id, e.clientX, e.clientY);
+      }}
     >
       {it.kind === 'video' ? (
         <video
@@ -389,6 +402,7 @@ export function SingleView({ s }: { s: SessionState }) {
       <button className="nav-arrow r" onClick={() => step(1)} {...tip(t('tip.next'), undefined, '→')}>
         <IconChevronRight size={24} />
       </button>
+      {showInfo && <InfoPanel it={it} />}
     </div>
   );
 }

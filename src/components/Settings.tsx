@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { t, LANGS, type TKey } from '../i18n';
 import {
   useStore, closeDialog, updatePrefs, activeProfile, updateSettings, setActiveProfile, openDialog, restartTutorial,
-  toast, previewSeriesCount,
+  toast, previewSeriesCount, newName, updateProfile, checkForUpdate,
 } from '../store';
 import { tip } from './Tooltip';
 import slimbitMark from '../assets/slimbit-mark.png';
@@ -12,7 +12,81 @@ import {
   IconGlobe, IconSliders, IconTrash, IconImage, IconLayers, IconSettings, IconHelp, IconInfo, IconClose, IconCheck,
   IconLock, IconRefresh, IconPlus, IconMore, IconLayers as IconStack,
 } from '../icons';
-import { modKey, uid } from '../util';
+import { actionKeyOf, keyLabel, modKey, uid } from '../util';
+import type { ActionKeys, DateFolders, Item } from '../types';
+
+const ACCENTS: [Prefs['accent'], string][] = [
+  ['blue', '#5b7cfa'],
+  ['violet', '#8b5cf6'],
+  ['pink', '#e8559a'],
+  ['orange', '#f07a2a'],
+  ['green', '#22a861'],
+  ['teal', '#0ea5b7'],
+];
+
+/** Beispiel für den neuen Dateinamen */
+function renameExample(mode: Prefs['renameMode']) {
+  const demo = { name: 'IMG_4821.JPG', t: new Date(2025, 7, 3, 14, 22, 5).getTime(), mtime: 0 } as Item;
+  return (mode === 'keep' ? 'IMG_4821' : newName(demo, mode)) + '.JPG';
+}
+
+/** Unterordner nach Datum für alle Zielordner des aktiven Sets */
+function DateFoldersRow() {
+  useStore((s) => s.settings.profiles);
+  const prof = activeProfile();
+  const modes = new Set(prof.targets.map((x) => x.subfolders || 'none'));
+  const value = modes.size === 1 ? [...modes][0] : 'mixed';
+  return (
+    <Row label={t('settings.dateFolders')} desc={t('settings.dateFolders.desc')}>
+      <select
+        className="select"
+        value={value}
+        disabled={!prof.targets.length}
+        onChange={(e) => {
+          const v = e.target.value as DateFolders;
+          updateProfile(prof.id, (p) => ({ ...p, targets: p.targets.map((x) => ({ ...x, subfolders: v })) }));
+        }}
+        data-testid="datefolders-select"
+      >
+        {value === 'mixed' && <option value="mixed">{t('settings.dateFolders.mixed')}</option>}
+        <option value="none">{t('targets.sub.none')}</option>
+        <option value="year">{t('targets.sub.year')}</option>
+        <option value="month">{t('targets.sub.month')}</option>
+        <option value="day">{t('targets.sub.day')}</option>
+      </select>
+    </Row>
+  );
+}
+
+/** Taste für eine Grundaktion neu belegen */
+function KeyRow({ label, k }: { label: string; k: keyof ActionKeys }) {
+  const keys = useStore((s) => s.settings.prefs.keys);
+  const [listen, setListen] = useState(false);
+  useEffect(() => {
+    if (!listen) return;
+    const on = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === 'Escape') return setListen(false);
+      const key = actionKeyOf(e);
+      if (!key) return;
+      setListen(false);
+      const other = (Object.keys(keys) as (keyof ActionKeys)[]).find((x) => x !== k && keys[x] === key);
+      // Taste schon vergeben? Dann tauschen.
+      updatePrefs({ keys: { ...keys, [k]: key, ...(other ? { [other]: keys[k] } : {}) } });
+      if (activeProfile().targets.some((tg) => tg.key === key)) toast('info', t('settings.keys.targetClash', { key: keyLabel(key) }), { timeout: 5000 });
+    };
+    window.addEventListener('keydown', on, true);
+    return () => window.removeEventListener('keydown', on, true);
+  }, [listen, keys, k]);
+  return (
+    <Row label={label}>
+      <button className={`btn ${listen ? 'primary' : ''}`} onClick={() => setListen(!listen)} data-testid={`key-${k}`}>
+        {listen ? t('settings.keys.press') : <KeyCap k={keyLabel(keys[k])} />}
+      </button>
+    </Row>
+  );
+}
 
 type Tab = 'general' | 'series' | 'sorting' | 'trash' | 'display' | 'sets' | 'advanced' | 'help' | 'about';
 
@@ -61,7 +135,7 @@ export function SettingsDialog({ tab: initial }: { tab?: string }) {
     ['series', t('settings.series'), <IconStack size={17} key="r" />, true],
     ['sorting', t('settings.sorting'), <IconSliders size={17} key="s" />, true],
     ['trash', t('settings.trash'), <IconTrash size={17} key="t" />, expert],
-    ['display', t('settings.display'), <IconImage size={17} key="d" />, expert],
+    ['display', t('settings.display'), <IconImage size={17} key="d" />, true],
     ['sets', t('settings.sets'), <IconLayers size={17} key="p" />, expert],
     ['advanced', t('settings.advanced'), <IconSettings size={17} key="a" />, expert],
     ['help', t('settings.help'), <IconHelp size={17} key="h" />, true],
@@ -149,6 +223,24 @@ export function SettingsDialog({ tab: initial }: { tab?: string }) {
                   <Row label={t('settings.recursive')} desc={t('setup.recursive.help')}>
                     <Switch on={p.recursive} onChange={(v) => set({ recursive: v })} />
                   </Row>
+                  <Row label={t('settings.resume')} desc={t('settings.resume.desc')}>
+                    <Switch on={p.resume} onChange={(v) => set({ resume: v })} />
+                  </Row>
+                </Group>
+                <Group label={t('settings.files')}>
+                  <Row label={t('settings.rename')} desc={t('settings.rename.desc', { ex: renameExample(p.renameMode) })}>
+                    <select className="select" value={p.renameMode} onChange={(e) => set({ renameMode: e.target.value as Prefs['renameMode'] })} data-testid="rename-select">
+                      <option value="keep">{t('settings.rename.keep')}</option>
+                      <option value="date">{t('settings.rename.date')}</option>
+                      <option value="dateName">{t('settings.rename.dateName')}</option>
+                    </select>
+                  </Row>
+                  <DateFoldersRow />
+                </Group>
+                <Group label={t('settings.keys')}>
+                  <KeyRow label={t('ses.skip')} k="skip" />
+                  <KeyRow label={t('ses.delete')} k="trash" />
+                  <KeyRow label={t('ses.otherShort')} k="other" />
                 </Group>
                 <Group label={t('settings.live')}>
                   <Row label={t('settings.liveVideo')} help={t('settings.liveVideo.help')}>
@@ -194,6 +286,9 @@ export function SettingsDialog({ tab: initial }: { tab?: string }) {
                 <h3>{t('settings.trash')}</h3>
                 <p className="sub">{t('help.trash.body')}</p>
                 <Group>
+                  <Row label={t('settings.systemTrash')} desc={t('settings.systemTrash.desc')}>
+                    <Switch on={p.emptyToSystemTrash} onChange={(v) => set({ emptyToSystemTrash: v })} />
+                  </Row>
                   <Row label={t('settings.trashMode')}>
                     <Seg
                       value={p.trashMode}
@@ -225,6 +320,39 @@ export function SettingsDialog({ tab: initial }: { tab?: string }) {
               <>
                 <h3>{t('settings.display')}</h3>
                 <p className="sub">{t('settings.display.sub')}</p>
+                <Group label={t('settings.look')}>
+                  <Row label={t('settings.accent')}>
+                    <div className="colors" style={{ padding: 0 }} data-testid="accent">
+                      {ACCENTS.map(([id, c]) => (
+                        <button key={id} className={p.accent === id ? 'on' : ''} style={{ background: c, width: 24, height: 24 }} aria-label={id} onClick={() => set({ accent: id })} />
+                      ))}
+                    </div>
+                  </Row>
+                  <Row label={t('settings.viewerBg')} desc={t('settings.viewerBg.desc')}>
+                    <Seg
+                      value={p.viewerBg}
+                      onChange={(v) => set({ viewerBg: v })}
+                      options={[
+                        ['theme', t('settings.viewerBg.theme')],
+                        ['black', t('settings.viewerBg.black')],
+                        ['dark', t('settings.viewerBg.dark')],
+                        ['gray', t('settings.viewerBg.gray')],
+                      ]}
+                    />
+                  </Row>
+                  <Row label={t('settings.uiScale')}>
+                    <Seg
+                      value={String(p.uiScale || 1)}
+                      onChange={(v) => set({ uiScale: Number(v) })}
+                      options={[
+                        ['0.9', '90 %'],
+                        ['1', '100 %'],
+                        ['1.1', '110 %'],
+                        ['1.25', '125 %'],
+                      ]}
+                    />
+                  </Row>
+                </Group>
                 <Group>
                   <Row label={t('settings.filmstrip')} desc={t('settings.filmstrip.desc')}>
                     <Switch on={p.showFilmstrip} onChange={(v) => set({ showFilmstrip: v })} />
@@ -455,6 +583,7 @@ function SeriesTab() {
 }
 
 function AdvancedTab() {
+  const updateOn = useStore((s) => s.settings.prefs.updateCheck);
   const [info, setInfo] = useState<AppInfo | null>(null);
   useEffect(() => {
     window.api.appInfo().then(setInfo);
@@ -464,6 +593,14 @@ function AdvancedTab() {
       <h3>{t('settings.advanced')}</h3>
       <p className="sub">{t('settings.advanced.sub')}</p>
       <Group>
+        <Row label={t('settings.updates')} desc={t('settings.updates.desc')}>
+          <div className="row" style={{ gap: 8 }}>
+            <button className="btn sm" onClick={() => checkForUpdate(true)}>
+              {t('settings.updates.now')}
+            </button>
+            <Switch on={updateOn} onChange={(v) => updatePrefs({ updateCheck: v })} />
+          </div>
+        </Row>
         <Row label={t('settings.journal')} desc={t('settings.journal.help')}>
           <button className="btn" disabled={!info} onClick={() => info && window.api.openPath(info.journal)}>
             {t('common.open')}

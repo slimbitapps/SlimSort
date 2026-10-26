@@ -2604,7 +2604,7 @@ h3 {
   position: relative;
   overflow: hidden;
   border-radius: 12px;
-  background: #0b0b0d;
+  background: var(--stage);
   outline: 3px solid transparent;
   outline-offset: -3px;
   transition: outline-color 0.12s;
@@ -2625,7 +2625,7 @@ h3 {
 /* Fotos werden nie abgedunkelt – sonst kann man nicht fair vergleichen.
    "Wird gelöscht" zeigt nur der rote Rahmen und das Schild unten rechts. */
 .cmp-cell.drop {
-  outline-color: color-mix(in srgb, var(--danger) 70%, transparent);
+  outline-color: color-mix(in srgb, var(--danger) 50%, transparent);
 }
 .cmp-cell .cmp-badges {
   position: absolute;
@@ -2772,4 +2772,113 @@ h3 {
 .cmp-top [data-testid='cmp-hint'] {
   order: 10;
   flex-basis: 100%;
+}
+
+/* ---------------------------------------------------------------- Info-Anzeige (Taste I) */
+.info-panel {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 280px;
+  max-height: calc(100% - 24px);
+  overflow: auto;
+  z-index: 6;
+  padding: 14px 14px 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-2) 92%, transparent);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--line-2);
+  box-shadow: var(--shadow-lg);
+  cursor: default;
+  animation: pop 0.14s var(--ease);
+}
+.info-panel .ip-name {
+  font-weight: 650;
+  font-size: 14px;
+}
+.info-panel dl {
+  margin: 12px 0 10px;
+  display: grid;
+  gap: 8px;
+}
+.info-panel dl > div {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 8px;
+  font-size: 12.5px;
+}
+.info-panel dt {
+  color: var(--text-3);
+}
+.info-panel dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.single .nav-arrow.r {
+  transition: right 0.2s var(--ease);
+}
+/* ---------------------------------------------------------------- Rechtsklick-Menü auf Fotos */
+.photo-menu {
+  min-width: 250px;
+}
+.pm-targets {
+  max-height: 260px;
+  overflow: auto;
+}
+
+/* ---------------------------------------------------------------- v2: Akzentfarben */
+:root[data-accent='violet'] {
+  --accent: #8b5cf6;
+  --accent-hover: #9d74f8;
+  --accent-press: #7c4ce6;
+  --accent-soft: rgba(139, 92, 246, 0.15);
+  --accent-line: rgba(139, 92, 246, 0.5);
+}
+:root[data-accent='pink'] {
+  --accent: #e8559a;
+  --accent-hover: #ef6aa9;
+  --accent-press: #d4458a;
+  --accent-soft: rgba(232, 85, 154, 0.15);
+  --accent-line: rgba(232, 85, 154, 0.5);
+}
+:root[data-accent='orange'] {
+  --accent: #f07a2a;
+  --accent-hover: #f58c43;
+  --accent-press: #dc6a1d;
+  --accent-soft: rgba(240, 122, 42, 0.15);
+  --accent-line: rgba(240, 122, 42, 0.5);
+}
+:root[data-accent='green'] {
+  --accent: #22a861;
+  --accent-hover: #2fbb70;
+  --accent-press: #1c9455;
+  --accent-soft: rgba(34, 168, 97, 0.15);
+  --accent-line: rgba(34, 168, 97, 0.5);
+}
+:root[data-accent='teal'] {
+  --accent: #0ea5b7;
+  --accent-hover: #1db6c8;
+  --accent-press: #0b92a2;
+  --accent-soft: rgba(14, 165, 183, 0.15);
+  --accent-line: rgba(14, 165, 183, 0.5);
+}
+/* v2: Hintergrund hinter den Fotos */
+:root[data-viewer='black'] {
+  --stage: #000000;
+}
+:root[data-viewer='dark'] {
+  --stage: #141416;
+}
+:root[data-viewer='gray'] {
+  --stage: #5b5c60;
+}
+
+/* v2: Suche + Doppelte */
+.ses-search {
+  width: 190px;
+  height: 30px;
+}
+.tile-badge.dupe {
+  background: var(--warn);
+  color: #1c1300;
 }

@@ -71,6 +71,7 @@ export function GridView({ s }: { s: SessionState }) {
           selected={s.selection.has(id)}
           current={s.currentId === id}
           skipped={s.skipped.has(id)}
+          dupe={s.dupes.has(id)}
           series={s.seriesOf.has(id) ? s.series[s.seriesOf.get(id)!].length : 0}
         />
       );
@@ -98,7 +99,7 @@ export function GridView({ s }: { s: SessionState }) {
 }
 
 const Tile = memo(function Tile({
-  it, x, y, w, h, px, selected, current, skipped, series,
+  it, x, y, w, h, px, selected, current, skipped, dupe, series,
 }: {
   it: Item;
   x: number;
@@ -109,6 +110,7 @@ const Tile = memo(function Tile({
   selected: boolean;
   current: boolean;
   skipped: boolean;
+  dupe: boolean;
   series: number;
 }) {
   // 0 = Vorschaubild, 1 = Original als Ersatz, 2 = keine Anzeige möglich, 3 = HEIC selbst dekodiert, 4 = Bild aus dem Video
@@ -166,6 +168,7 @@ const Tile = memo(function Tile({
       <div className="check">{selected && <IconCheck size={13} strokeWidth={3} />}</div>
       <div className="tile-badges">
         {skipped && <span className="tile-badge skip">↷</span>}
+        {dupe && <span className="tile-badge dupe">{t('dupes.badge')}</span>}
         {series > 1 && <span className="tile-badge">⧉ {series}</span>}
         {it.live && <span className="tile-badge">LIVE</span>}
         {it.kind === 'video' && (

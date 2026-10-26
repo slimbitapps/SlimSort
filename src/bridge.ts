@@ -25,6 +25,7 @@ const api: Api = {
   log: (msg) => invoke('app_log', { msg }),
   mkdir: (dir) => invoke('mkdir', { dir }),
   openSession: (opts) => invoke('session_open', { opts }),
+  exifStart: () => invoke('exif_start'),
   transfer: (op) => invoke('session_transfer', { op }),
   undo: (opId) => invoke('session_undo', { opId }),
   pending: () => invoke('session_pending'),

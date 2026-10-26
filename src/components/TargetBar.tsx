@@ -3,13 +3,13 @@ import { t } from '../i18n';
 import {
   useStore, activeProfile, sortToTarget, trashCurrent, skipCurrent, otherFolder, pickAndAddTarget, openDialog, updateTarget,
   removeTarget, reorderTarget, groupTargets, updateGroup, dissolveGroup, moveTargetToEnd, suggestionFor, currentItem,
-  sortIdsToTarget, trashIds, type SessionState,
+  sortIdsToTarget, trashIds, dateFolder, type SessionState,
 } from '../store';
 import { beginDrag, setDropHandler, useDrag } from '../dnd';
 import type { Group, Target } from '../types';
-import { COLORS, basename, fmtNum } from '../util';
+import { COLORS, basename, fmtNum, keyLabel } from '../util';
 import {
-  IconPlus, IconTrash, IconWarning, IconFolder, IconKeyboard, IconChevronDown, IconChevronRight, IconSkip, IconFolderOut,
+  IconPlus, IconTrash, IconWarning, IconFolder, IconKeyboard, IconChevronDown, IconChevronRight, IconSkip, IconFolderOut, IconCheck,
 } from '../icons';
 import { Floating, Help, KeyCap } from './ui';
 import { tip } from './Tooltip';
@@ -27,7 +27,7 @@ export function Dock({ s }: { s: SessionState }) {
   const drag = useDrag();
   const longPress = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestion = suggestionFor(s, currentItem(s));
-  const mac = window.api.platform === 'darwin';
+  const keys = useStore((st) => st.settings.prefs.keys);
   const expert = useStore((st) => st.settings.prefs.mode === 'expert');
   const inCompare = !!s.compare;
 
@@ -104,7 +104,7 @@ export function Dock({ s }: { s: SessionState }) {
             ? t('ses.offline') + ' – ' + tg.path
             : inCompare
               ? t('tip.targetCompare')
-              : t('tip.target', { path: tg.path }),
+              : t('tip.target', { path: tg.path }) + (tg.subfolders && tg.subfolders !== 'none' ? ` · ${t('targets.sub.tip', { ex: dateFolder(Date.now(), tg.subfolders) })}` : ''),
           tg.key || undefined
         )}
         data-drop={`target:${tg.id}`}
@@ -182,26 +182,26 @@ export function Dock({ s }: { s: SessionState }) {
   return (
     <div className="dock" data-testid="targetbar">
       <div className="dock-actions" data-coach="actions">
-        <button className="act" onClick={skipCurrent} data-testid="skip" {...tip(t('ses.skip'), inCompare ? t('tip.cmpSingle') : t('tip.skip'), t('key.space'))}>
+        <button className="act" onClick={skipCurrent} data-testid="skip" {...tip(t('ses.skip'), inCompare ? t('tip.cmpSingle') : t('tip.skip'), keyLabel(keys.skip))}>
           <IconSkip size={18} />
           {t('ses.skip')}
-          <KeyCap k={t('key.space')} />
+          <KeyCap k={keyLabel(keys.skip)} />
         </button>
         <button
           className={`act delete ${drag?.over === 'trash' && dragPhotos ? 'drop-photos' : ''}`}
           data-drop="trash"
           onClick={trashCurrent}
           data-testid="target-trash"
-          {...tip(t('ses.delete'), inCompare ? t('tip.cmpDone') : t('tip.delete'), mac ? '⌫' : t('key.del'))}
+          {...tip(t('ses.delete'), inCompare ? t('tip.cmpDone') : t('tip.delete'), keyLabel(keys.trash))}
         >
           <IconTrash size={18} />
           {t('ses.delete')}
-          <KeyCap k={mac ? '⌫' : t('key.del')} />
+          <KeyCap k={keyLabel(keys.trash)} />
         </button>
-        <button className="act other" onClick={otherFolder} data-testid="other-folder" {...tip(t('ses.otherShort'), t('tip.other'), 'Enter')}>
+        <button className="act other" onClick={otherFolder} data-testid="other-folder" {...tip(t('ses.otherShort'), t('tip.other'), keyLabel(keys.other))}>
           <IconFolderOut size={18} />
           {t('ses.otherShort')}
-          <KeyCap k="Enter" />
+          <KeyCap k={keyLabel(keys.other)} />
         </button>
       </div>
       <div className="dock-sep" />
@@ -274,6 +274,14 @@ function TargetMenu({ menu, onClose }: { menu: Extract<Menu, { kind: 'target' }>
       >
         {t('targets.menu.rename')}
       </button>
+      <div className="mh">{t('targets.menu.subfolders')}</div>
+      {(['none', 'year', 'month', 'day'] as const).map((m) => (
+        <button key={m} className="mi" onClick={run(() => updateTarget(tg.id, { subfolders: m }))} data-testid={`sub-${m}`}>
+          <span style={{ width: 16, display: 'inline-flex' }}>{(tg.subfolders || 'none') === m && <IconCheck size={15} />}</span>
+          {t(`targets.sub.${m}` as 'targets.sub.none')}
+          {m !== 'none' && <span className="k mono">{dateFolder(Date.now(), m)}</span>}
+        </button>
+      ))}
       <div className="mh">{t('targets.menu.color')}</div>
       <div className="colors">
         {COLORS.map((c) => (

@@ -28,6 +28,20 @@ export interface Target {
   key: string; // z. B. "1", "A", "F5" – leer = keine Taste
   color: string;
   groupId?: string | null;
+  /** v2: Unterordner nach Aufnahmedatum anlegen */
+  subfolders?: DateFolders;
+}
+
+export type DateFolders = 'none' | 'year' | 'month' | 'day';
+export type RenameMode = 'keep' | 'date' | 'dateName';
+export type Accent = 'blue' | 'violet' | 'pink' | 'orange' | 'green' | 'teal';
+export type ViewerBg = 'black' | 'dark' | 'gray' | 'theme';
+
+/** Frei belegbare Tasten für die Grundaktionen (KeyboardEvent.key) */
+export interface ActionKeys {
+  skip: string;
+  trash: string;
+  other: string;
 }
 
 export interface Group {
@@ -56,12 +70,14 @@ export interface QuickStart {
   pinned?: boolean;
   /** mehrere Quellordner (neuere Versionen); "source" ist der erste */
   sources?: string[];
+  /** v2: wo man aufgehört hat (Pfad des aktuellen Fotos) und übersprungene Fotos */
+  resume?: { current: string | null; skipped: string[]; t: number };
 }
 
 export type Lang = 'de' | 'en' | 'fr' | 'es' | 'it';
 export type Theme = 'dark' | 'light' | 'system';
 export type SortBy = 'name' | 'date' | 'size' | 'type';
-export type Filter = 'all' | 'images' | 'videos' | 'skipped';
+export type Filter = 'all' | 'images' | 'videos' | 'skipped' | 'duplicates';
 
 export interface Prefs {
   lang: Lang;
@@ -89,6 +105,22 @@ export interface Prefs {
   seriesStrict: 'loose' | 'normal' | 'strict';
   autoCompare: boolean;
   preselectBest: boolean;
+  /** Info-Anzeige (Kamera, Belichtung …) in der Einzelansicht */
+  showInfo: boolean;
+  /** v2: Dateinamen beim Einsortieren */
+  renameMode: RenameMode;
+  /** v2: Aussehen */
+  accent: Accent;
+  viewerBg: ViewerBg;
+  uiScale: number;
+  /** v2: eigene Tasten für Überspringen/Löschen/Anderer Ordner */
+  keys: ActionKeys;
+  /** v2: Löschordner beim Leeren in den Papierkorb des Systems (wiederherstellbar) */
+  emptyToSystemTrash: boolean;
+  /** v2: an der letzten Stelle weitermachen (gleicher Ordner) */
+  resume: boolean;
+  /** v2: einmal am Tag nach neuer Version schauen (nur GitHub) */
+  updateCheck: boolean;
 }
 
 export interface SettingsData {
@@ -99,6 +131,8 @@ export interface SettingsData {
   recentSources: string[];
   onboarded?: boolean;
   tutorialDone?: boolean;
+  /** v2: wann zuletzt nach einer neuen Version geschaut wurde */
+  lastUpdateCheck?: number;
 }
 
 export interface OpResult {
@@ -183,6 +217,8 @@ export interface Api {
     /** neuer Dateiname (ohne Endung) je Eintrag */
     names?: Record<number, string>;
   }): Promise<boolean>;
+  /** Aufnahmezeiten lesen – erst aufrufen, wenn die Sitzung in der Oberfläche steht */
+  exifStart(): Promise<void>;
   undo(opId: number): Promise<boolean>;
   pending(): Promise<number>;
   trashInfo(dir?: string): Promise<{ dir: string; dirs?: string[]; count: number; bytes: number }>;

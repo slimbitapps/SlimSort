@@ -36,6 +36,8 @@ struct AppState {
     quitting: AtomicBool,
     fullscreen: AtomicBool,
     window_state: Mutex<Option<Value>>,
+    /// Aufnahmezeiten der zuletzt geöffneten Sitzung – gelesen wird erst, wenn die Oberfläche bereit ist
+    exif_todo: Mutex<Option<(u64, Vec<(u64, PathBuf, String)>)>>,
 }
 
 type Res<T> = Result<T, String>;
@@ -318,9 +320,18 @@ async fn session_open(app: AppHandle, opts: OpenOpts) -> Res<Value> {
     *st.session.lock().unwrap() = Some(s);
     log_to(&st.user_data, &format!("session:open ok {}", items.len()));
 
-    // Aufnahmezeiten im Hintergrund lesen
+    // Aufnahmezeiten liest exif_start, sobald die Oberfläche die Sitzung übernommen hat
     let run = st.exif_run.fetch_add(1, Ordering::SeqCst) + 1;
     let list: Vec<(u64, PathBuf, String)> = items.iter().map(|i| (i.id, i.path.clone(), i.ext.clone())).collect();
+    *st.exif_todo.lock().unwrap() = Some((run, list));
+    Ok(json!({ "items": items, "trashDir": trash_dir }))
+}
+
+/// Aufnahmezeiten im Hintergrund lesen (Pakete per "exif:batch", danach "exif:done").
+#[tauri::command]
+fn exif_start(app: AppHandle) {
+    let st = app.state::<AppState>();
+    let Some((run, list)) = st.exif_todo.lock().unwrap().take() else { return };
     let (a1, a2, a3) = (app.clone(), app.clone(), app.clone());
     let (r1, r2, r3) = (st.exif_run.clone(), st.exif_run.clone(), st.exif_run.clone());
     std::thread::spawn(move || {
@@ -338,7 +349,6 @@ async fn session_open(app: AppHandle, opts: OpenOpts) -> Res<Value> {
         }
         drop(a3);
     });
-    Ok(json!({ "items": items, "trashDir": trash_dir }))
 }
 
 #[tauri::command]
@@ -609,6 +619,7 @@ pub fn run() {
         quitting: AtomicBool::new(false),
         fullscreen: AtomicBool::new(false),
         window_state: Mutex::new(None),
+        exif_todo: Mutex::new(None),
     };
     let (m1, m2, m3) = (media.clone(), media.clone(), media.clone());
 
@@ -640,6 +651,7 @@ pub fn run() {
             parent_dir,
             mkdir,
             session_open,
+            exif_start,
             session_transfer,
             session_undo,
             session_pending,

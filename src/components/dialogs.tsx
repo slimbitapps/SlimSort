@@ -7,7 +7,7 @@ import { Dialog, KeyCap, Spinner } from './ui';
 import { SettingsDialog } from './Settings';
 import { IllDone } from './illustrations';
 import { fmtBytes, fmtDuration, fmtNum, isAssignableKey, keyFromEvent, basename } from '../util';
-import { IconFolder, IconWarning, IconTrash, IconSearch } from '../icons';
+import { IconFolder, IconWarning, IconTrash, IconSearch, IconInfo } from '../icons';
 
 export function Dialogs() {
   const d = useStore((s) => s.dialog);
@@ -150,6 +150,7 @@ function SummaryDialog() {
 function TrashDialog() {
   const [info, setInfo] = useState<{ dir: string; count: number; bytes: number } | null>(null);
   const [busy, setBusy] = useState(false);
+  const sysTrash = useStore((s) => s.settings.prefs.emptyToSystemTrash);
   useEffect(() => {
     window.api.trashInfo().then(setInfo);
   }, []);
@@ -193,10 +194,17 @@ function TrashDialog() {
         <>
           <p style={{ fontSize: 15, marginTop: 0 }}>{t('trash.info', { n: fmtNum(info.count), size: fmtBytes(info.bytes) })}</p>
           <p className="mono faint">{info.dir}</p>
-          <div className="row" style={{ padding: 12, borderRadius: 12, background: 'var(--danger-soft)', color: 'var(--danger)', alignItems: 'flex-start' }}>
-            <IconWarning size={17} style={{ flex: 'none', marginTop: 1 }} />
-            {t('trash.warn')}
-          </div>
+          {sysTrash ? (
+            <div className="row" style={{ padding: 12, borderRadius: 12, background: 'var(--accent-soft)', alignItems: 'flex-start' }}>
+              <IconInfo size={17} style={{ flex: 'none', marginTop: 1, color: 'var(--accent)' }} />
+              {t(window.api.platform === 'darwin' ? 'trash.systemInfoMac' : 'trash.systemInfo')}
+            </div>
+          ) : (
+            <div className="row" style={{ padding: 12, borderRadius: 12, background: 'var(--danger-soft)', color: 'var(--danger)', alignItems: 'flex-start' }}>
+              <IconWarning size={17} style={{ flex: 'none', marginTop: 1 }} />
+              {t('trash.warn')}
+            </div>
+          )}
         </>
       )}
     </Dialog>

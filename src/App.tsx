@@ -4,7 +4,7 @@ import {
   useStore, init, closeDialog, setZen, clearSelection, openDialog, undo, selectAll, toggleFullscreen, toggleView,
   step, jumpEdge, skipCurrent, trashCurrent, otherFolder, findTargetByKey, sortToTarget, runQuickStart, toast,
   dismissToast, sortedRecents, coachNext, coachEnd, goHome, compareSkip, compareConfirm, compareKeepOnly, compareIdAt,
-  comparePage,
+  comparePage, updatePrefs,
 } from './store';
 import { TooltipLayer } from './components/Tooltip';
 import { WindowControls } from './components/WindowControls';
@@ -19,7 +19,7 @@ import { Coach, COACH_STEPS } from './components/Coach';
 import { KeyCap, Spinner } from './components/ui';
 import { gridNav } from './components/GridView';
 import { zoomCommand } from './components/SingleView';
-import { isTyping, keyFromEvent, isMac, fmtNum } from './util';
+import { isTyping, keyFromEvent, actionKeyOf, isMac, fmtNum } from './util';
 import { IconCheck, IconClose, IconInfo, IconWarning, IconEye } from './icons';
 
 /** Zentrale Tastatursteuerung */
@@ -78,6 +78,18 @@ function onKeyDown(e: KeyboardEvent) {
       e.preventDefault();
       const id = compareIdAt(Number(e.code.slice(-1)));
       if (id !== null) compareKeepOnly(id);
+      return;
+    }
+    const K = st.settings.prefs.keys;
+    const ak = actionKeyOf(e);
+    if (ak && ak === K.skip && ak !== ' ') {
+      e.preventDefault();
+      if (!e.repeat) compareSkip();
+      return;
+    }
+    if (ak && ak === K.trash && ak !== 'Delete') {
+      e.preventDefault();
+      if (!e.repeat) compareConfirm();
       return;
     }
     switch (e.key) {
@@ -187,17 +199,20 @@ function onKeyDown(e: KeyboardEvent) {
   }
 
   // Ab hier: Aktionen, die Dateien bewegen – nie durch gedrückt gehaltene Taste wiederholen.
-  if (e.key === ' ') {
+  // Die Tasten für Überspringen/Löschen/Anderer Ordner sind frei belegbar (Einstellungen → Sortieren).
+  const K = st.settings.prefs.keys;
+  const ak = actionKeyOf(e);
+  if (ak && ak === K.skip) {
     e.preventDefault();
     if (!e.repeat) skipCurrent();
     return;
   }
-  if (e.key === 'Delete' || e.key === 'Backspace') {
+  if (ak && (ak === K.trash || (K.trash === 'Delete' && ak === 'Backspace'))) {
     e.preventDefault();
     if (!e.repeat) trashCurrent();
     return;
   }
-  if (e.key === 'Enter') {
+  if (ak && ak === K.other) {
     e.preventDefault();
     if (!e.repeat) otherFolder();
     return;
@@ -207,6 +222,8 @@ function onKeyDown(e: KeyboardEvent) {
     e.preventDefault();
     if (e.repeat) return;
     const target = findTargetByKey(k);
+    // I = Info-Anzeige (wenn kein Zielordner diese Taste hat)
+    if (!target && k === 'I') return updatePrefs({ showInfo: !st.settings.prefs.showInfo });
     // Shift + Ordner-Taste: die ganze Serie auf einmal
     if (target) sortToTarget(target.id, { wholeSeries: e.shiftKey });
     else toast('info', t('toast.noTargetKey', { key: k }), { timeout: 1800 });
@@ -215,6 +232,16 @@ function onKeyDown(e: KeyboardEvent) {
 
 function useTheme() {
   const theme = useStore((s) => s.settings.prefs.theme);
+  const accent = useStore((s) => s.settings.prefs.accent);
+  const viewerBg = useStore((s) => s.settings.prefs.viewerBg);
+  const uiScale = useStore((s) => s.settings.prefs.uiScale);
+  // v2: Akzentfarbe, Hintergrund hinter den Fotos, Größe der Oberfläche
+  useEffect(() => {
+    const el = document.documentElement;
+    el.dataset.accent = accent;
+    el.dataset.viewer = viewerBg;
+    el.style.setProperty('zoom', String(uiScale || 1));
+  }, [accent, viewerBg, uiScale]);
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const apply = () => {

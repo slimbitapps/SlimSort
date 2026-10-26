@@ -3,7 +3,7 @@ import { setLang, t, errText } from './i18n';
 import type {
   Item, Prefs, Profile, QuickStart, SettingsData, Target, OpDoneEvent, ProgressEvent, Filter,
 } from './types';
-import { basename, COLORS, itemTime, sortItems, uid, isAssignableKey, thumbUrl, browserCanShow, mediaUrl } from './util';
+import { basename, COLORS, itemTime, sortItems, uid, isAssignableKey, thumbUrl, browserCanShow, mediaUrl, fmtBytes } from './util';
 import { computeSeries, rankSeries, MOTIF_DIST } from './series';
 import type { DragPayload } from './dnd';
 import { configureAnalysis, requestAnalysis, resetAnalysis } from './analysis';
@@ -91,6 +91,11 @@ export interface SessionState {
   seriesDone: Set<number>;
   seriesCompared: number;
   compare: CompareState | null;
+  /** v2: überzählige exakte Kopien (gleicher Inhalt) und Anzahl der Gruppen */
+  dupes: Set<number>;
+  dupeGroups: number;
+  /** v2: Suche nach Dateinamen */
+  query: string;
   rev: number;
 }
 
@@ -162,6 +167,15 @@ export const defaultPrefs: Prefs = {
   seriesStrict: 'normal',
   autoCompare: true,
   preselectBest: true,
+  showInfo: false,
+  renameMode: 'keep',
+  accent: 'blue',
+  viewerBg: 'theme',
+  uiScale: 1,
+  keys: { skip: ' ', trash: 'Delete', other: 'Enter' },
+  emptyToSystemTrash: true,
+  resume: true,
+  updateCheck: true,
 };
 
 function defaultSettings(): SettingsData {
@@ -233,6 +247,7 @@ export async function init() {
   });
   wireEvents();
   watchDirs();
+  setTimeout(() => checkForUpdate(false), 6000);
 }
 
 function detectLang(): Prefs['lang'] {
@@ -515,6 +530,9 @@ export async function startSession(o: StartOptions) {
       seriesDone: new Set(),
       seriesCompared: 0,
       compare: null,
+      dupes: new Set(),
+      dupeGroups: 0,
+      query: '',
       rev: 0,
     };
     if (p.filter === 'skipped') updatePrefs({ filter: 'all' });
@@ -525,7 +543,8 @@ export async function startSession(o: StartOptions) {
       quickStarts: upsertRecent(st.quickStarts, o),
     }));
     rebuildSeries(session, false);
-    recompute(session, {});
+    applyResume(session);
+    recompute(session, { keepId: session.currentId });
     set({
       screen: 'session',
       setup: null,
@@ -534,6 +553,7 @@ export async function startSession(o: StartOptions) {
       coach: get().settings.tutorialDone ? null : 0,
     });
     queueAnalysis(session);
+    api().exifStart();
     if (o.fullscreen) api().setFullscreen(true);
     watchDirs();
     return true;
@@ -547,6 +567,10 @@ export async function startSession(o: StartOptions) {
 }
 
 export function goHome() {
+  if (resumeTimer) {
+    clearTimeout(resumeTimer);
+    saveResume();
+  }
   scanActive = false;
   resetAnalysis();
   set({ screen: 'home', session: null, setup: null, zen: false, dialog: null, scanning: null, coach: null });
@@ -557,6 +581,8 @@ export function goHome() {
 // ---------------------------------------------------------------- Ansicht berechnen
 
 function matchesFilter(it: Item, f: Filter, s: SessionState) {
+  if (s.query && !it.name.toLowerCase().includes(s.query) && !it.dir.toLowerCase().includes(s.query)) return false;
+  if (f === 'duplicates') return s.dupes.has(it.id);
   if (f === 'images') return it.kind === 'image';
   if (f === 'videos') return it.kind === 'video';
   if (f === 'skipped') return s.skipped.has(it.id);
@@ -567,6 +593,91 @@ function matchesFilter(it: Item, f: Filter, s: SessionState) {
 function commit(s: SessionState) {
   maybeOpenCompare(s);
   set({ session: { ...s, rev: s.rev + 1 } });
+  scheduleResume();
+}
+
+// ---------------------------------------------------------------- v2: Weitermachen, wo man aufgehört hat
+
+let resumeTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleResume() {
+  if (resumeTimer) clearTimeout(resumeTimer);
+  resumeTimer = setTimeout(saveResume, 1500);
+}
+
+/** Merkt sich (je Sortierung) das aktuelle Foto und die übersprungenen. */
+function saveResume() {
+  resumeTimer = null;
+  const s = get().session;
+  if (!s || !prefs().resume) return;
+  const open = s.viewIds.length > 0;
+  const current = open && s.currentId !== null ? s.byId.get(s.currentId)?.path ?? null : null;
+  const skipped = [...s.skipped].filter((id) => !s.done.has(id)).map((id) => s.byId.get(id)!.path).slice(0, 5000);
+  const st = get().settings;
+  const quickStarts = st.quickStarts.map((q) =>
+    sameSources(sourcesOf(q), s.sources) && q.profileId === s.profileId ? { ...q, resume: open ? { current, skipped, t: Date.now() } : undefined } : q
+  );
+  set({ settings: { ...st, quickStarts } });
+  persist();
+}
+
+/** Beim Öffnen: an der gemerkten Stelle weitermachen. */
+function applyResume(s: SessionState) {
+  if (!prefs().resume) return;
+  const q = get().settings.quickStarts.find((x) => sameSources(sourcesOf(x), s.sources) && x.profileId === s.profileId);
+  const r = q?.resume;
+  if (!r) return;
+  const byPath = new Map(s.items.map((it) => [it.path, it.id]));
+  for (const p of r.skipped) {
+    const id = byPath.get(p);
+    if (id !== undefined) s.skipped.add(id);
+  }
+  const cur = r.current ? byPath.get(r.current) : undefined;
+  if (cur === undefined || s.items[0]?.id === cur) return;
+  s.currentId = cur;
+  const it = s.byId.get(cur)!;
+  toast('info', t('toast.resumed', { name: it.name }), {
+    timeout: 7000,
+    action: {
+      label: t('toast.fromStart'),
+      run: () => {
+        const ses = get().session;
+        if (!ses) return;
+        ses.skipped = new Set();
+        recompute(ses, { atIndex: 0, keepId: null });
+      },
+    },
+  });
+}
+
+// ---------------------------------------------------------------- v2: neue Version?
+
+const newer = (a: string, b: string) => {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
+  return false;
+};
+
+/** Schaut (höchstens einmal am Tag, nur bei GitHub) nach einer neuen Version. */
+export async function checkForUpdate(manual = false) {
+  const st = get().settings;
+  if (!manual && (!st.prefs.updateCheck || Date.now() - (st.lastUpdateCheck || 0) < 20 * 3600 * 1000)) return;
+  set({ settings: { ...get().settings, lastUpdateCheck: Date.now() } });
+  persist();
+  try {
+    const r = await fetch('https://api.github.com/repos/slimbitapps/SlimSort/releases/latest', { headers: { Accept: 'application/vnd.github+json' } });
+    if (!r.ok) throw new Error(String(r.status));
+    const latest = String((await r.json()).tag_name || '').replace(/^v/, '');
+    const { version } = await api().appInfo();
+    if (latest && newer(latest, version)) {
+      toast('info', t('update.available', { v: latest }), {
+        timeout: 0,
+        action: { label: t('update.download'), run: () => api().openExternal('https://slimbitapps.github.io/SlimSort/') },
+      });
+    } else if (manual) toast('success', t('update.current', { v: version }));
+  } catch {
+    if (manual) toast('error', t('update.failed'));
+  }
 }
 
 /**
@@ -609,6 +720,84 @@ function resortSession() {
   const p = prefs();
   s.items = sortItems(s.items, p.sortBy, p.sortDir);
   recompute(s, { keepId: s.currentId });
+}
+
+/** v2: Suche nach Dateinamen (auch Ordnername) */
+export function setQuery(q: string) {
+  const s = get().session;
+  if (!s) return;
+  s.query = q.trim().toLowerCase();
+  recompute(s, { keepId: s.currentId });
+}
+
+let dupeBusy = false;
+/**
+ * v2: Exakte Doppelte finden – gleiche Größe, dann gleiche Prüfsumme.
+ * Die erste Datei jeder Gruppe gilt als Original, die anderen als „Doppelt“.
+ */
+export async function findDuplicates() {
+  const s = get().session;
+  if (!s || dupeBusy) return;
+  dupeBusy = true;
+  toast('info', t('dupes.searching'), { timeout: 2500 });
+  try {
+    const bySize = new Map<number, Item[]>();
+    for (const it of s.items) {
+      if (s.done.has(it.id)) continue;
+      const l = bySize.get(it.size);
+      if (l) l.push(it);
+      else bySize.set(it.size, [it]);
+    }
+    const cand = [...bySize.values()].filter((l) => l.length > 1).flat();
+    const hashes = cand.length ? await api().fileHashes(cand.map((it) => it.path)) : {};
+    const byHash = new Map<string, Item[]>();
+    for (const it of cand) {
+      const h = hashes[it.path];
+      if (!h) continue;
+      const k = `${it.size}:${h}`;
+      const l = byHash.get(k);
+      if (l) l.push(it);
+      else byHash.set(k, [it]);
+    }
+    const cur = get().session;
+    if (cur !== s) return;
+    s.dupes = new Set();
+    let groups = 0;
+    let bytes = 0;
+    for (const l of byHash.values()) {
+      if (l.length < 2) continue;
+      groups++;
+      // Original = ältestes Foto (bzw. erstes in der Liste); der Rest ist doppelt
+      const sorted = l.slice().sort((a, b) => itemTime(a) - itemTime(b) || a.name.localeCompare(b.name));
+      for (const it of sorted.slice(1)) {
+        s.dupes.add(it.id);
+        bytes += it.size;
+      }
+    }
+    s.dupeGroups = groups;
+    if (!s.dupes.size) {
+      toast('success', t('dupes.none'));
+      set({ session: { ...s, rev: s.rev + 1 } });
+      return;
+    }
+    toast('success', t('dupes.found', { n: s.dupes.size, size: fmtBytes(bytes) }), {
+      timeout: 12000,
+      action: {
+        label: t('dupes.show'),
+        run: () => {
+          const ses = get().session;
+          if (!ses) return;
+          ses.view = 'grid';
+          updatePrefs({ filter: 'duplicates' });
+        },
+      },
+    });
+    set({ session: { ...s, rev: s.rev + 1 } });
+  } catch (e: any) {
+    toast('error', String(e?.message || e));
+  } finally {
+    dupeBusy = false;
+  }
 }
 
 export const currentItem = (s: SessionState | null) =>
@@ -748,6 +937,17 @@ export function openCompare() {
   ids = ids.filter((id) => s.byId.get(id)?.kind === 'image');
   if (ids.length < 2) return;
   s.compare = { ids, key, page: 0, keep: defaultKeep(ids), touched: false };
+  analysisFor(ids);
+  set({ session: { ...s, rev: s.rev + 1 } });
+}
+
+/** Bestimmte Fotos vergleichen (z. B. aus dem Rechtsklick-Menü). */
+export function openCompareIds(ids: number[]) {
+  const s = get().session;
+  if (!s) return;
+  ids = ids.filter((id) => s.byId.get(id)?.kind === 'image' && !s.done.has(id));
+  if (ids.length < 2) return;
+  s.compare = { ids, key: null, page: 0, keep: defaultKeep(ids), touched: false };
   analysisFor(ids);
   set({ session: { ...s, rev: s.rev + 1 } });
 }
@@ -957,8 +1157,42 @@ function startOp(s: SessionState, ids: number[], o: { targetId?: string; destDir
     s.sorted += ids.length;
   } else s.other += ids.length;
   const action = trash ? 'trash' : prefs().transferMode === 'copy' ? 'copy' : 'move';
-  api().transfer({ opId, itemIds: ids, destDir: o.destDir, action, liveVideo: prefs().liveVideo });
+  // v2: Unterordner nach Datum (je Zielordner) und neue Dateinamen
+  const subdirs: Record<number, string> = {};
+  const names: Record<number, string> = {};
+  if (!trash) {
+    const tg = targetId ? activeProfile().targets.find((x) => x.id === targetId) : undefined;
+    const mode = prefs().renameMode;
+    for (const id of ids) {
+      const it = s.byId.get(id);
+      if (!it) continue;
+      const sub = dateFolder(itemTime(it), tg?.subfolders);
+      if (sub) subdirs[id] = sub;
+      if (mode !== 'keep') names[id] = newName(it, mode);
+    }
+  }
+  api().transfer({ opId, itemIds: ids, destDir: o.destDir, action, liveVideo: prefs().liveVideo, subdirs, names });
   return { opId, ids, targetId, trash };
+}
+
+const pad = (n: number) => String(n).padStart(2, '0');
+
+/** Unterordner nach Aufnahmedatum: "2025", "2025/08" oder "2025/08/03" */
+export function dateFolder(ms: number, mode: Target['subfolders']): string {
+  if (!mode || mode === 'none' || !isFinite(ms)) return '';
+  const d = new Date(ms);
+  const y = String(d.getFullYear());
+  if (mode === 'year') return y;
+  if (mode === 'month') return `${y}/${pad(d.getMonth() + 1)}`;
+  return `${y}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;
+}
+
+/** Neuer Dateiname (ohne Endung): "2025-08-03 14.22.05" bzw. mit altem Namen dahinter */
+export function newName(it: Item, mode: Prefs['renameMode']): string {
+  const d = new Date(itemTime(it));
+  const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}.${pad(d.getMinutes())}.${pad(d.getSeconds())}`;
+  const stem = it.name.replace(/\.[^.]+$/, '');
+  return mode === 'dateName' ? `${stamp} ${stem}` : stamp;
 }
 
 export function findTargetByKey(key: string): Target | undefined {
@@ -1474,13 +1708,20 @@ export function resolveTrashDir() {
   return p.trashMode === 'custom' && p.customTrash ? p.customTrash : null;
 }
 
-export async function emptyTrash() {
-  const r = await api().emptyTrash();
+export async function emptyTrash(systemTrash = prefs().emptyToSystemTrash) {
+  const r = await api().emptyTrash(systemTrash);
   const s = get().session;
   if (s && r.pruned.length) {
     const pr = new Set(r.pruned);
     s.undo = s.undo.map((u) => ({ ...u, ops: u.ops.filter((o) => !pr.has(o.opId)) })).filter((u) => u.kind !== 'transfer' || u.ops.length);
   }
-  toast('success', t('toast.trashEmptied', { n: r.removed }));
+  if (r.removed) toast('success', t(systemTrash ? 'toast.trashToSystem' : 'toast.trashEmptied', { n: r.removed }));
+  // Netzlaufwerke haben oft keinen Papierkorb: diese Dateien bleiben liegen – auf Wunsch endgültig löschen
+  if (r.kept) {
+    toast('error', t('toast.trashKept', { n: r.kept }), {
+      timeout: 0,
+      action: { label: t('toast.trashKeptDelete'), run: () => emptyTrash(false) },
+    });
+  }
   return r;
 }

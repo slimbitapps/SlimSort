@@ -4,6 +4,7 @@ import { SingleView } from './SingleView';
 import { CompareView } from './CompareView';
 import { Filmstrip } from './Filmstrip';
 import { Dock } from './TargetBar';
+import { PhotoMenu } from './PhotoMenu';
 
 export function Session() {
   const s = useStore((st) => st.session)!;
@@ -15,6 +16,7 @@ export function Session() {
       </div>
       {s.view === 'single' && showFilmstrip && !s.compare ? <Filmstrip s={s} /> : <div />}
       <Dock s={s} />
+      <PhotoMenu />
     </div>
   );
 }

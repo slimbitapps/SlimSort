@@ -107,6 +107,23 @@ export function keyFromEvent(e: KeyboardEvent): string | null {
 
 export const isAssignableKey = (k: string) => /^([A-ZÄÖÜ0-9]|F[2-9]|F12)$/.test(k);
 
+const ACTION_SPECIAL = new Set([' ', 'Delete', 'Backspace', 'Enter', 'Insert', 'PageUp', 'PageDown', '-', '.', ',', '#', '+']);
+/** Taste für eine Grundaktion (Überspringen/Löschen/Anderer Ordner) aus einem Ereignis */
+export function actionKeyOf(e: KeyboardEvent): string | null {
+  if (ACTION_SPECIAL.has(e.key)) return e.key;
+  return keyFromEvent(e);
+}
+/** Anzeigename einer Taste: " " -> "Leertaste", "Delete" -> "Entf" (Mac: ⌫) */
+export function keyLabel(k: string): string {
+  if (k === ' ') return t('key.space');
+  if (k === 'Delete') return isMac() ? '⌫' : t('key.del');
+  if (k === 'Backspace') return '⌫';
+  if (k === 'PageUp') return 'Bild ↑';
+  if (k === 'PageDown') return 'Bild ↓';
+  if (k === 'Insert') return isMac() ? 'Ins' : t('key.ins');
+  return k;
+}
+
 export const COLORS = [
   '#5b7cfa', '#33c37a', '#f6a23c', '#ef5a6f', '#a970ff', '#1fb5c9', '#f472b6', '#8a94a6', '#d4a72c', '#6cc644',
 ];
