@@ -8,6 +8,7 @@ import {
 } from './store';
 import { TooltipLayer } from './components/Tooltip';
 import { WindowControls } from './components/WindowControls';
+import { DragGhost } from './components/DragGhost';
 import { Header } from './components/Header';
 import { Onboarding } from './components/Onboarding';
 import { Home } from './components/Home';
@@ -352,6 +353,7 @@ export function App() {
       <Dialogs />
       <Coach />
       <TooltipLayer />
+      <DragGhost />
       <Toasts />
       <Flash />
       <Loading />

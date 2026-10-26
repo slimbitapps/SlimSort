@@ -13,6 +13,9 @@ export const previewUrl = (p: string, s = 2048) => `${PREVIEW}?p=${enc(p)}&s=${s
 
 const BROWSER_IMG = new Set(['.jpg', '.jpeg', '.jpe', '.png', '.gif', '.webp', '.avif', '.bmp']);
 export const browserCanShow = (ext: string) => BROWSER_IMG.has(ext);
+const BROWSER_VIDEO = new Set(['.mp4', '.m4v', '.mov', '.webm']);
+/** Videoformate, die die Webansicht meist selbst abspielen kann */
+export const browserCanPlay = (ext: string) => BROWSER_VIDEO.has(ext);
 
 /**
  * Passende Vorschaugröße für eine Fläche (in Gerätepixeln, auf 512 gerundet).

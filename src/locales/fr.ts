@@ -476,4 +476,6 @@ export const fr: Dict = {
   'win.minimize': 'Réduire',
   'win.maximize': 'Agrandir',
   'win.restore': 'Restaurer',
+
+  'drag.photos': '{n} photos',
 };

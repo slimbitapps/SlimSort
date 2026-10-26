@@ -1,10 +1,11 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { t } from '../i18n';
 import {
   useStore, activeProfile, sortToTarget, trashCurrent, skipCurrent, otherFolder, pickAndAddTarget, openDialog, updateTarget,
   removeTarget, reorderTarget, groupTargets, updateGroup, dissolveGroup, moveTargetToEnd, suggestionFor, currentItem,
-  type SessionState,
+  sortIdsToTarget, trashIds, type SessionState,
 } from '../store';
+import { beginDrag, setDropHandler, useDrag } from '../dnd';
 import type { Group, Target } from '../types';
 import { COLORS, basename, fmtNum } from '../util';
 import {
@@ -17,16 +18,13 @@ type Menu =
   | { kind: 'target'; target: Target; x: number; y: number }
   | { kind: 'group'; group: Group; x: number; y: number };
 
-type DropZone = { id: string; zone: 'before' | 'after' | 'into' } | null;
-
 /** Untere Leiste: Überspringen, Löschen und alle Zielordner. */
 export function Dock({ s }: { s: SessionState }) {
   useStore((st) => st.settings.profiles); // neu zeichnen, wenn Ziele sich ändern
   const reach = useStore((st) => st.reach);
   const profile = activeProfile();
   const [menu, setMenu] = useState<Menu | null>(null);
-  const [dragId, setDragId] = useState<string | null>(null);
-  const [drop, setDrop] = useState<DropZone>(null);
+  const drag = useDrag();
   const longPress = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestion = suggestionFor(s, currentItem(s));
   const mac = window.api.platform === 'darwin';
@@ -62,16 +60,37 @@ export function Dock({ s }: { s: SessionState }) {
     onPointerLeave: () => longPress.current && clearTimeout(longPress.current),
   });
 
-  const zoneOf = (e: React.DragEvent): 'before' | 'after' | 'into' => {
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const rel = (e.clientX - r.left) / r.width;
-    return rel < 0.28 ? 'before' : rel > 0.72 ? 'after' : 'into';
-  };
+  // Ablegen: Zielordner umsortieren/gruppieren oder Fotos einsortieren
+  useEffect(
+    () =>
+      setDropHandler((p, over, zone) => {
+        const [kind, id] = over.split(':');
+        const prof = activeProfile();
+        if (p.kind === 'photos') {
+          if (kind === 'target') sortIdsToTarget(p.ids, id);
+          else if (kind === 'trash') trashIds(p.ids);
+          return;
+        }
+        if (kind === 'target' && id !== p.id) {
+          const tg = prof.targets.find((x) => x.id === id);
+          if (!tg) return;
+          if (zone === 'into') groupTargets(p.id, id);
+          else reorderTarget(p.id, id, zone === 'after', tg.groupId ?? null);
+        } else if (kind === 'group') {
+          const members = prof.targets.filter((x) => x.groupId === id);
+          if (members.length && !members.some((m) => m.id === p.id)) groupTargets(p.id, members[members.length - 1].id);
+        } else if (kind === 'end') moveTargetToEnd(p.id);
+      }),
+    []
+  );
+  const dragTarget = drag?.payload.kind === 'target' ? drag.payload.id : null;
+  const dragPhotos = drag?.payload.kind === 'photos';
 
   const renderTarget = (tg: Target) => {
     const offline = reach[tg.path] === false;
     const count = s.counts[tg.id] || 0;
-    const dz = drop && drop.id === tg.id ? `drop-${drop.zone}` : '';
+    const over = drag?.over === `target:${tg.id}`;
+    const dz = over ? (dragPhotos ? 'drop-photos' : dragTarget !== tg.id ? `drop-${drag!.zone}` : '') : '';
     return (
       <button
         key={tg.id + ':' + count}
@@ -88,40 +107,14 @@ export function Dock({ s }: { s: SessionState }) {
               : t('tip.target', { path: tg.path }),
           tg.key || undefined
         )}
-        draggable
+        data-drop={`target:${tg.id}`}
         onClick={(e) => sortToTarget(tg.id, { wholeSeries: e.shiftKey })}
         onContextMenu={(e) => {
           e.preventDefault();
           setMenu({ kind: 'target', target: tg, x: e.clientX, y: e.clientY });
         }}
         {...pressHandlers((x, y) => setMenu({ kind: 'target', target: tg, x, y }))}
-        onDragStart={(e) => {
-          setDragId(tg.id);
-          e.dataTransfer.effectAllowed = 'move';
-          e.dataTransfer.setData('text/plain', tg.id);
-        }}
-        onDragEnd={() => {
-          setDragId(null);
-          setDrop(null);
-        }}
-        onDragOver={(e) => {
-          if (!dragId || dragId === tg.id) return;
-          e.preventDefault();
-          e.stopPropagation();
-          const zone = zoneOf(e);
-          if (!drop || drop.id !== tg.id || drop.zone !== zone) setDrop({ id: tg.id, zone });
-        }}
-        onDragLeave={() => setDrop(null)}
-        onDrop={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          if (!dragId || dragId === tg.id) return;
-          const zone = zoneOf(e);
-          if (zone === 'into') groupTargets(dragId, tg.id);
-          else reorderTarget(dragId, tg.id, zone === 'after', tg.groupId ?? null);
-          setDrop(null);
-          setDragId(null);
-        }}
+        onPointerDownCapture={(e) => beginDrag(e, () => ({ kind: 'target', id: tg.id, label: tg.name, color: tg.color }))}
       >
         {suggestion === tg.id && <span className="sugg">{t('ses.suggest')}</span>}
         <div className="t-top">
@@ -145,22 +138,14 @@ export function Dock({ s }: { s: SessionState }) {
     return (
       <div key={g.id} className="group" data-testid="group">
         <button
-          className="ghead"
+          data-drop={`group:${g.id}`}
+          className={`ghead ${drag?.over === `group:${g.id}` && dragTarget ? 'drop-into' : ''}`}
           onClick={() => updateGroup(g.id, { collapsed: !g.collapsed })}
           onContextMenu={(e) => {
             e.preventDefault();
             setMenu({ kind: 'group', group: g, x: e.clientX, y: e.clientY });
           }}
           {...pressHandlers((x, y) => setMenu({ kind: 'group', group: g, x, y }))}
-          onDragOver={(e) => {
-            if (!dragId || members.some((m) => m.id === dragId)) return;
-            e.preventDefault();
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-            if (dragId) groupTargets(dragId, members[members.length - 1].id);
-            setDragId(null);
-          }}
           {...tip(g.name, members.map((m) => `${m.key || '–'} ${m.name}`).join(' · '))}
         >
           <div className="row" style={{ gap: 4 }}>
@@ -203,7 +188,8 @@ export function Dock({ s }: { s: SessionState }) {
           <KeyCap k={t('key.space')} />
         </button>
         <button
-          className="act delete"
+          className={`act delete ${drag?.over === 'trash' && dragPhotos ? 'drop-photos' : ''}`}
+          data-drop="trash"
           onClick={trashCurrent}
           data-testid="target-trash"
           {...tip(t('ses.delete'), inCompare ? t('tip.cmpDone') : t('tip.delete'), mac ? '⌫' : t('key.del'))}
@@ -219,17 +205,7 @@ export function Dock({ s }: { s: SessionState }) {
         </button>
       </div>
       <div className="dock-sep" />
-      <div
-        className="targets-scroll"
-        data-coach="targets"
-        onDragOver={(e) => dragId && e.preventDefault()}
-        onDrop={(e) => {
-          e.preventDefault();
-          if (dragId) moveTargetToEnd(dragId);
-          setDragId(null);
-          setDrop(null);
-        }}
-      >
+      <div className="targets-scroll" data-coach="targets" data-drop="end">
         {blocks.map((b) => (b.type === 't' ? renderTarget(b.target) : renderGroup(b.group, b.members)))}
         <button className="target add" onClick={pickAndAddTarget} data-testid="add-target" {...tip(t('ses.addTarget'), t('tip.addTarget'))}>
           <IconPlus size={16} />

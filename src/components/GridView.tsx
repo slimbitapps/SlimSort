@@ -1,7 +1,9 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
-import { useStore, clickSelect, goTo, setView, type SessionState } from '../store';
-import { browserCanShow, mediaUrl, thumbUrl } from '../util';
+import { useStore, clickSelect, goTo, setView, photoDrag, openPhotoMenu, type SessionState } from '../store';
+import { beginDrag } from '../dnd';
+import { browserCanPlay, browserCanShow, mediaUrl, thumbUrl } from '../util';
+import { heicUrl, isHeic } from '../heic';
 import { IconCheck, IconImage, IconVideo } from '../icons';
 import type { Item } from '../types';
 
@@ -109,10 +111,19 @@ const Tile = memo(function Tile({
   skipped: boolean;
   series: number;
 }) {
-  // 0 = Vorschaubild, 1 = Original als Ersatz, 2 = keine Anzeige möglich
+  // 0 = Vorschaubild, 1 = Original als Ersatz, 2 = keine Anzeige möglich, 3 = HEIC selbst dekodiert, 4 = Bild aus dem Video
   const [stage, setStage] = useState(0);
+  const [alt, setAlt] = useState<string | null>(null);
   useEffect(() => setStage(0), [it.path]);
   const failed = stage === 2;
+  const onThumbError = () => {
+    if (stage === 0 && isHeic(it.ext)) {
+      setStage(3);
+      heicUrl(it.path, px).then((u) => (u ? setAlt(u) : setStage(2)));
+    } else if (stage === 0 && it.kind === 'image' && browserCanShow(it.ext)) setStage(1);
+    else if (stage === 0 && it.kind === 'video' && browserCanPlay(it.ext)) setStage(4);
+    else setStage(2);
+  };
   return (
     <div
       className={`grid-tile ${selected ? 'selected' : ''} ${current ? 'current' : ''}`}
@@ -120,6 +131,11 @@ const Tile = memo(function Tile({
       data-testid="tile"
       data-name={it.name}
       onClick={(e) => clickSelect(it.id, { shift: e.shiftKey, toggle: e.ctrlKey || e.metaKey })}
+      onPointerDown={(e) => beginDrag(e, () => photoDrag(it))}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        openPhotoMenu(it.id, e.clientX, e.clientY);
+      }}
       onDoubleClick={() => {
         goTo(it.id);
         setView('single');
@@ -131,6 +147,10 @@ const Tile = memo(function Tile({
             {it.kind === 'video' ? <IconVideo size={30} /> : <IconImage size={30} />}
             <span>{it.ext.slice(1).toUpperCase()}</span>
           </div>
+        ) : stage === 4 ? (
+          <video key={it.path} src={mediaUrl(it.path) + '#t=0.5'} muted preload="metadata" playsInline onError={() => setStage(2)} />
+        ) : stage === 3 ? (
+          alt && <img key={alt} src={alt} decoding="async" draggable={false} alt="" onError={() => setStage(2)} />
         ) : (
           <img
             key={it.path + stage}
@@ -139,7 +159,7 @@ const Tile = memo(function Tile({
             decoding="async"
             draggable={false}
             alt=""
-            onError={() => setStage(stage === 0 && it.kind === 'image' && browserCanShow(it.ext) ? 1 : 2)}
+            onError={onThumbError}
           />
         )}
       </div>

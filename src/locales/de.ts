@@ -490,4 +490,6 @@ export const de = {
   'win.minimize': 'Minimieren',
   'win.maximize': 'Maximieren',
   'win.restore': 'Verkleinern',
+
+  'drag.photos': '{n} Fotos',
 };

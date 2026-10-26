@@ -5,6 +5,7 @@ import type {
 } from './types';
 import { basename, COLORS, itemTime, sortItems, uid, isAssignableKey, thumbUrl, browserCanShow, mediaUrl } from './util';
 import { computeSeries, rankSeries, MOTIF_DIST } from './series';
+import type { DragPayload } from './dnd';
 import { configureAnalysis, requestAnalysis, resetAnalysis } from './analysis';
 
 // ---------------------------------------------------------------- Typen
@@ -130,6 +131,8 @@ interface State {
   progress: Progress | null;
   flash: { name: string; color: string; key: string; n: number } | null;
   scanning: number | null;
+  /** Rechtsklick-Menü auf einem Foto */
+  photoMenu: { id: number; x: number; y: number } | null;
 }
 
 // ---------------------------------------------------------------- Standardwerte
@@ -186,6 +189,7 @@ export const useStore = create<State>(() => ({
   progress: null,
   flash: null,
   scanning: null,
+  photoMenu: null,
 }));
 
 const get = useStore.getState;
@@ -1001,6 +1005,69 @@ export function trashCurrent() {
   s.undo.push({ kind: 'transfer', ops: [op], prevCurrent: s.currentId });
   s.selection = new Set();
   if (get().zen && prefs().zenFlash) flash(t('targets.trash'), '#ef5a6f', t('key.del'));
+  recompute(s, {});
+}
+
+/** Welche Fotos betrifft Ziehen/Rechtsklick? Gehört das Foto zur Auswahl: alle ausgewählten. */
+export function idsFor(id: number): number[] {
+  const s = get().session;
+  if (!s) return [];
+  if (s.view === 'grid' && s.selection.has(id) && s.selection.size > 1) return s.viewIds.filter((x) => s.selection.has(x));
+  return [id];
+}
+
+export function photoDrag(it: Item): DragPayload | null {
+  const s = get().session;
+  if (!s || s.compare) return null;
+  return { kind: 'photos', ids: idsFor(it.id), label: it.name, thumb: thumbUrl(it.path, 128) };
+}
+
+export function openPhotoMenu(id: number, x: number, y: number) {
+  const s = get().session;
+  // Rechtsklick auf ein nicht ausgewähltes Foto: dieses auswählen (wie im Explorer/Finder)
+  if (s && s.view === 'grid' && !s.selection.has(id)) {
+    s.selection = new Set([id]);
+    s.anchorId = id;
+    s.currentId = id;
+    set({ session: { ...s, rev: s.rev + 1 } });
+  }
+  set({ photoMenu: { id, x, y } });
+}
+
+export function closePhotoMenu() {
+  set({ photoMenu: null });
+}
+
+/** Bestimmte Fotos (z. B. per Ziehen) in einen Zielordner. */
+export function sortIdsToTarget(ids: number[], targetId: string) {
+  const s = get().session;
+  if (!s) return;
+  const target = activeProfile().targets.find((x) => x.id === targetId);
+  ids = ids.filter((id) => s.byId.has(id) && !s.done.has(id));
+  if (!target || !ids.length) return;
+  if (get().reach[target.path] === false) {
+    toast('error', t('toast.unreachable', { path: target.path }));
+    api().checkReach().then(onReach);
+    return;
+  }
+  if (s.compare) closeCompare(s, false);
+  const op = startOp(s, ids, { targetId, destDir: target.path });
+  s.undo.push({ kind: 'transfer', ops: [op], prevCurrent: s.currentId });
+  s.selection = new Set();
+  if (ids.length > 1) toast('success', t('toast.seriesMoved', { n: ids.length, name: target.name }));
+  recompute(s, {});
+}
+
+/** Bestimmte Fotos (z. B. per Ziehen) in den Löschordner. */
+export function trashIds(ids: number[]) {
+  const s = get().session;
+  if (!s) return;
+  ids = ids.filter((id) => s.byId.has(id) && !s.done.has(id));
+  if (!ids.length) return;
+  if (s.compare) closeCompare(s, false);
+  const op = startOp(s, ids, { trash: true });
+  s.undo.push({ kind: 'transfer', ops: [op], prevCurrent: s.currentId });
+  s.selection = new Set();
   recompute(s, {});
 }
 

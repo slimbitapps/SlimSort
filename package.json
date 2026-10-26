@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",
+    "libheif-js": "^1.23.5",
     "zustand": "^5.0.15"
   },
   "productName": "SlimSort",

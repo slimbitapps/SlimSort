@@ -6,6 +6,7 @@ import {
 import { browserCanShow, displayUrl, fullUrl, mediaUrl, fmtBytes, fmtDate, fmtNum, itemTime, clamp, previewSize } from '../util';
 import { IconChevronLeft, IconChevronRight, IconFolderOut, IconLive, IconMaximize, IconLayers } from '../icons';
 import { tip } from './Tooltip';
+import { heicUrl, isHeic } from '../heic';
 
 interface View {
   scale: number;
@@ -36,6 +37,8 @@ export function SingleView({ s }: { s: SessionState }) {
   // Zuletzt angezeigtes Bild: bleibt stehen, bis das nächste geladen ist (kein schwarzes Aufblitzen)
   const shown = useRef<{ src: string; style: React.CSSProperties } | null>(null);
   const [fadeHold, setFadeHold] = useState(false);
+  // HEIC ohne Vorschau vom System: selbst dekodiert (blob:-Adresse)
+  const [heicSrc, setHeicSrc] = useState<string | null>(null);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<{
     startX: number;
@@ -80,6 +83,7 @@ export function SingleView({ s }: { s: SessionState }) {
     setHiRes(false);
     setOneFailed(false);
     setFadeHold(true);
+    setHeicSrc(null);
   }, [it?.id, it?.path]);
 
   // Altes Bild noch kurz zeigen, bis das neue eingeblendet ist
@@ -95,7 +99,7 @@ export function SingleView({ s }: { s: SessionState }) {
 
   // Beim Hineinzoomen über die Vorschau-Auflösung hinaus: Original laden
   useEffect(() => {
-    if (!hiRes && !oneFailed && nat && it?.kind === 'image' && view.scale * (window.devicePixelRatio || 1) > 1.05 && !fitMode) setHiRes(true);
+    if (!hiRes && !oneFailed && !heicSrc && nat && it?.kind === 'image' && view.scale * (window.devicePixelRatio || 1) > 1.05 && !fitMode) setHiRes(true);
   }, [view.scale, nat, hiRes, oneFailed, fitMode, it?.kind]);
 
   useEffect(() => {
@@ -232,7 +236,8 @@ export function SingleView({ s }: { s: SessionState }) {
     ? { left: 0, top: 0, width: nat.w * view.scale, height: nat.h * view.scale, transform: `translate(${view.x}px, ${view.y}px)` }
     : { opacity: 0 };
   const mod = window.api.platform === 'darwin' ? '⌘' : t('key.ctrl');
-  if (nat && !fadeHold && it.kind === 'image' && !error) shown.current = { src: hiRes ? fullUrl(it) : displayUrl(it, pSize), style: rect };
+  const imgSrc = heicSrc ?? (hiRes ? fullUrl(it) : displayUrl(it, pSize));
+  if (nat && !fadeHold && it.kind === 'image' && !error) shown.current = { src: imgSrc, style: rect };
   else if (it.kind !== 'image' || error) shown.current = null;
   const ghostVisible = (!nat || fadeHold) && !error;
 
@@ -274,9 +279,9 @@ export function SingleView({ s }: { s: SessionState }) {
             />
           )}
           <img
-            key={it.path + (hiRes ? ':hi' : '')}
+            key={it.path + (hiRes ? ':hi' : '') + (heicSrc ? ':heic' : '')}
             className={`media ${nat ? 'ready' : ''}`}
-            src={hiRes ? fullUrl(it) : displayUrl(it, pSize)}
+            src={imgSrc}
             alt={it.name}
             decoding="async"
             draggable={false}
@@ -291,6 +296,13 @@ export function SingleView({ s }: { s: SessionState }) {
             }}
             onError={() => {
               // Vorschau kaputt → Original versuchen (und umgekehrt); erst wenn beides scheitert: Hinweis
+              if (heicSrc) return setError(true);
+              if (isHeic(it.ext)) {
+                const path = it.path;
+                setOneFailed(true);
+                heicUrl(path, pSize).then((u) => (u ? setHeicSrc(u) : setError(true)));
+                return;
+              }
               if (oneFailed) return setError(true);
               setOneFailed(true);
               if (hiRes) setHiRes(false);

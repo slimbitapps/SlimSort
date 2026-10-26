@@ -9,6 +9,7 @@ import { browserCanShow, clamp, mediaUrl, previewUrl, previewSize } from '../uti
 import { IconCheck, IconTrash, IconStar, IconChevronLeft, IconChevronRight, IconLayers } from '../icons';
 import { tip } from './Tooltip';
 import { KeyCap } from './ui';
+import { heicUrl, isHeic } from '../heic';
 
 /** Gemeinsamer Ausschnitt für alle Fotos: Zoom (1 = eingepasst) und Mittelpunkt (0–1). */
 interface Shared {
@@ -125,6 +126,7 @@ const Cell = memo(function Cell(p: {
   const [box, setBox] = useState({ w: 400, h: 300 });
   const [nat, setNat] = useState<{ w: number; h: number } | null>(null);
   const [hi, setHi] = useState(false);
+  const [heicSrc, setHeicSrc] = useState<string | null>(null);
   const failedOnce = useRef(false);
   const drag = useRef<{ x: number; y: number; moved: boolean; sh: Shared } | null>(null);
 
@@ -196,8 +198,8 @@ const Cell = memo(function Cell(p: {
       onDoubleClick={() => compareKeepOnly(it.id)}
     >
       <img
-        key={hi ? 'hi' : 'lo'}
-        src={hi ? mediaUrl(it.path) : previewUrl(it.path, previewSize(box.w, box.h))}
+        key={heicSrc ? 'heic' : hi ? 'hi' : 'lo'}
+        src={heicSrc ?? (hi ? mediaUrl(it.path) : previewUrl(it.path, previewSize(box.w, box.h)))}
         alt={it.name}
         decoding="async"
         draggable={false}
@@ -211,6 +213,10 @@ const Cell = memo(function Cell(p: {
           // Original kaputt → Vorschau; Vorschau kaputt → Original (falls möglich)
           if (failedOnce.current) return;
           failedOnce.current = true;
+          if (isHeic(it.ext)) {
+            heicUrl(it.path, previewSize(box.w, box.h)).then((u) => u && setHeicSrc(u));
+            return;
+          }
           if (hi) setHi(false);
           else if (browserCanShow(it.ext)) setHi(true);
         }}

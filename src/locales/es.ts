@@ -476,4 +476,6 @@ export const es: Dict = {
   'win.minimize': 'Minimizar',
   'win.maximize': 'Maximizar',
   'win.restore': 'Restaurar',
+
+  'drag.photos': '{n} fotos',
 };
