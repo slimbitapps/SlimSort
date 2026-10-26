@@ -1,49 +1,74 @@
-# Baut automatisch die Installer für Windows und Mac.
+# Baut automatisch die Installer für Windows und Mac (Tauri).
 # Ergebnis: unter "Actions" -> letzter Lauf -> "Artifacts".
-# Bei einem Versions-Tag (z. B. v0.2.0) entsteht ein Release, von dem die
+# Auf main (und bei einem Versions-Tag) entsteht ein Release, von dem die
 # Download-Seite immer die neueste Version verlinkt.
 #
 # Optionale Geheimnisse (Settings -> Secrets -> Actions), siehe VEROEFFENTLICHEN.md:
-#   Mac:     MAC_CERT_P12_BASE64, MAC_CERT_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID
-#   Windows: WIN_CERT_P12_BASE64, WIN_CERT_PASSWORD
-# Ohne sie wird trotzdem gebaut, aber unsigniert (dann warnen Windows/macOS beim Öffnen).
+#   Mac:     MAC_CERT_P12_BASE64, MAC_CERT_PASSWORD, APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID
+# Ohne sie wird trotzdem gebaut, aber unsigniert (dann warnt macOS beim ersten Öffnen).
 name: Installer bauen
 
 on:
   push:
-    branches: [main]
+    branches: [main, v2-tauri]
     tags: ['v*']
     # Nur Texte/Webseiten/Videos geändert → keine neuen Installer bauen
     paths-ignore: ['website/**', 'brand-site/**', 'docs/**', 'marketing/**', 'scripts/video/**', '*.md', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 jobs:
+  # Tests: Rust-Logik + Oberfläche + kompletter Durchlauf mit der echten App (Linux)
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: src-tauri }
+      - name: Systempakete
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev webkit2gtk-driver xvfb
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: tauri-driver
+        run: cargo install tauri-driver --locked
+      - name: App bauen + E2E-Test
+        run: |
+          npx tauri build --debug --no-bundle
+          xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/run.cjs e2e-shots
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: e2e-screenshots, path: e2e-shots, if-no-files-found: ignore }
+
   windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: src-tauri }
       - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
       - name: Installer (Setup.exe) + portable ZIP
         shell: bash
-        env:
-          CSC_LINK: ${{ secrets.WIN_CERT_P12_BASE64 }}
-          CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
-        run: npx electron-builder --win nsis zip --x64 --publish never
-      - name: Microsoft-Store-Paket (.appx)
-        continue-on-error: true
-        run: npx electron-builder --win appx --x64 --publish never
+        run: |
+          npx tauri build --bundles nsis
+          mkdir -p release
+          cp src-tauri/target/release/bundle/nsis/*-setup.exe release/SlimSort-Setup.exe
+          cp src-tauri/target/release/slimsort.exe release/SlimSort.exe
+          cd release && 7z a -tzip SlimSort-Windows-portable.zip SlimSort.exe && rm SlimSort.exe
+          ls -la
       - uses: actions/upload-artifact@v4
         with:
           name: SlimSort-Windows
           path: |
             release/*.exe
             release/*.zip
-            release/*.appx
           if-no-files-found: error
 
   mac:
@@ -54,36 +79,34 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: 'aarch64-apple-darwin,x86_64-apple-darwin' }
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: src-tauri }
       - run: npm ci
-      - run: npm test
-      - run: npm run build
-
       - name: Signiert + notarisiert (wenn Apple-Zugang hinterlegt)
         if: env.HAS_APPLE == 'true'
         env:
-          CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          npx electron-builder --mac dmg --arm64 --x64 -c.mac.notarize=true --publish never
-          mv release/SlimSort-Mac-arm64.dmg release/SlimSort-Mac.dmg
-          mv release/SlimSort-Mac-x64.dmg release/SlimSort-Mac-Intel.dmg
-
-      - name: Unsigniert (ohne Apple-Zugang)
+          npx tauri build --target aarch64-apple-darwin --bundles dmg
+          npx tauri build --target x86_64-apple-darwin --bundles dmg
+      - name: Unsigniert (ohne Apple-Zugang, „ad-hoc“ signiert)
         if: env.HAS_APPLE != 'true'
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: |
-          npx electron-builder --mac dir --arm64 --x64 -c.mac.identity=null --publish never
-          codesign --force --deep --sign - release/mac-arm64/SlimSort.app
-          codesign --force --deep --sign - release/mac/SlimSort.app
-          npx electron-builder --mac dmg --arm64 -c.mac.identity=null --prepackaged release/mac-arm64/SlimSort.app --publish never
-          npx electron-builder --mac dmg --x64 -c.mac.identity=null --prepackaged release/mac/SlimSort.app --publish never
-          mv release/SlimSort-Mac-arm64.dmg release/SlimSort-Mac.dmg
-          mv release/SlimSort-Mac-x64.dmg release/SlimSort-Mac-Intel.dmg
-
+          npx tauri build --target aarch64-apple-darwin --bundles dmg --config '{"bundle":{"macOS":{"signingIdentity":"-"}}}'
+          npx tauri build --target x86_64-apple-darwin --bundles dmg --config '{"bundle":{"macOS":{"signingIdentity":"-"}}}'
+      - name: Dateien benennen
+        run: |
+          mkdir -p release
+          cp src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg release/SlimSort-Mac.dmg
+          cp src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg release/SlimSort-Mac-Intel.dmg
+          ls -la release
       - uses: actions/upload-artifact@v4
         with:
           name: SlimSort-Mac
@@ -94,7 +117,7 @@ jobs:
   # Gleiche Version erneut hochgeladen -> Dateien werden ersetzt.
   release:
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
-    needs: [windows, mac]
+    needs: [test, windows, mac]
     runs-on: ubuntu-latest
     permissions:
       contents: write
