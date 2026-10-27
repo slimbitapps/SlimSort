@@ -74,6 +74,7 @@ jobs:
       - name: App bauen
         run: npx tauri build --debug --no-bundle
       - name: E2E-Test
+        timeout-minutes: 75
         shell: bash
         run: |
           pip install --break-system-packages pillow-heif || true
@@ -81,7 +82,8 @@ jobs:
           set -o pipefail
           ok=0
           # Ein Test schlägt fehl → nur dessen letzte Zeilen als Hinweis (GitHub zeigt höchstens 10)
-          run() { name=$1; shift; "$@" 2>&1 | tee e2e-shots/$name.log || { ok=1; tail -n 8 e2e-shots/$name.log | sed "s|^|::error title=$name::|"; }; }
+          # jeder Test höchstens 20 Minuten (hängt etwas, schlägt er fehl statt ewig zu warten)
+          run() { name=$1; shift; timeout 1200 "$@" 2>&1 | tee e2e-shots/$name.log || { ok=1; tail -n 8 e2e-shots/$name.log | sed "s|^|::error title=$name::|"; }; }
           run run xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/run.cjs e2e-shots
           run v2 xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/v2.cjs e2e-shots/v2
           run ki env FOTOSORT_AI_FILE=$PWD/ki-modell/slimsort-ki-1.safetensors xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/ai.cjs e2e-shots/ki
