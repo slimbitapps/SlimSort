@@ -9,6 +9,23 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Was hat sich geändert? (nur das neu bauen)
+  changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      siglip: ${{ steps.f.outputs.siglip }}
+      llm: ${{ steps.f.outputs.llm }}
+      helper: ${{ steps.f.outputs.helper }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: f
+        with:
+          filters: |
+            siglip: ['scripts/ai/export_siglip.py']
+            llm: ['scripts/ai/llm_models.py']
+            helper: ['src-llm/**', '.github/workflows/ki-modell.yml']
+
   # Stufe "Sparsam": CLIP (bleibt unter ki-modell-1)
   clip:
     if: false # fertig, siehe Release ki-modell-1
@@ -18,7 +35,8 @@ jobs:
 
   # Stufen "Ausgewogen"/"Maximal": SigLIP 2
   siglip:
-    if: contains(toJSON(github.event.commits), 'export_siglip') || github.event_name == 'workflow_dispatch'
+    needs: changes
+    if: needs.changes.outputs.siglip == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -59,7 +77,8 @@ jobs:
 
   # Sprachmodelle (GGUF)
   llm:
-    if: contains(toJSON(github.event.commits), 'llm_models.py') || github.event_name == 'workflow_dispatch'
+    needs: changes
+    if: needs.changes.outputs.llm == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -85,7 +104,8 @@ jobs:
 
   # Helfer-Programm für den Chat (llama.cpp), je System
   helper:
-    if: contains(toJSON(github.event.commits), 'src-llm/') || contains(toJSON(github.event.commits), 'ki-modell.yml') || github.event_name == 'workflow_dispatch'
+    needs: changes
+    if: needs.changes.outputs.helper == 'true' || github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
     strategy:
