@@ -27,6 +27,9 @@ export function Dock({ s }: { s: SessionState }) {
   const drag = useDrag();
   const longPress = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestion = suggestionFor(s, currentItem(s));
+  // KI-Vorschlag: Sicherheit anzeigen (nur wenn der Vorschlag von der KI kommt)
+  const aiS = s.currentId !== null ? s.aiSugg.get(s.currentId) : undefined;
+  const aiConf = aiS && aiS.targetId === suggestion ? aiS.conf : null;
   const keys = useStore((st) => st.settings.prefs.keys);
   const expert = useStore((st) => st.settings.prefs.mode === 'expert');
   const inCompare = !!s.compare;
@@ -116,7 +119,7 @@ export function Dock({ s }: { s: SessionState }) {
         {...pressHandlers((x, y) => setMenu({ kind: 'target', target: tg, x, y }))}
         onPointerDownCapture={(e) => beginDrag(e, () => ({ kind: 'target', id: tg.id, label: tg.name, color: tg.color }))}
       >
-        {suggestion === tg.id && <span className="sugg">{t('ses.suggest')}</span>}
+        {suggestion === tg.id && <span className="sugg">{aiConf !== null ? t('ai.suggestPct', { pct: Math.round(aiConf * 100) }) : t('ses.suggest')}</span>}
         <div className="t-top">
           <span className="t-dot" />
           <span className="t-name ellipsis">{tg.name}</span>
@@ -188,7 +191,7 @@ export function Dock({ s }: { s: SessionState }) {
           <KeyCap k={keyLabel(keys.skip)} />
         </button>
         <button
-          className={`act delete ${drag?.over === 'trash' && dragPhotos ? 'drop-photos' : ''}`}
+          className={`act delete ${drag?.over === 'trash' && dragPhotos ? 'drop-photos' : ''} ${suggestion === 'trash' ? 'suggest' : ''}`}
           data-drop="trash"
           onClick={trashCurrent}
           data-testid="target-trash"
@@ -197,6 +200,7 @@ export function Dock({ s }: { s: SessionState }) {
           <IconTrash size={18} />
           {t('ses.delete')}
           <KeyCap k={keyLabel(keys.trash)} />
+          {suggestion === 'trash' && aiConf !== null && <span className="sugg">{t('ai.suggestPct', { pct: Math.round(aiConf * 100) })}</span>}
         </button>
         <button className="act other" onClick={otherFolder} data-testid="other-folder" {...tip(t('ses.otherShort'), t('tip.other'), keyLabel(keys.other))}>
           <IconFolderOut size={18} />

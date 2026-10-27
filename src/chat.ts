@@ -59,7 +59,7 @@ const DAY = 86400000;
 
 /** Datumsangaben herauslösen. Gibt den Rest-Text und den Filter zurück. */
 export function extractDate(text: string, now = Date.now()): { rest: string; date?: DateFilter } {
-  let s = ' ' + text.toLowerCase() + ' ';
+  let s = ' ' + text + ' ';
   const date: DateFilter = {};
   const cut = (re: RegExp) => {
     s = s.replace(re, ' ');
@@ -68,12 +68,12 @@ export function extractDate(text: string, now = Date.now()): { rest: string; dat
   today0.setHours(0, 0, 0, 0);
   const t0 = today0.getTime();
   const rel: [RegExp, () => void][] = [
-    [/\b(von |vom |from )?(heute|today)\b/, () => ((date.from = t0), (date.to = t0 + DAY))],
-    [/\b(von |vom |from )?(gestern|yesterday)\b/, () => ((date.from = t0 - DAY), (date.to = t0))],
-    [/\b(aus |von |from |in )?(der |the )?(letzten|vergangenen|last|past) (woche|week)\b/, () => ((date.from = t0 - 7 * DAY), (date.to = t0 + DAY))],
-    [/\b(aus |von |from |in )?(dem |the )?(letzten|vergangenen|last|past) (monat|month)\b/, () => ((date.from = t0 - 31 * DAY), (date.to = t0 + DAY))],
-    [/\b(aus |von |from |in )?(diesem|dieses|this) (jahr|year)\b/, () => (date.years = [today0.getFullYear()])],
-    [/\b(aus |von |from |in )?(dem |the )?(letzten|letztes|vergangenen|vergangenes|last) (jahr|year)\b/, () => (date.years = [today0.getFullYear() - 1])],
+    [/\b(von |vom |from )?(heute|today)\b/i, () => ((date.from = t0), (date.to = t0 + DAY))],
+    [/\b(von |vom |from )?(gestern|yesterday)\b/i, () => ((date.from = t0 - DAY), (date.to = t0))],
+    [/\b(aus |von |from |in )?(der |the )?(letzten|vergangenen|last|past) (woche|week)\b/i, () => ((date.from = t0 - 7 * DAY), (date.to = t0 + DAY))],
+    [/\b(aus |von |from |in )?(dem |the )?(letzten|vergangenen|last|past) (monat|month)\b/i, () => ((date.from = t0 - 31 * DAY), (date.to = t0 + DAY))],
+    [/\b(aus |von |from |in )?(diesem|dieses|this) (jahr|year)\b/i, () => (date.years = [today0.getFullYear()])],
+    [/\b(aus |von |from |in )?(dem |the )?(letzten|letztes|vergangenen|vergangenes|last) (jahr|year)\b/i, () => (date.years = [today0.getFullYear() - 1])],
   ];
   for (const [re, f] of rel) {
     if (re.test(s)) {
@@ -84,24 +84,24 @@ export function extractDate(text: string, now = Date.now()): { rest: string; dat
   const years = [...s.matchAll(/\b(19[5-9]\d|20[0-9]\d)\b/g)].map((m) => +m[1]);
   if (years.length) {
     // "2019 bis 2021" / "2019-2021"
-    const range = /\b(19[5-9]\d|20[0-9]\d)\s*(bis|-|–|to|until)\s*(19[5-9]\d|20[0-9]\d)\b/.exec(s);
+    const range = /\b(19[5-9]\d|20[0-9]\d)\s*(bis|-|–|to|until)\s*(19[5-9]\d|20[0-9]\d)\b/i.exec(s);
     if (range) {
       const [a, b] = [+range[1], +range[3]].sort((x, y) => x - y);
       date.years = Array.from({ length: b - a + 1 }, (_, i) => a + i);
     } else date.years = years;
-    cut(/\b(aus |von |vom |im jahr |in |from |of )?(dem jahr |the year )?(19[5-9]\d|20[0-9]\d)(\s*(bis|-|–|to|until)\s*(19[5-9]\d|20[0-9]\d))?\b/g);
+    cut(/\b(aus |von |vom |im jahr |in |from |of )?(dem jahr |the year )?(19[5-9]\d|20[0-9]\d)(\s*(bis|-|–|to|until)\s*(19[5-9]\d|20[0-9]\d))?\b/gi);
   }
   const months: number[] = [];
   for (const [re, m] of MONTHS) {
-    if (re.test(s)) {
+    if (new RegExp(re.source, 'i').test(s)) {
       months.push(m);
-      cut(new RegExp('\\b(im |in |aus dem |vom |von |from )?' + re.source.slice(2, -2) + '\\b'));
+      cut(new RegExp('\\b(im |in |aus dem |vom |von |from )?' + re.source.slice(2, -2) + '\\b', 'i'));
     }
   }
   for (const [re, ms] of SEASONS) {
-    if (re.test(s)) {
+    if (new RegExp(re.source, 'i').test(s)) {
       months.push(...ms);
-      cut(new RegExp('\\b(im |in |aus dem |vom |von |from |during )?(the )?' + re.source.slice(2, -2) + '(urlaub)?\\b'));
+      cut(new RegExp('\\b(im |in |aus dem |vom |von |from |during )?(the )?' + re.source.slice(2, -2) + '(urlaub)?\\b', 'i'));
     }
   }
   if (months.length) date.months = months;
@@ -125,6 +125,7 @@ export function cleanQuery(q: string): string {
   const lead =
     /^(bitte |please |kannst du |can you |könntest du |could you )?(mir |me )?(such|find|zeig|show|search|gib|hol|look for|give)\w*( mir| me| for| nach)?( bitte| please)?( mal)?\b[ ,:]*/i;
   s = s.replace(lead, '');
+  s = s.replace(/^(alle|all|sämtliche|every|nur|only)\s+(?!(fotos?|bilder?|photos?|pictures?|images?)\b)/i, '');
   s = s.replace(/^(alle |all |nur |only )?(die |das |den |dem |ein |eine |einen |the |a |an )?(fotos?|bilder?|photos?|pictures?|images?|aufnahmen|pics?)\b[ ,:]*/i, '');
   s = s.replace(/^(wo |where |auf (dem|denen|der) |on which |in which |with |mit |von |of |vom |showing |die |das )/i, '');
   s = s.replace(/^(drauf |darauf )?(zu sehen )?(ist |sind |is |are )?/i, '');

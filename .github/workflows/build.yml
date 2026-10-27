@@ -38,7 +38,19 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev webkit2gtk-driver xvfb python3-pil ffmpeg fonts-dejavu-core
       - run: npm ci
       - run: npm run typecheck
+      - name: KI-Modell (für Tests)
+        uses: actions/cache@v4
+        with: { path: ki-modell, key: ki-modell-1 }
+      - name: KI-Modell laden
+        run: |
+          mkdir -p ki-modell && cd ki-modell
+          for f in slimsort-ki-1.safetensors slimsort-ki-1-ref.json; do
+            [ -s "$f" ] || curl -fsSL -o "$f" "https://github.com/slimbitapps/SlimSort/releases/download/ki-modell-1/$f"
+          done
+          ls -la
       - run: npm test
+        env:
+          FOTOSORT_AI_MODEL: ${{ github.workspace }}/ki-modell/slimsort-ki-1.safetensors
       - name: tauri-driver
         run: cargo install tauri-driver --locked
       - name: App bauen
@@ -52,6 +64,7 @@ jobs:
           ok=0
           xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/run.cjs e2e-shots 2>&1 | tee e2e-shots/run.log || ok=1
           xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/v2.cjs e2e-shots/v2 2>&1 | tee e2e-shots/v2.log || ok=1
+          FOTOSORT_AI_FILE=$PWD/ki-modell/slimsort-ki-1.safetensors xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/ai.cjs e2e-shots/ki 2>&1 | tee e2e-shots/ki.log || ok=1
           if [ $ok != 0 ]; then
             # letzte Zeilen als Hinweise anzeigen (Logs sind sonst nicht überall abrufbar)
             for f in e2e-shots/*.log; do tail -n 12 "$f" | sed "s|^|::error title=$f::|"; done

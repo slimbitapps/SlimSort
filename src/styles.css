@@ -2882,3 +2882,367 @@ h3 {
   background: var(--warn);
   color: #1c1300;
 }
+
+/* ================================================================ KI */
+
+.session-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+  height: 100%;
+}
+.session-layout.with-chat {
+  grid-template-columns: minmax(0, 1fr) clamp(300px, 28vw, 380px);
+}
+
+.act.delete.suggest {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-soft);
+}
+.act {
+  position: relative;
+}
+.act .sugg {
+  position: absolute;
+  top: 0;
+  right: 8px;
+  transform: translateY(-50%);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: var(--danger);
+  color: #fff;
+}
+
+.btn.icon.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.ai-sort-btn svg,
+.chat-spark {
+  color: var(--accent);
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 99px;
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.chip:hover {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+.chip.ai-only {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Chat-Leiste */
+.chat {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  border-left: 1px solid var(--line);
+  background: var(--bg-elev);
+  animation: chat-in 0.18s ease-out;
+}
+@keyframes chat-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+.chat-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 10px 10px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.chat-title {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.25;
+}
+.chat-title b {
+  font-size: 14px;
+}
+.chat-title span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-progress {
+  height: 2px;
+  background: var(--line);
+}
+.chat-progress i,
+.ai-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s;
+}
+.chat-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 16px 6px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.msg {
+  display: flex;
+}
+.msg.me {
+  justify-content: flex-end;
+}
+.bubble {
+  max-width: 92%;
+  padding: 9px 12px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+.bubble p {
+  margin: 0;
+}
+.bubble p + p {
+  margin-top: 4px;
+}
+.msg.me .bubble {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--on-accent);
+  border-bottom-right-radius: 5px;
+}
+.msg.ai .bubble {
+  border-bottom-left-radius: 5px;
+}
+.msg-thumbs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(62px, 1fr));
+  gap: 4px;
+  margin-top: 8px;
+}
+.msg-thumb {
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  aspect-ratio: 1;
+  background: var(--stage);
+  cursor: pointer;
+}
+.msg-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.15s;
+}
+.msg-thumb:hover img {
+  transform: scale(1.06);
+}
+.msg-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+.btn.danger {
+  color: var(--danger);
+}
+.btn.danger:hover {
+  background: var(--danger-soft);
+}
+.bubble.typing {
+  display: flex;
+  gap: 4px;
+  padding: 12px 14px;
+}
+.bubble.typing i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-3);
+  animation: typing 1s infinite ease-in-out;
+}
+.bubble.typing i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.bubble.typing i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes typing {
+  50% {
+    transform: translateY(-4px);
+    opacity: 0.5;
+  }
+}
+.chat-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.chat-examples .chip {
+  white-space: normal;
+  height: auto;
+  padding: 6px 11px;
+  text-align: left;
+}
+.chat-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 12px 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  font-size: 12.5px;
+}
+.chat-note span {
+  flex: 1;
+}
+.chat-input {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px 12px 8px;
+  border-top: 1px solid var(--line);
+}
+.chat-input textarea {
+  flex: 1;
+  resize: none;
+  min-height: 38px;
+  max-height: 120px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  field-sizing: content;
+}
+.chat-input textarea:focus {
+  outline: none;
+  border-color: var(--accent-line);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.chat-foot {
+  font-size: 11px;
+  padding: 0 14px 10px;
+}
+
+/* KI sortieren */
+.ai-conf {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 14px;
+  font-size: 13px;
+}
+.ai-conf input {
+  flex: 1;
+}
+.ai-conf b {
+  width: 44px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ai-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 52vh;
+  overflow-y: auto;
+}
+.ai-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  cursor: pointer;
+}
+.ai-group.off {
+  opacity: 0.5;
+}
+.ai-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  flex: none;
+}
+.ai-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 110px;
+}
+.ai-thumbs {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+.ai-thumbs img {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--stage);
+}
+
+/* Einstellungen → KI */
+.ai-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--line-2);
+}
+.ai-pill {
+  font-size: 12px;
+  font-weight: 650;
+  padding: 3px 10px;
+  border-radius: 99px;
+  background: var(--surface-3);
+  color: var(--text-2);
+}
+.ai-pill.on {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+@media (max-width: 900px) {
+  .session-layout.with-chat {
+    grid-template-columns: minmax(0, 1fr) 280px;
+  }
+  .ai-thumbs img:nth-child(n + 4) {
+    display: none;
+  }
+}

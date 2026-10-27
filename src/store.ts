@@ -1341,7 +1341,7 @@ export function sortIdsToTarget(ids: number[], targetId: string) {
   const op = startOp(s, ids, { targetId, destDir: target.path });
   s.undo.push({ kind: 'transfer', ops: [op], prevCurrent: s.currentId });
   s.selection = new Set();
-  if (ids.length > 1) toast('success', t('toast.seriesMoved', { n: ids.length, name: target.name }));
+  if (ids.length > 1) toast('success', t('toast.movedN', { n: ids.length, name: target.name }));
   recompute(s, {});
 }
 

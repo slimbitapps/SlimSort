@@ -6,6 +6,7 @@ import {
   dismissToast, sortedRecents, coachNext, coachEnd, goHome, compareSkip, compareConfirm, compareKeepOnly, compareIdAt,
   comparePage, updatePrefs,
 } from './store';
+import { initAi, toggleChat } from './ai';
 import { TooltipLayer } from './components/Tooltip';
 import { WindowControls } from './components/WindowControls';
 import { DragGhost } from './components/DragGhost';
@@ -140,6 +141,9 @@ function onKeyDown(e: KeyboardEvent) {
     if (k === 'z' && !e.shiftKey) {
       e.preventDefault();
       undo();
+    } else if (k === 'k') {
+      e.preventDefault();
+      toggleChat();
     } else if (k === 'a') {
       e.preventDefault();
       selectAll();
@@ -330,7 +334,10 @@ export function App() {
   useTheme();
 
   useEffect(() => {
-    init().finally(() => requestAnimationFrame(() => window.api.showWindow()));
+    init().finally(() => {
+      requestAnimationFrame(() => window.api.showWindow());
+      initAi();
+    });
     window.addEventListener('keydown', onKeyDown);
     const onErr = (e: ErrorEvent) => window.api.log(`window.error: ${e.message} ${e.error?.stack || ''}`);
     const onRej = (e: PromiseRejectionEvent) => window.api.log(`unhandledrejection: ${e.reason?.stack || e.reason}`);

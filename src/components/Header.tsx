@@ -1,8 +1,9 @@
 import { t } from '../i18n';
 import {
   useStore, goHome, openDialog, setView, undo, setZen, toggleFullscreen, updatePrefs, setActiveProfile, otherFolder,
-  openCompare, seriesCount, setQuery, findDuplicates, type Progress,
+  openCompare, seriesCount, setQuery, findDuplicates, setOnly, type Progress,
 } from '../store';
+import { useAi, toggleChat, openAutoSort } from '../ai';
 import type { Filter, SortBy } from '../types';
 import { Logo, MenuPopup, useMenu } from './ui';
 import { SetupStepper } from './Setup';
@@ -10,6 +11,7 @@ import { tip } from './Tooltip';
 import {
   IconArrowLeft, IconGrid, IconImage, IconUndo, IconEye, IconMaximize, IconMinimize, IconSettings, IconHelp,
   IconMore, IconSliders, IconCheck, IconTrash, IconSearch, IconChart, IconKeyboard, IconInfo, IconFolderOut, IconLayers, IconCopy,
+  IconSparkle, IconChat, IconClose,
 } from '../icons';
 import { basename, fmtBytes, fmtDuration, fmtNum, modKey } from '../util';
 
@@ -89,6 +91,8 @@ function SessionHeader() {
   const done = s.done.size;
   const mod = modKey();
   const nSeries = seriesCount(s);
+  const chatOpen = useAi((a) => a.chatOpen);
+  const aiReady = useAi((a) => !!a.status?.installed);
   const title = s.sources.length > 1 ? `${basename(s.sources[0])} + ${s.sources.length - 1}` : basename(s.source);
 
   const check = (on: boolean) => <span style={{ width: 16, display: 'inline-grid' }}>{on && <IconCheck size={15} />}</span>;
@@ -147,6 +151,27 @@ function SessionHeader() {
           {t('series.compareSel')}
         </button>
       )}
+      {s.only && (
+        <button className="chip ai-only no-drag" onClick={() => setOnly(null)} data-testid="ai-only" {...tip(t('ai.onlyReset'))}>
+          <IconSparkle size={13} />
+          {t('ai.onlyChip', { n: s.only.size })}
+          <IconClose size={12} />
+        </button>
+      )}
+      {prefs.aiEnabled && aiReady && !s.compare && (
+        <button className="btn sm ai-sort-btn" onClick={() => openAutoSort()} data-testid="ai-sort-open" {...tip(t('ai.sortTitle'), t('ai.sortTip'))}>
+          <IconSparkle size={15} />
+          {t('ai.sortBtn')}
+        </button>
+      )}
+      <button
+        className={`btn icon ghost ${chatOpen ? 'active' : ''}`}
+        onClick={() => toggleChat()}
+        data-testid="chat-toggle"
+        {...tip(t('ai.chatTitle'), t('ai.chatTip'), `${mod} K`)}
+      >
+        <IconChat size={18} />
+      </button>
       <button
         className={`series-pill ${prefs.seriesEnabled ? 'on' : ''}`}
         onClick={() => updatePrefs({ seriesEnabled: !prefs.seriesEnabled })}

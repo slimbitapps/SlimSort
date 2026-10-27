@@ -75,3 +75,5 @@ export const IconLock = base(<><rect x="5" y="11" width="14" height="10" rx="2" 
 export const IconBook = base(<><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5z" /><path d="M4 19a2 2 0 0 1 2-2h13" /></>);
 export const IconStar = base(<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9L12 3z" />);
 export const IconTrash2 = IconTrash;
+export const IconSend = base(<><path d="M5 12h13" /><path d="m13 6 6 6-6 6" /></>);
+export const IconChat = base(<><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /><path d="M9 11.5h.01M12.5 11.5h.01M16 11.5h.01" strokeWidth={2.6} /></>);

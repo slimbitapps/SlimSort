@@ -16,6 +16,7 @@ Free · no ads · no account · works offline · never overwrites anything.
 - **Real-world libraries** – tens of thousands of photos stay smooth; JPG, PNG, HEIC, WebP, TIFF, RAW (DNG, CR2, CR3, NEF, ARW, RAF, ORF, RW2) and videos; Live Photos and sidecar files (.xmp, .aae) move along.
 - **Sort by date** – optional year/month subfolders per target and renaming by capture date.
 - **Duplicates, search, info** – find exact duplicates, filter by name, show EXIF details (camera, lens, GPS).
+- **On-device AI (optional)** – learns where you sort your photos and suggests the folder, sorts by itself on request, and finds photos by description in a chat (“tree on the left, meadow, mountain”). Runs entirely on your computer; off by default.
 - **Small & fast** – under 10 MB download, starts instantly (built with Tauri).
 - **Private** – no telemetry, no cloud. Your photos never leave your computer.
 - English, German, French, Spanish, Italian · light & dark theme · simple and expert mode.
@@ -70,6 +71,7 @@ Französisch, Spanisch, Italienisch), **Aussehen** (hell, dunkel, automatisch), 
 | F10 | Nur Bild |
 | F1 | Hilfe & Tastenkürzel |
 | I | Foto-Infos ein/aus (Kamera, Objektiv, Ort …) |
+| Strg/⌘ + K | KI-Assistent (Chat) ein-/ausblenden |
 | Rechtsklick auf ein Foto | Menü: verschieben, vergleichen, im Ordner zeigen, öffnen, löschen |
 | Shift + Ordner-Taste | Ganze Serie in diesen Ordner |
 | Im Vergleich: Shift + 1…6 | Nur dieses Foto behalten |
@@ -107,6 +109,12 @@ startet schneller und braucht weniger Arbeitsspeicher. Neu:
 - Löschordner auf Wunsch in den **Papierkorb des Systems** leeren (wiederherstellbar).
 - HEIC-Fotos werden überall angezeigt, Videos zeigen ein Standbild als Vorschau.
 - Hinweis, wenn eine neue Version erscheint (abschaltbar).
+- **KI (freiwillig, läuft nur auf deinem Computer):**
+  - lernt, welche Fotos du in welchen Ordner tust (auch aus Fotos, die schon in den Zielordnern liegen), und schlägt den Ordner mit Sicherheit in Prozent vor
+  - **KI sortieren:** zeigt, wohin sie die offenen Fotos tun würde – du bestätigst; auf Wunsch **Autopilot** für sehr sichere Fotos
+  - **KI-Assistent (Chat, Strg/⌘ + K):** Fotos per Beschreibung finden („Baum links, Wiese und Berg“, „Strand im Sommer 2023“), ähnliche Fotos, verschieben/löschen per Satz, Doppelte finden, Statistik
+  - in den Einstellungen komplett abschaltbar – dann läuft auch beim Start nichts; Leistung einstellbar (schonend/normal/schnell)
+  - Modell (ca. 190 MB) wird erst beim Einschalten einmalig von GitHub geladen
 
 **Version 1.0** – erste offizielle Version unter dem Namen SlimSort.
 
@@ -146,6 +154,9 @@ Aufbau:
 - `src-tauri/src/session.rs` – Warteschlange, Rückgängig, Löschordner, Protokoll
 - `src-tauri/src/reach.rs` – NAS-/Laufwerks-Überwachung
 - `src-tauri/src/thumbs.rs`, `protocol.rs` – Vorschaubilder und Auslieferung an die Oberfläche
+- `src-tauri/src/ai/` – KI: eigene Berechnung von CLIP (Bild) und mehrsprachigem Text, Lernen, Vorschläge, Download
+- `scripts/ai/export.py` – baut das KI-Modell (läuft auf GitHub, Workflow „KI-Modell bauen“)
+- `src/ai.ts`, `src/chat.ts` – KI in der Oberfläche und Verstehen der Chat-Eingaben
 - `src-tauri/src/lib.rs` – Fenster und Befehle für die Oberfläche
 - `src/` – Oberfläche (React); `src/bridge.ts` verbindet sie mit Rust; Texte in `src/locales/`
 - `test/` – automatische Tests

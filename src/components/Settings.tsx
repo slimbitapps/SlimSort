@@ -10,8 +10,9 @@ import type { AppInfo, Prefs, Profile } from '../types';
 import { Help, KeyCap, Logo, Switch, MenuPopup, useMenu } from './ui';
 import {
   IconGlobe, IconSliders, IconTrash, IconImage, IconLayers, IconSettings, IconHelp, IconInfo, IconClose, IconCheck,
-  IconLock, IconRefresh, IconPlus, IconMore, IconLayers as IconStack,
+  IconLock, IconRefresh, IconPlus, IconMore, IconLayers as IconStack, IconSparkle,
 } from '../icons';
+import { useAi, applyAiPrefs, startDownload } from '../ai';
 import { actionKeyOf, keyLabel, modKey, uid } from '../util';
 import type { ActionKeys, DateFolders, Item } from '../types';
 
@@ -88,7 +89,7 @@ function KeyRow({ label, k }: { label: string; k: keyof ActionKeys }) {
   );
 }
 
-type Tab = 'general' | 'series' | 'sorting' | 'trash' | 'display' | 'sets' | 'advanced' | 'help' | 'about';
+type Tab = 'general' | 'ai' | 'series' | 'sorting' | 'trash' | 'display' | 'sets' | 'advanced' | 'help' | 'about';
 
 function Row({ label, desc, help, children }: { label: string; desc?: ReactNode; help?: string; children?: ReactNode }) {
   return (
@@ -136,6 +137,7 @@ export function SettingsDialog({ tab: initial }: { tab?: string }) {
     ['sorting', t('settings.sorting'), <IconSliders size={17} key="s" />, true],
     ['trash', t('settings.trash'), <IconTrash size={17} key="t" />, expert],
     ['display', t('settings.display'), <IconImage size={17} key="d" />, true],
+    ['ai', t('ai.tab'), <IconSparkle size={17} key="k" />, true],
     ['sets', t('settings.sets'), <IconLayers size={17} key="p" />, expert],
     ['advanced', t('settings.advanced'), <IconSettings size={17} key="a" />, expert],
     ['help', t('settings.help'), <IconHelp size={17} key="h" />, true],
@@ -370,6 +372,7 @@ export function SettingsDialog({ tab: initial }: { tab?: string }) {
               </>
             )}
 
+            {tab === 'ai' && <AiTab />}
             {tab === 'sets' && <SetsTab />}
             {tab === 'advanced' && <AdvancedTab />}
             {tab === 'help' && <HelpTab />}
@@ -578,6 +581,140 @@ function SeriesTab() {
           </Group>
         </>
       )}
+    </>
+  );
+}
+
+const AI_SIZE_MB = 187;
+
+function AiTab() {
+  const p = useStore((s) => s.settings.prefs);
+  const st = useAi((a) => a.status);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    window.api.ai.status().then((s) => useAi.setState({ status: s }));
+  }, []);
+  const set = async (x: Partial<Prefs>) => {
+    updatePrefs(x);
+    if ('aiEnabled' in x || 'aiPerf' in x) {
+      setBusy(true);
+      await applyAiPrefs().finally(() => setBusy(false));
+    }
+  };
+  const pct = st && st.size ? Math.round((100 * st.received) / st.size) : 0;
+  return (
+    <>
+      <h3>{t('ai.tab')}</h3>
+      <p className="sub">{t('ai.sub')}</p>
+      <Group>
+        <Row label={t('ai.enable')} desc={t('ai.enableDesc')}>
+          <span data-testid="ai-enable">
+            <Switch on={p.aiEnabled} onChange={(v) => set({ aiEnabled: v })} />
+          </span>
+        </Row>
+        {p.aiEnabled && st && !st.installed && (
+          <Row label={t('ai.model')} desc={st.downloading ? t('ai.downloading', { pct }) : st.error ? t('ai.downloadFailed', { error: st.error }) : t('ai.modelDesc', { mb: AI_SIZE_MB })}>
+            {st.downloading ? (
+              <div className="row" style={{ gap: 8, minWidth: 220 }}>
+                <div className="ai-bar" data-testid="ai-download-bar">
+                  <i style={{ width: `${pct}%` }} />
+                </div>
+                <button className="btn sm" onClick={() => window.api.ai.cancelDownload()}>
+                  {t('common.cancel')}
+                </button>
+              </div>
+            ) : (
+              <button className="btn primary" onClick={startDownload} data-testid="ai-download">
+                {t('ai.download', { mb: AI_SIZE_MB })}
+              </button>
+            )}
+          </Row>
+        )}
+        {p.aiEnabled && st?.installed && (
+          <Row
+            label={t('ai.state')}
+            desc={
+              st.total
+                ? t('ai.stateDesc', { done: st.indexed, total: st.total, learned: st.examples })
+                : t('ai.stateDescIdle', { learned: st.examples })
+            }
+          >
+            <span className={`ai-pill ${busy ? '' : 'on'}`} data-testid="ai-state">
+              {busy ? '…' : st.total && st.indexed < st.total ? t('ai.working') : t('ai.ready')}
+            </span>
+          </Row>
+        )}
+      </Group>
+      {p.aiEnabled && (
+        <>
+          <Group label={t('ai.groupUse')}>
+            <Row label={t('ai.suggest')} desc={t('ai.suggestDesc')}>
+              <Switch on={p.aiSuggest} onChange={(v) => set({ aiSuggest: v })} />
+            </Row>
+            <Row label={t('ai.learnFolders')} desc={t('ai.learnFoldersDesc')}>
+              <Switch on={p.aiLearnFolders} onChange={(v) => set({ aiLearnFolders: v })} />
+            </Row>
+            <Row label={t('ai.autopilot')} desc={t('ai.autopilotDesc', { pct: Math.round(p.aiAutoConf * 100) })}>
+              <Switch on={p.aiAutopilot} onChange={(v) => set({ aiAutopilot: v })} />
+            </Row>
+            <Row label={t('ai.autoConf')} desc={t('ai.autoConfDesc')}>
+              <div className="row" style={{ gap: 8 }}>
+                <input
+                  type="range"
+                  min={70}
+                  max={99}
+                  value={Math.round(p.aiAutoConf * 100)}
+                  onChange={(e) => set({ aiAutoConf: Number(e.target.value) / 100 })}
+                />
+                <b style={{ width: 40, textAlign: 'right' }}>{Math.round(p.aiAutoConf * 100)} %</b>
+              </div>
+            </Row>
+          </Group>
+          <Group label={t('ai.groupPerf')}>
+            <Row label={t('ai.perf')} desc={t('ai.perfDesc')}>
+              <Seg
+                value={p.aiPerf}
+                options={[
+                  ['low', t('ai.perfLow')],
+                  ['normal', t('ai.perfNormal')],
+                  ['high', t('ai.perfHigh')],
+                ]}
+                onChange={(v) => set({ aiPerf: v })}
+              />
+            </Row>
+            <Row label={t('ai.forget')} desc={t('ai.forgetDesc')}>
+              <button
+                className="btn"
+                onClick={async () => {
+                  await window.api.ai.forget();
+                  toast('success', t('ai.forgotten'));
+                }}
+              >
+                {t('ai.forgetBtn')}
+              </button>
+            </Row>
+            <Row label={t('ai.remove')} desc={t('ai.removeDesc')}>
+              <button
+                className="btn danger"
+                onClick={async () => {
+                  const r = await window.api.confirm({ message: t('ai.removeAsk'), detail: t('ai.removeDetail'), buttons: [t('ai.removeBtn'), t('common.cancel')], type: 'warning' });
+                  if (r !== 0) return;
+                  await window.api.ai.remove();
+                  updatePrefs({ aiEnabled: false });
+                  await applyAiPrefs();
+                  toast('success', t('ai.removed'));
+                }}
+              >
+                {t('ai.removeBtn')}
+              </button>
+            </Row>
+          </Group>
+        </>
+      )}
+      <p className="muted small" style={{ lineHeight: 1.5 }}>
+        <IconLock size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />
+        {t('ai.privacy')}
+      </p>
     </>
   );
 }

@@ -281,7 +281,7 @@ impl Ai {
     }
 
     pub fn model_path(&self) -> PathBuf {
-        if let Ok(p) = std::env::var("FOTOSORT_AI_MODEL") {
+        if let (Ok(_), Ok(p)) = (std::env::var("FOTOSORT_TEST"), std::env::var("FOTOSORT_AI_MODEL")) {
             return PathBuf::from(p);
         }
         self.dir.join(MODEL_FILE)
@@ -734,9 +734,11 @@ impl Ai {
 
     fn download_inner(&self) -> Result<(), String> {
         let agent: ureq::Agent = ureq::Agent::config_builder().timeout_connect(Some(Duration::from_secs(20))).build().into();
-        let (url, size, digest) = match std::env::var("FOTOSORT_AI_URL") {
-            Ok(u) => (u, 0u64, None),
-            Err(_) => {
+        // Nur im Testmodus: Modell von einer anderen Adresse (lokaler Server im E2E-Test)
+        let test_url = std::env::var("FOTOSORT_TEST").ok().and(std::env::var("FOTOSORT_AI_URL").ok());
+        let (url, size, digest) = match test_url {
+            Some(u) => (u, 0u64, None),
+            None => {
                 let rel: Value = agent
                     .get(RELEASE_API)
                     .header("User-Agent", "SlimSort")
