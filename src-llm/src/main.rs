@@ -9,8 +9,14 @@
 //!
 //! Weitere Anfragen während einer Antwort werden der Reihe nach erledigt.
 //!
+//! Zweite Aufgabe (eigener Prozess): Gesichter finden und beschreiben
+//!   slimsort-llm --faces erkennen.onnx beschreiben.onnx
+//!   → {"id":1,"image":"/pfad/bild.jpg"}   ← {"id":1,"faces":[{"box":[x,y,w,h],"score":0.9,"emb":[…128…]}]}
+//!
 //! Gleicher Anfang wie bei der vorigen Anfrage (z. B. die Anleitung für die KI) wird nicht
 //! neu berechnet – das macht Folgefragen schnell.
+
+mod faces;
 
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::llama_backend::LlamaBackend;
@@ -59,6 +65,9 @@ fn main() {
     if std::env::args().any(|a| a == "--version") {
         println!("slimsort-llm {}", env!("CARGO_PKG_VERSION"));
         return;
+    }
+    if let Some(det) = arg("--faces") {
+        return faces_main(&det);
     }
     let Some(model_path) = arg("--model") else {
         eprintln!("Aufruf: slimsort-llm --model datei.gguf [--threads N] [--ctx 4096] [--gpu]");
@@ -254,5 +263,35 @@ fn main() {
             n += 1;
         }
         out(json!({ "id": id, "done": true, "text": text, "tokens": n, "ms": t0.elapsed().as_millis() as u64, "cancelled": cancelled }));
+    }
+}
+
+/// Gesichter-Modus: eine Anfrage pro Zeile, ein Bild pro Anfrage
+fn faces_main(det: &str) {
+    let a: Vec<String> = std::env::args().collect();
+    let emb = a.iter().position(|x| x == "--faces").and_then(|i| a.get(i + 2)).cloned().unwrap_or_default();
+    let f = match faces::Faces::load(det, &emb) {
+        Ok(f) => f,
+        Err(e) => return out(json!({ "fatal": format!("Gesichtsmodelle: {e}") })),
+    };
+    out(json!({ "ready": true }));
+    for line in std::io::stdin().lock().lines() {
+        let Ok(line) = line else { break };
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(&line) else { continue };
+        if v.get("quit").is_some() {
+            return;
+        }
+        let id = v["id"].as_u64().unwrap_or(0);
+        let min = v["min"].as_f64().unwrap_or(0.75) as f32;
+        let r = image::open(v["image"].as_str().unwrap_or_default())
+            .map_err(|e| e.to_string())
+            .and_then(|img| f.detect(&img.to_rgb8(), min).map_err(|e| e.to_string()));
+        match r {
+            Ok(faces) => out(json!({
+                "id": id,
+                "faces": faces.iter().map(|x| json!({ "box": x.bbox, "score": x.score, "emb": x.emb })).collect::<Vec<_>>()
+            })),
+            Err(e) => out(json!({ "id": id, "error": e })),
+        }
     }
 }
