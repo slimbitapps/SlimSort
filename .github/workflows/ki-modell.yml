@@ -1,18 +1,32 @@
-# Baut das KI-Modell (einmalig bzw. bei Änderung von scripts/ai/) und stellt es als
-# Download bereit. Die App lädt es nur, wenn man die KI in den Einstellungen einschaltet.
+# Baut die KI-Modelle (bei Änderung von scripts/ai/ oder src-llm/) und stellt sie als
+# Download bereit. Die App lädt sie nur, wenn man die KI in den Einstellungen einschaltet.
 # Als „Vorabversion“ markiert, damit die Download-Seite weiter auf die App zeigt.
 name: KI-Modell bauen
 
 on:
   push:
-    paths: ['scripts/ai/**', '.github/workflows/ki-modell.yml']
+    paths: ['scripts/ai/**', 'src-llm/**', '.github/workflows/ki-modell.yml']
   workflow_dispatch:
 
 jobs:
-  model:
+  # Stufe "Sparsam": CLIP (bleibt unter ki-modell-1)
+  clip:
+    if: false # fertig, siehe Release ki-modell-1
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+  # Stufen "Ausgewogen"/"Maximal": SigLIP 2
+  siglip:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: google/siglip2-base-patch16-224, id: siglip2-b16 }
+          - { name: google/siglip2-large-patch16-256, id: siglip2-l16 }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -20,24 +34,49 @@ jobs:
       - name: Python-Pakete
         run: |
           pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install "transformers>=4.44,<5" "sentence-transformers>=3,<4" safetensors numpy
+          pip install "transformers>=4.49,<5" safetensors numpy sentencepiece protobuf huggingface_hub
       - name: Exportieren
         shell: bash
         run: |
           set -o pipefail
-          python scripts/ai/export.py out 2>&1 | tee export.log || { grep -v Warning export.log | tail -n 15 | sed 's|^|::error title=export::|'; exit 1; }
-          tail -n 8 export.log | sed 's|^|::notice title=export::|'
+          python scripts/ai/export_siglip.py ${{ matrix.name }} ${{ matrix.id }} out 2>&1 | tee export.log || { grep -v Warning export.log | tail -n 20 | sed 's|^|::error title=export::|'; exit 1; }
+          grep -vE "Warning|warn" export.log | tail -n 30 | sed 's|^|::notice title=export::|'
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ki-modell-1
-          name: KI-Modell 1 (für SlimSort)
+          tag_name: ki-2
+          name: KI-Modelle 2 (für SlimSort)
           target_commitish: ${{ github.sha }}
           prerelease: true
           make_latest: false
           body: |
-            Wird von SlimSort automatisch geladen, wenn man in den Einstellungen die KI einschaltet.
-            Nicht von Hand herunterladen nötig.
-            Enthält: CLIP ViT-B/32 (OpenAI, MIT-Lizenz) und clip-ViT-B-32-multilingual-v1 (sentence-transformers, Apache-2.0), auf 8 Bit verkleinert.
+            Wird von SlimSort automatisch geladen, je nach gewählter KI-Stufe. Nicht von Hand herunterladen nötig.
+            Bild/Text: SigLIP 2 (Google, Apache-2.0), auf 8 Bit verkleinert.
+            Sprache: Qwen3 (Alibaba, Apache-2.0), GGUF.
+            Helfer-Programm: llama.cpp (MIT).
           files: |
-            out/slimsort-ki-1.safetensors
-            out/slimsort-ki-1-ref.json
+            out/*
+
+  # Sprachmodelle (GGUF)
+  llm:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install huggingface_hub
+      - name: Laden
+        shell: bash
+        run: |
+          set -o pipefail
+          python scripts/ai/llm_models.py out 2>&1 | tee llm.log || { tail -n 20 llm.log | sed 's|^|::error title=llm::|'; exit 1; }
+          grep -E "==>|GGUF" llm.log | sed 's|^|::notice title=llm::|'
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ki-2
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          make_latest: false
+          files: |
+            out/*
