@@ -131,31 +131,51 @@ struct Job {
     key: Key,
 }
 
+enum Tok {
+    Word(tok::Tokenizer),
+    Bpe(tok::Bpe),
+}
+
 pub struct Model {
     w: net::Weights,
-    tok: tok::Tokenizer,
+    tok: Tok,
 }
 
 impl Model {
     pub fn load(path: &Path) -> Result<Model, String> {
         let w = net::Weights::load(path)?;
-        let tok = tok::Tokenizer::new(&w.vocab, w.m("unk"), w.m("cls"), w.m("sep"));
+        let tok = if w.siglip() {
+            Tok::Bpe(tok::Bpe::new(&w.vocab, &w.merges, &w.meta))
+        } else {
+            Tok::Word(tok::Tokenizer::new(&w.vocab, w.m("unk"), w.m("cls"), w.m("sep")))
+        };
         Ok(Model { w, tok })
     }
-    pub fn image(&self, sc: &mut net::Scratch, rgb224: &[u8]) -> Vec<f32> {
-        net::embed_image(&self.w, sc, rgb224)
+    /// Bild vorbereiten: CLIP schneidet die Mitte aus, SigLIP nimmt das ganze Bild (gestaucht)
+    pub fn prepare(&self, img: &image::DynamicImage) -> Vec<u8> {
+        let size = self.w.m("v_size") as u32;
+        if self.w.siglip() {
+            return image::imageops::resize(&img.to_rgb8(), size, size, image::imageops::FilterType::Triangle).into_raw();
+        }
+        prepare(img)
+    }
+    pub fn image(&self, sc: &mut net::Scratch, rgb: &[u8]) -> Vec<f32> {
+        net::embed_image(&self.w, sc, rgb)
     }
     pub fn text(&self, sc: &mut net::Scratch, text: &str) -> Vec<f32> {
-        let ids = self.tok.encode(text, 64);
+        let ids = self.tokens(text);
         net::embed_text(&self.w, sc, &ids)
     }
-    #[cfg(test)]
     pub fn tokens(&self, text: &str) -> Vec<usize> {
-        self.tok.encode(text, 64)
+        match &self.tok {
+            Tok::Word(t) => t.encode(text, 64),
+            // SigLIP 2 wurde mit Kleinschreibung trainiert
+            Tok::Bpe(t) => t.encode(&text.to_lowercase(), self.w.m("t_max")),
+        }
     }
 }
 
-/// Bild auf 224 × 224 bringen: kurze Seite auf 224, Mitte ausschneiden.
+/// Bild auf 224 × 224 bringen: kurze Seite auf 224, Mitte ausschneiden (CLIP).
 pub fn prepare(img: &image::DynamicImage) -> Vec<u8> {
     let (w, h) = (img.width().max(1), img.height().max(1));
     let s = 224.0 / w.min(h) as f32;
@@ -480,7 +500,7 @@ impl Ai {
             }
         };
         let img = image::load_from_memory_with_format(&jpg, image::ImageFormat::Jpeg).ok()?;
-        Some(m.image(sc, &prepare(&img)))
+        Some(m.image(sc, &m.prepare(&img)))
     }
 
     /// Fotos der geöffneten Sortierung vormerken. Bekannte werden sofort übernommen.
@@ -866,20 +886,21 @@ mod tests {
     fn matches_reference() {
         let Ok(p) = std::env::var("FOTOSORT_AI_MODEL") else { return };
         let m = Model::load(Path::new(&p)).unwrap();
-        let rp = Path::new(&p).with_file_name("slimsort-ki-1-ref.json");
+        let rp = PathBuf::from(p.replace(".safetensors", "-ref.json"));
+        let size = m.w.m("v_size");
         let r: Value = serde_json::from_slice(&fs::read(rp).unwrap()).unwrap();
         let mut sc = net::Scratch::default();
         let cos = |a: &[f32], b: &Value| a.iter().zip(b.as_array().unwrap()).map(|(x, y)| x * y.as_f64().unwrap() as f32).sum::<f32>();
         for (name, want) in r["images"].as_object().unwrap() {
-            let mut rgb = vec![0u8; 224 * 224 * 3];
-            for y in 0..224usize {
-                for x in 0..224usize {
+            let mut rgb = vec![0u8; size * size * 3];
+            for y in 0..size {
+                for x in 0..size {
                     let px = match name.as_str() {
                         "red" => [230, 30, 30],
                         "blue" => [30, 60, 220],
                         _ => [((x * 3 + y * 5) % 256) as u8, ((x * y) % 256) as u8, ((x + 2 * y) % 256) as u8],
                     };
-                    rgb[(y * 224 + x) * 3..(y * 224 + x) * 3 + 3].copy_from_slice(&px);
+                    rgb[(y * size + x) * 3..(y * size + x) * 3 + 3].copy_from_slice(&px);
                 }
             }
             let t0 = Instant::now();

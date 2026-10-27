@@ -25,6 +25,8 @@ pub struct Weights {
     f: HashMap<String, Vec<f32>>,
     pub meta: HashMap<String, String>,
     pub vocab: Vec<String>,
+    /// BPE-Verbindungen ("a b"), nur bei SigLIP
+    pub merges: Vec<String>,
 }
 
 fn bad(m: &str) -> String {
@@ -51,6 +53,7 @@ impl Weights {
         let mut raw_i8: HashMap<String, (Vec<i8>, Vec<usize>)> = HashMap::new();
         let mut raw_f32: HashMap<String, Vec<f32>> = HashMap::new();
         let mut vocab_bytes = Vec::new();
+        let mut merge_bytes = Vec::new();
         for (name, v) in head.as_object().ok_or_else(|| bad("Kopf"))? {
             if name == "__metadata__" {
                 for (k, x) in v.as_object().into_iter().flatten() {
@@ -68,6 +71,7 @@ impl Weights {
                     raw_i8.insert(name.clone(), (bytes.iter().map(|&x| x as i8).collect(), shape));
                 }
                 "U8" if name == "vocab" => vocab_bytes = bytes.to_vec(),
+                "U8" if name == "merges" => merge_bytes = bytes.to_vec(),
                 "F32" => {
                     raw_f32.insert(name.clone(), bytes.chunks_exact(4).map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect());
                 }
@@ -85,18 +89,29 @@ impl Weights {
             }
             q.insert(base, QMat { q: vals, s, rows, cols });
         }
-        let vocab = String::from_utf8(vocab_bytes).map_err(|_| bad("Wortliste"))?.split('\n').map(str::to_string).collect();
-        if meta.get("format").map(String::as_str) != Some("slimsort-ki-1") {
+        // Format 2 trennt mit NUL (Wortstücke können Zeilenumbrüche enthalten)
+        let sep = if meta.get("sep").map(String::as_str) == Some("nul") { '\0' } else { '\n' };
+        let vocab = String::from_utf8(vocab_bytes).map_err(|_| bad("Wortliste"))?.split(sep).map(str::to_string).collect();
+        let merges = if merge_bytes.is_empty() {
+            vec![]
+        } else {
+            String::from_utf8(merge_bytes).map_err(|_| bad("Verbindungen"))?.split(sep).map(str::to_string).collect()
+        };
+        if !matches!(meta.get("format").map(String::as_str), Some("slimsort-ki-1" | "slimsort-ki-2")) {
             return Err(bad("unbekanntes Format"));
         }
-        Ok(Weights { q, f: raw_f32, meta, vocab })
+        Ok(Weights { q, f: raw_f32, meta, vocab, merges })
     }
 
     pub fn m(&self, k: &str) -> usize {
         self.meta.get(k).and_then(|v| v.parse().ok()).unwrap_or(0)
     }
 
-    fn mf(&self, k: &str) -> f32 {
+    pub fn siglip(&self) -> bool {
+        self.meta.get("arch").map(String::as_str) == Some("siglip")
+    }
+
+    pub fn mf(&self, k: &str) -> f32 {
         self.meta.get(k).and_then(|v| v.parse().ok()).unwrap_or(1e-5)
     }
 
@@ -178,13 +193,18 @@ fn erf(x: f32) -> f32 {
 
 /// Mehrkopf-Aufmerksamkeit: jeder Teil schaut, welche anderen Teile wichtig sind.
 fn attention(q: &[f32], k: &[f32], v: &[f32], n: usize, d: usize, heads: usize) -> Vec<f32> {
+    attention_x(q, n, k, v, n, d, heads)
+}
+
+/// Aufmerksamkeit mit `nq` Anfragen über `n` Schlüssel/Werte
+fn attention_x(q: &[f32], nq: usize, k: &[f32], v: &[f32], n: usize, d: usize, heads: usize) -> Vec<f32> {
     let dh = d / heads;
     let scale = 1.0 / (dh as f32).sqrt();
-    let mut out = vec![0f32; n * d];
+    let mut out = vec![0f32; nq * d];
     let mut p = vec![0f32; n];
     for h in 0..heads {
         let o = h * dh;
-        for i in 0..n {
+        for i in 0..nq {
             let qi = &q[i * d + o..i * d + o + dh];
             let mut mx = f32::MIN;
             for j in 0..n {
@@ -224,11 +244,107 @@ pub fn normalize(v: &mut [f32]) {
     }
 }
 
+fn gelu_tanh(x: f32) -> f32 {
+    0.5 * x * (1.0 + (0.797_884_6 * (x + 0.044715 * x * x * x)).tanh())
+}
+
+/// Eine Transformer-Schicht (Normierung vorne), wie bei CLIP und SigLIP
+fn pre_norm_layer(wt: &Weights, sc: &mut Scratch, pf: &str, x: &mut [f32], n: usize, d: usize, heads: usize, eps: f32, quick: bool) {
+    let mut h = x.to_vec();
+    layer_norm(wt, &format!("{pf}ln1"), &mut h, d, eps);
+    let q = linear(wt, sc, &format!("{pf}q"), &h, n);
+    let k = linear(wt, sc, &format!("{pf}k"), &h, n);
+    let v = linear(wt, sc, &format!("{pf}v"), &h, n);
+    let a = attention(&q, &k, &v, n, d, heads);
+    let o = linear(wt, sc, &format!("{pf}o"), &a, n);
+    add(x, &o);
+    let mut h = x.to_vec();
+    layer_norm(wt, &format!("{pf}ln2"), &mut h, d, eps);
+    let mut f = linear(wt, sc, &format!("{pf}fc1"), &h, n);
+    for v in f.iter_mut() {
+        *v = if quick { *v / (1.0 + (-1.702 * *v).exp()) } else { gelu_tanh(*v) };
+    }
+    let f2 = linear(wt, sc, &format!("{pf}fc2"), &f, n);
+    add(x, &f2);
+}
+
+/// SigLIP: Bild (size × size × 3 Bytes, schon auf die richtige Größe gebracht)
+fn siglip_image(wt: &Weights, sc: &mut Scratch, rgb: &[u8]) -> Vec<f32> {
+    let (d, p, size, heads) = (wt.m("v_dim"), wt.m("v_patch"), wt.m("v_size"), wt.m("v_heads"));
+    let eps = wt.mf("v_eps");
+    let g = size / p;
+    let n = g * g;
+    let mut patches = vec![0f32; n * 3 * p * p];
+    for gy in 0..g {
+        for gx in 0..g {
+            let base = (gy * g + gx) * 3 * p * p;
+            for c in 0..3 {
+                for yy in 0..p {
+                    for xx in 0..p {
+                        let px = rgb[((gy * p + yy) * size + gx * p + xx) * 3 + c] as f32 / 255.0;
+                        patches[base + c * p * p + yy * p + xx] = (px - 0.5) / 0.5;
+                    }
+                }
+            }
+        }
+    }
+    let mut x = linear(wt, sc, "v.patch", &patches, n);
+    add(&mut x, &wt.f("v.pos")[..n * d]);
+    for l in 0..wt.m("v_layers") {
+        pre_norm_layer(wt, sc, &format!("v.{l}."), &mut x, n, d, heads, eps, false);
+    }
+    layer_norm(wt, "v.post", &mut x, d, eps);
+    // Kopf: eine gelernte Anfrage "schaut" auf alle Bildteile
+    let probe = wt.f("v.probe").to_vec();
+    let q = linear(wt, sc, "v.hq", &probe, 1);
+    let k = linear(wt, sc, "v.hk", &x, n);
+    let v = linear(wt, sc, "v.hv", &x, n);
+    let a = attention_x(&q, 1, &k, &v, n, d, heads);
+    let mut h = linear(wt, sc, "v.ho", &a, 1);
+    let mut h2 = h.clone();
+    layer_norm(wt, "v.hln", &mut h2, d, eps);
+    let mut f = linear(wt, sc, "v.hfc1", &h2, 1);
+    for v in f.iter_mut() {
+        *v = gelu_tanh(*v);
+    }
+    let f2 = linear(wt, sc, "v.hfc2", &f, 1);
+    add(&mut h, &f2);
+    normalize(&mut h);
+    h
+}
+
+/// SigLIP: Text aus Wort-Nummern (schon auf volle Länge aufgefüllt)
+fn siglip_text(wt: &Weights, sc: &mut Scratch, ids: &[usize]) -> Vec<f32> {
+    let (d, heads) = (wt.m("t_dim"), wt.m("t_heads"));
+    let eps = wt.mf("t_eps");
+    let n = ids.len();
+    let pos = wt.f("t.pos");
+    let mut x = vec![0f32; n * d];
+    for (i, &id) in ids.iter().enumerate() {
+        let w = wt.row("t.word", id);
+        for j in 0..d {
+            x[i * d + j] = w[j] + pos[i * d + j];
+        }
+    }
+    for l in 0..wt.m("t_layers") {
+        pre_norm_layer(wt, sc, &format!("t.{l}."), &mut x, n, d, heads, eps, false);
+    }
+    layer_norm(wt, "t.post", &mut x, d, eps);
+    // letztes Wort fasst den ganzen Text zusammen
+    let last = x[(n - 1) * d..n * d].to_vec();
+    let mut e = linear(wt, sc, "t.head", &last, 1);
+    normalize(&mut e);
+    e
+}
+
 pub const MEAN: [f32; 3] = [0.48145466, 0.4578275, 0.40821073];
 pub const STD: [f32; 3] = [0.26862954, 0.26130258, 0.27577711];
 
 /// Bild-Fingerabdruck. `rgb` = 224×224×3 Bytes.
 pub fn embed_image(wt: &Weights, sc: &mut Scratch, rgb: &[u8]) -> Vec<f32> {
+    if wt.siglip() {
+        return siglip_image(wt, sc, rgb);
+    }
     let (d, p, size, heads) = (wt.m("v_dim"), wt.m("v_patch"), wt.m("v_size"), wt.m("v_heads"));
     let eps = wt.mf("v_eps");
     let g = size / p;
@@ -256,23 +372,7 @@ pub fn embed_image(wt: &Weights, sc: &mut Scratch, rgb: &[u8]) -> Vec<f32> {
     add(&mut x, &wt.f("v.pos")[..n * d]);
     layer_norm(wt, "v.pre", &mut x, d, eps);
     for l in 0..wt.m("v_layers") {
-        let pf = format!("v.{l}.");
-        let mut h = x.clone();
-        layer_norm(wt, &format!("{pf}ln1"), &mut h, d, eps);
-        let q = linear(wt, sc, &format!("{pf}q"), &h, n);
-        let k = linear(wt, sc, &format!("{pf}k"), &h, n);
-        let v = linear(wt, sc, &format!("{pf}v"), &h, n);
-        let a = attention(&q, &k, &v, n, d, heads);
-        let o = linear(wt, sc, &format!("{pf}o"), &a, n);
-        add(&mut x, &o);
-        let mut h = x.clone();
-        layer_norm(wt, &format!("{pf}ln2"), &mut h, d, eps);
-        let mut f = linear(wt, sc, &format!("{pf}fc1"), &h, n);
-        for v in f.iter_mut() {
-            *v *= 1.0 / (1.0 + (-1.702 * *v).exp()); // quick_gelu
-        }
-        let f2 = linear(wt, sc, &format!("{pf}fc2"), &f, n);
-        add(&mut x, &f2);
+        pre_norm_layer(wt, sc, &format!("v.{l}."), &mut x, n, d, heads, eps, true);
     }
     let mut cls = x[..d].to_vec();
     layer_norm(wt, "v.post", &mut cls, d, eps);
@@ -283,6 +383,9 @@ pub fn embed_image(wt: &Weights, sc: &mut Scratch, rgb: &[u8]) -> Vec<f32> {
 
 /// Text-Fingerabdruck aus Wort-Nummern (mit [CLS] … [SEP]).
 pub fn embed_text(wt: &Weights, sc: &mut Scratch, ids: &[usize]) -> Vec<f32> {
+    if wt.siglip() {
+        return siglip_text(wt, sc, ids);
+    }
     let (d, heads) = (wt.m("t_dim"), wt.m("t_heads"));
     let eps = wt.mf("t_eps");
     let n = ids.len().min(wt.m("t_max"));

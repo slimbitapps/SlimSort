@@ -129,7 +129,7 @@ merges = []
 for mg in m['merges']:
     a, b = mg.split(' ', 1) if isinstance(mg, str) else mg
     if a in kept and b in kept and (a + b) in kept:
-        merges.append(a + ' ' + b)
+        merges.append(a + '\x01' + b)
 print(f'Wortliste: {len(vocab)} -> {len(keep)}, Verbindungen: {len(m["merges"])} -> {len(merges)}')
 
 TX = model.text_model
@@ -138,12 +138,13 @@ f32('t.pos', TX.embeddings.position_embedding.weight)
 nt = layers('t', TX.encoder)
 norm('t.post', TX.final_layer_norm)
 linear('t.head', TX.head)
-T['vocab'] = np.frombuffer('\n'.join(vocab[i] for i in keep).encode('utf-8'), dtype=np.uint8).copy()
-T['merges'] = np.frombuffer('\n'.join(merges).encode('utf-8'), dtype=np.uint8).copy()
+# Trennzeichen NUL: manche Wortstücke enthalten selbst Zeilenumbrüche oder Leerzeichen
+T['vocab'] = np.frombuffer('\x00'.join(vocab[i] for i in keep).encode('utf-8'), dtype=np.uint8).copy()
+T['merges'] = np.frombuffer('\x00'.join(merges).encode('utf-8'), dtype=np.uint8).copy()
 
 pad = tok.pad_token_id
 meta = {
-    'format': 'slimsort-ki-2', 'arch': 'siglip', 'source': NAME,
+    'format': 'slimsort-ki-2', 'arch': 'siglip', 'source': NAME, 'sep': 'nul',
     'v_layers': str(nv), 'v_heads': str(vc.num_attention_heads), 'v_dim': str(D), 'v_patch': str(vc.patch_size),
     'v_size': str(vc.image_size), 'v_eps': str(vc.layer_norm_eps),
     't_layers': str(nt), 't_heads': str(tc.num_attention_heads), 't_dim': str(tc.hidden_size),
