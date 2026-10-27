@@ -22,7 +22,11 @@ jobs:
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install "transformers>=4.44,<5" "sentence-transformers>=3,<6" safetensors numpy
       - name: Exportieren
-        run: python scripts/ai/export.py out
+        shell: bash
+        run: |
+          set -o pipefail
+          python scripts/ai/export.py out 2>&1 | tee export.log || { grep -v Warning export.log | tail -n 15 | sed 's|^|::error title=export::|'; exit 1; }
+          tail -n 8 export.log | sed 's|^|::notice title=export::|'
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ki-modell-1
