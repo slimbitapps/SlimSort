@@ -80,8 +80,13 @@ hf = mods[0].auto_model.eval()
 tok = mods[0].tokenizer
 pool = mods[1]
 dense = mods[2]
-assert pool.pooling_mode_mean_tokens and not pool.pooling_mode_cls_token, 'mean pooling erwartet'
-assert type(dense.activation_function).__name__ == 'Identity', dense.activation_function
+pc = json.dumps(pool.get_config_dict())
+print('Pooling:', pc)
+assert '"pooling_mode_mean_tokens": true' in pc or '"pooling_mode": "mean"' in pc, 'mean pooling erwartet'
+dc = json.dumps(dense.get_config_dict())
+print('Dense:', dc)
+assert 'Identity' in dc, 'keine Aktivierung erwartet'
+dense_lin = [m for m in dense.modules() if isinstance(m, torch.nn.Linear)][0]
 tc = hf.config
 assert tc.model_type == 'distilbert', tc.model_type
 assert tc.activation == 'gelu', tc.activation
@@ -116,7 +121,7 @@ for i, L in enumerate(hf.transformer.layer):
     linear(p + 'fc1', L.ffn.lin1)
     linear(p + 'fc2', L.ffn.lin2)
     norm(p + 'ln2', L.output_layer_norm)
-linear('t.proj', dense.linear)
+linear('t.proj', dense_lin)
 
 words = '\n'.join(vocab[i] for i in keep).encode('utf-8')
 T['vocab'] = np.frombuffer(words, dtype=np.uint8).copy()

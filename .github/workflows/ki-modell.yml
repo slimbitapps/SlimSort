@@ -20,7 +20,7 @@ jobs:
       - name: Python-Pakete
         run: |
           pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install "transformers>=4.44,<5" "sentence-transformers>=3,<6" safetensors numpy
+          pip install "transformers>=4.44,<5" "sentence-transformers>=3,<4" safetensors numpy
       - name: Exportieren
         shell: bash
         run: |
