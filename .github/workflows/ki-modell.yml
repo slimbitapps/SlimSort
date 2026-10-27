@@ -18,6 +18,7 @@ jobs:
 
   # Stufen "Ausgewogen"/"Maximal": SigLIP 2
   siglip:
+    if: contains(toJSON(github.event.commits), 'export_siglip') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -58,7 +59,7 @@ jobs:
 
   # Sprachmodelle (GGUF)
   llm:
-    if: contains(join(github.event.commits.*.modified, ','), 'llm_models.py') || contains(join(github.event.commits.*.added, ','), 'llm_models.py') || github.event_name == 'workflow_dispatch'
+    if: contains(toJSON(github.event.commits), 'llm_models.py') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -84,6 +85,7 @@ jobs:
 
   # Helfer-Programm für den Chat (llama.cpp), je System
   helper:
+    if: contains(toJSON(github.event.commits), 'src-llm/') || contains(toJSON(github.event.commits), 'ki-modell.yml') || github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
     strategy:
@@ -107,7 +109,8 @@ jobs:
           RUSTFLAGS: ${{ matrix.flags }}
         run: |
           cd src-llm
-          cargo build --release --target ${{ matrix.target }}
+          set -o pipefail
+          cargo build --release --target ${{ matrix.target }} 2>&1 | tee ../build.log || { grep -E "error|Error|failed|warning: unused" ../build.log | grep -v "^\s*Compiling" | tail -n 15 | sed 's|^|::error title=bauen::|'; exit 1; }
           mkdir -p ../out
           f=target/${{ matrix.target }}/release/slimsort-llm
           [ -f "$f.exe" ] && f="$f.exe"
