@@ -75,7 +75,7 @@ for name, col in spec:
       version: 1,
       onboarded: true,
       tutorialDone: true,
-      prefs: { theme: 'dark', lang: 'de', mode: 'expert', activeProfileId: 'p1', seriesEnabled: false, updateCheck: false, aiEnabled: false },
+      prefs: { theme: 'dark', lang: 'de', mode: 'expert', activeProfileId: 'p1', seriesEnabled: false, updateCheck: false, aiEnabled: false, aiTier: 'eco' },
       profiles: [{ id: 'p1', name: 'Meine Ordner', groups: [], targets: [
         { id: 't1', name: 'Rot', path: rot, key: '1', color: '#e5484d' },
         { id: 't2', name: 'Blau', path: blau, key: '2', color: '#3e63dd' },

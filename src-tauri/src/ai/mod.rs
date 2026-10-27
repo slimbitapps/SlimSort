@@ -1134,6 +1134,13 @@ impl Ai {
                 if !helper.is_file() {
                     let (u, size, d) = a.get(&helper_name()).cloned().ok_or("Helfer-Programm für dieses System fehlt")?;
                     jobs.push((vec![(u, size)], helper, d));
+                    // Windows: C++-Laufzeit gehört neben das Programm
+                    #[cfg(windows)]
+                    for dll in ["msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll"] {
+                        if let Some((u, size, d)) = a.get(&format!("slimsort-llm-windows-{dll}")).cloned() {
+                            jobs.push((vec![(u, size)], self.dir.join(dll), d));
+                        }
+                    }
                 }
             }
         }

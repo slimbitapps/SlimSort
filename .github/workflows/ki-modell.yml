@@ -113,7 +113,7 @@ jobs:
       matrix:
         include:
           - { os: ubuntu-24.04, target: x86_64-unknown-linux-gnu, name: slimsort-llm-linux-x86_64, flags: '-C target-feature=+avx2,+fma,+f16c,+bmi2' }
-          - { os: windows-latest, target: x86_64-pc-windows-msvc, name: slimsort-llm-windows-x86_64.exe, flags: '-C target-feature=+avx2,+fma,+f16c,+bmi2,+crt-static', crt: '1' }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, name: slimsort-llm-windows-x86_64.exe, flags: '-C target-feature=+avx2,+fma,+f16c,+bmi2' }
           - { os: macos-latest, target: aarch64-apple-darwin, name: slimsort-llm-macos-aarch64, flags: '' }
           - { os: macos-latest, target: x86_64-apple-darwin, name: slimsort-llm-macos-x86_64, flags: '-C target-feature=+avx2,+fma,+f16c,+bmi2' }
     runs-on: ${{ matrix.os }}
@@ -127,7 +127,6 @@ jobs:
         shell: bash
         env:
           RUSTFLAGS: ${{ matrix.flags }}
-          LLAMA_STATIC_CRT: ${{ matrix.crt }}
         run: |
           cd src-llm
           set -o pipefail
@@ -136,6 +135,11 @@ jobs:
           f=target/${{ matrix.target }}/release/slimsort-llm
           [ -f "$f.exe" ] && f="$f.exe"
           cp "$f" "../out/${{ matrix.name }}"
+          # Windows: C++-Laufzeit von Microsoft neben das Programm legen (erlaubte Weitergabe),
+          # damit es auch ohne installiertes "Visual C++ Redistributable" läuft
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            for d in msvcp140.dll vcruntime140.dll vcruntime140_1.dll; do cp "/c/Windows/System32/$d" "../out/slimsort-llm-windows-$d"; done
+          fi
           ls -la ../out
       - name: Prüfen
         if: matrix.target != 'x86_64-apple-darwin'

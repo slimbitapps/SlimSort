@@ -80,18 +80,16 @@ jobs:
           mkdir -p e2e-shots
           set -o pipefail
           ok=0
-          xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/run.cjs e2e-shots 2>&1 | tee e2e-shots/run.log || ok=1
-          xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/v2.cjs e2e-shots/v2 2>&1 | tee e2e-shots/v2.log || ok=1
-          FOTOSORT_AI_FILE=$PWD/ki-modell/slimsort-ki-1.safetensors xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/ai.cjs e2e-shots/ki 2>&1 | tee e2e-shots/ki.log || ok=1
+          # Ein Test schlägt fehl → nur dessen letzte Zeilen als Hinweis (GitHub zeigt höchstens 10)
+          run() { name=$1; shift; "$@" 2>&1 | tee e2e-shots/$name.log || { ok=1; tail -n 8 e2e-shots/$name.log | sed "s|^|::error title=$name::|"; }; }
+          run run xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/run.cjs e2e-shots
+          run v2 xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/v2.cjs e2e-shots/v2
+          run ki env FOTOSORT_AI_FILE=$PWD/ki-modell/slimsort-ki-1.safetensors xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/ai.cjs e2e-shots/ki
           pip install --break-system-packages scikit-image || true
           python3 scripts/ai/sample_photos.py /tmp/beispielfotos
           mkdir -p /tmp/ki-ausgewogen && for f in slimsort-ki-siglip2-b16.safetensors slimsort-llm-qwen3-1.7b.gguf slimsort-llm-linux-x86_64; do ln -sf $PWD/ki-2/$f /tmp/ki-ausgewogen/$f; done
-          FOTOSORT_AI_DIR=/tmp/ki-ausgewogen FOTOSORT_AI_PICS=/tmp/beispielfotos xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/ai-llm.cjs e2e-shots/ki-chat 2>&1 | tee e2e-shots/ki-chat.log || ok=1
-          if [ $ok != 0 ]; then
-            # letzte Zeilen als Hinweise anzeigen (Logs sind sonst nicht überall abrufbar)
-            for f in e2e-shots/*.log; do tail -n 12 "$f" | sed "s|^|::error title=$f::|"; done
-            exit 1
-          fi
+          run ki-chat env FOTOSORT_AI_DIR=/tmp/ki-ausgewogen FOTOSORT_AI_PICS=/tmp/beispielfotos xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/ai-llm.cjs e2e-shots/ki-chat
+          exit $ok
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: e2e-screenshots, path: e2e-shots, if-no-files-found: ignore }
