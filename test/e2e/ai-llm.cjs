@@ -108,6 +108,16 @@ async function waitFor(fn, ms, label) {
   assert.ok(a4.length > 10);
   await shot('02-chat');
 
+  // Stufen-Auswahl in den Einstellungen
+  await win.click('[data-testid="chat-close"]');
+  await win.click('[data-testid="menu-btn"]');
+  await win.click('text=Einstellungen');
+  await win.click('[data-testid="settings-ai"]');
+  await win.waitForSelector('[data-testid="ai-tiers"]');
+  assert.ok(await win.evaluate(() => document.querySelector('[data-testid="ai-tier-balanced"]').classList.contains('on')), 'Stufe Ausgewogen aktiv');
+  await shot('03-stufen');
+  await win.keyboard.press('Escape');
+
   const errs = fs.readFileSync(path.join(userData, 'app.log'), 'utf8').split('\n').filter((l) => /renderer .*(error|unhandled)/i.test(l));
   assert.deepEqual(errs, [], 'keine Fehler in der Oberfläche');
   console.log('KI-Chat-E2E OK');

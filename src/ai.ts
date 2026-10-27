@@ -327,25 +327,26 @@ async function find(
   const text = q.raw ? q.query : (TEMPLATE[getLang()] || TEMPLATE.en).replace('{q}', q.query);
   const hits = await api().ai.search(text, pool.filter((id) => s.byId.get(id)?.kind === 'image'), 300);
   if (!hits.length) return [];
+  const cut = cutHits(hits);
   // "ein Foto" → nur die besten paar zeigen
-  if (q.count && q.count > 0) return hits.slice(0, Math.max(q.count, Math.min(4, hits.length))).map((h) => h.id);
-  return cutHits(hits).map((h) => h.id);
+  if (q.count && q.count > 0) return cut.slice(0, Math.max(q.count, 4)).map((h) => h.id);
+  return cut.map((h) => h.id);
 }
 
 /**
  * Welche Treffer zeigen? Die Werte (Ähnlichkeit × Faktor des Modells) liegen eng beieinander,
  * deshalb zählt der Abstand: deutlich über dem Durchschnitt, nah am besten Treffer,
- * und Schluss bei einer klaren Lücke. Mindestens 3, höchstens 120.
+ * und Schluss bei einer klaren Lücke. Mindestens 1, höchstens 120.
  */
 export function cutHits<T extends { score: number }>(hits: T[]): T[] {
-  if (hits.length <= 3) return hits;
+  if (hits.length <= 1) return hits;
   const xs = hits.map((h) => h.score);
   const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
   const sd = Math.sqrt(xs.reduce((a, b) => a + (b - mean) ** 2, 0) / xs.length);
   const thr = Math.max(xs[0] - 3, mean + 0.5 * sd);
   const out: T[] = [];
   for (let i = 0; i < hits.length && out.length < 120; i++) {
-    if (i >= 3 && (xs[i] < thr || xs[i - 1] - xs[i] > 1.5)) break;
+    if (i >= 1 && (xs[i] < thr || xs[i - 1] - xs[i] > 1.5)) break;
     out.push(hits[i]);
   }
   return out;
@@ -469,7 +470,7 @@ async function llmTurn(text: string, intent: Intent) {
   setUi({ msgs: [...ui().msgs, { id: mid, from: 'ai', text: '', llmId: id, streaming: true, ids: ids?.slice(0, 24), actions }] });
   let answer = '';
   try {
-    const r = await api().ai.chat(id, { prompt, max: 260, temp: 0.6, stop: ['<|im_end|>'] });
+    const r = await api().ai.chat(id, { prompt, max: 260, temp: 0.45, stop: ['<|im_end|>'] });
     answer = cleanAnswer(r.text).trim();
   } finally {
     const fallback = ids?.length ? t('ai.found', { n: ids.length }) : t('ai.ok');

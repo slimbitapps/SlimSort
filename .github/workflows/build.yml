@@ -48,9 +48,27 @@ jobs:
             [ -s "$f" ] || curl -fsSL -o "$f" "https://github.com/slimbitapps/SlimSort/releases/download/ki-modell-1/$f"
           done
           ls -la
+      - name: KI-Modelle Stufe „Ausgewogen“ (Zwischenspeicher)
+        uses: actions/cache@v4
+        with: { path: ki-2, key: ki-2-balanced-1 }
+      - name: KI-Modelle Stufe „Ausgewogen“ laden
+        run: |
+          mkdir -p ki-2 && cd ki-2
+          for f in slimsort-ki-siglip2-b16.safetensors slimsort-ki-siglip2-b16-ref.json slimsort-llm-qwen3-1.7b.gguf; do
+            [ -s "$f" ] || curl -fsSL --retry 4 -o "$f" "https://github.com/slimbitapps/SlimSort/releases/download/ki-2/$f"
+          done
+          # Helfer immer frisch (wird mit src-llm neu gebaut)
+          curl -fsSL --retry 4 -o slimsort-llm-linux-x86_64 "https://github.com/slimbitapps/SlimSort/releases/download/ki-2/slimsort-llm-linux-x86_64"
+          chmod +x slimsort-llm-linux-x86_64
+          ls -la
       - run: npm test
         env:
           FOTOSORT_AI_MODEL: ${{ github.workspace }}/ki-modell/slimsort-ki-1.safetensors
+      - name: Rust-Vergleich SigLIP 2
+        working-directory: src-tauri
+        run: cargo test --lib ai::tests::matches_reference -- --nocapture
+        env:
+          FOTOSORT_AI_MODEL: ${{ github.workspace }}/ki-2/slimsort-ki-siglip2-b16.safetensors
       - name: tauri-driver
         run: cargo install tauri-driver --locked
       - name: App bauen
@@ -65,6 +83,10 @@ jobs:
           xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/run.cjs e2e-shots 2>&1 | tee e2e-shots/run.log || ok=1
           xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/v2.cjs e2e-shots/v2 2>&1 | tee e2e-shots/v2.log || ok=1
           FOTOSORT_AI_FILE=$PWD/ki-modell/slimsort-ki-1.safetensors xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/ai.cjs e2e-shots/ki 2>&1 | tee e2e-shots/ki.log || ok=1
+          pip install --break-system-packages scikit-image || true
+          python3 scripts/ai/sample_photos.py /tmp/beispielfotos
+          mkdir -p /tmp/ki-ausgewogen && for f in slimsort-ki-siglip2-b16.safetensors slimsort-llm-qwen3-1.7b.gguf slimsort-llm-linux-x86_64; do ln -sf $PWD/ki-2/$f /tmp/ki-ausgewogen/$f; done
+          FOTOSORT_AI_DIR=/tmp/ki-ausgewogen FOTOSORT_AI_PICS=/tmp/beispielfotos xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/ai-llm.cjs e2e-shots/ki-chat 2>&1 | tee e2e-shots/ki-chat.log || ok=1
           if [ $ok != 0 ]; then
             # letzte Zeilen als Hinweise anzeigen (Logs sind sonst nicht überall abrufbar)
             for f in e2e-shots/*.log; do tail -n 12 "$f" | sed "s|^|::error title=$f::|"; done

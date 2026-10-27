@@ -21,7 +21,7 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::{self, File, OpenOptions};
-use std::io::{BufReader, Read, Write};
+use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
@@ -1003,7 +1003,7 @@ impl Ai {
     }
 
     /// Eine Datei laden und an `out` anhängen (für Teile großer Modelle)
-    fn fetch_into(&self, agent: &ureq::Agent, url: &str, out: &mut File, sha: &mut Sha256, last: &mut Instant) -> Result<u64, String> {
+    fn fetch_into(&self, agent: &ureq::Agent, url: &str, out: &mut File, last: &mut Instant) -> Result<u64, String> {
         let mut resp = agent.get(url).header("User-Agent", "SlimSort").call().map_err(|e| format!("Download fehlgeschlagen ({e})"))?;
         let mut body = resp.body_mut().with_config().limit(4 << 30).reader();
         let mut buf = vec![0u8; 1 << 16];
@@ -1017,7 +1017,6 @@ impl Ai {
                 break;
             }
             out.write_all(&buf[..n]).map_err(|e| format!("Speichern fehlgeschlagen ({e})"))?;
-            sha.update(&buf[..n]);
             got += n as u64;
             self.dl_got.fetch_add(n as u64, Ordering::Relaxed);
             if last.elapsed() > Duration::from_millis(300) {
@@ -1028,21 +1027,52 @@ impl Ai {
         Ok(got)
     }
 
-    /// Mehrere Teile nacheinander in eine Datei laden, Prüfsumme kontrollieren, dann umbenennen
+    /// Mehrere Teile nacheinander in eine Datei laden (jedes Teil bis zu 4 Versuche, falls die
+    /// Verbindung abbricht), Prüfsumme kontrollieren, dann umbenennen
     fn fetch_file(&self, agent: &ureq::Agent, urls: &[(String, u64)], dest: &Path, want_sha: Option<&str>, last: &mut Instant) -> Result<(), String> {
         let part = dest.with_extension("part");
         let mut out = File::create(&part).map_err(|e| e.to_string())?;
-        let mut sha = Sha256::new();
         let r = (|| {
             for (u, size) in urls {
-                let got = self.fetch_into(agent, u, &mut out, &mut sha, last)?;
-                if *size > 0 && got != *size {
-                    return Err("Download unvollständig".to_string());
+                let start = out.stream_position().map_err(|e| e.to_string())?;
+                let mut attempt = 0;
+                loop {
+                    attempt += 1;
+                    let res = self.fetch_into(agent, u, &mut out, last).and_then(|got| {
+                        if *size > 0 && got != *size {
+                            Err("Download unvollständig".to_string())
+                        } else {
+                            Ok(())
+                        }
+                    });
+                    match res {
+                        Ok(()) => break,
+                        Err(e) if e == "abgebrochen" || attempt >= 4 => return Err(e),
+                        Err(_) => {
+                            // zurück an den Anfang dieses Teils und neu versuchen
+                            let now = out.stream_position().unwrap_or(start);
+                            self.dl_got.fetch_sub(now.saturating_sub(start).min(self.dl_got.load(Ordering::Relaxed)), Ordering::Relaxed);
+                            out.set_len(start).map_err(|e| e.to_string())?;
+                            out.seek(SeekFrom::Start(start)).map_err(|e| e.to_string())?;
+                            std::thread::sleep(Duration::from_secs(2 * attempt as u64));
+                        }
+                    }
                 }
             }
             out.sync_all().map_err(|e| e.to_string())?;
             if let Some(w) = want_sha {
-                if hex::encode(sha.clone().finalize()) != w {
+                // Prüfsumme über die fertige Datei (Teile können wiederholt worden sein)
+                let mut f = File::open(&part).map_err(|e| e.to_string())?;
+                let mut sha = Sha256::new();
+                let mut buf = vec![0u8; 1 << 20];
+                loop {
+                    let n = f.read(&mut buf).map_err(|e| e.to_string())?;
+                    if n == 0 {
+                        break;
+                    }
+                    sha.update(&buf[..n]);
+                }
+                if hex::encode(sha.finalize()) != w {
                     return Err("Download beschädigt (Prüfsumme falsch)".to_string());
                 }
             }
