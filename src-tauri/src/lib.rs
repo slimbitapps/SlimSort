@@ -112,8 +112,26 @@ fn ai_status(st: State<AppState>) -> ai::Status {
 }
 
 #[tauri::command]
-fn ai_config(st: State<AppState>, enabled: bool, perf: String, tier: Option<String>) {
-    st.ai.configure(enabled, &perf, tier.as_deref().unwrap_or("eco"));
+fn ai_config(st: State<AppState>, enabled: bool, perf: String, tier: Option<String>, faces: Option<bool>) {
+    st.ai.configure(enabled, &perf, tier.as_deref().unwrap_or("eco"), faces.unwrap_or(false));
+}
+
+/// Gesichter auf diesen Fotos (je 128 Zahlen) – zum Merken einer Personengruppe
+#[tauri::command]
+fn ai_face_embs(st: State<AppState>, ids: Vec<u64>) -> Vec<Vec<f32>> {
+    st.ai.face_embs(&ids)
+}
+
+#[tauri::command]
+fn ai_face_count(st: State<AppState>, id: u64) -> Option<usize> {
+    st.ai.face_count(id)
+}
+
+/// Fotos mit Gesichtern gemerkter Gruppen ("Familie")
+#[tauri::command]
+async fn ai_face_matches(st: State<'_, AppState>, groups: Vec<Vec<Vec<f32>>>, ids: Vec<u64>, min: Option<f32>) -> Res<Vec<ai::RuleHit>> {
+    let a = st.ai.clone();
+    blocking(move || a.face_matches(&groups, &ids, min.unwrap_or(0.42))).await
 }
 
 /// Sprachmodell antworten lassen (Wörter kommen nebenbei als "llm:token")
@@ -132,6 +150,13 @@ async fn ai_chat(st: State<'_, AppState>, id: u64, req: Value) -> Res<Value> {
 async fn ai_tags(st: State<'_, AppState>, id: u64) -> Res<Vec<(String, f32)>> {
     let a = st.ai.clone();
     blocking(move || a.tags(id, 6)).await?
+}
+
+/// Gemerkte Regeln ("Fotos mit Autos → Ordner Autos") auf Fotos anwenden
+#[tauri::command]
+async fn ai_rules(st: State<'_, AppState>, texts: Vec<String>, ids: Vec<u64>, min: Option<f32>) -> Res<Vec<ai::RuleHit>> {
+    let a = st.ai.clone();
+    blocking(move || a.rule_matches(&texts, &ids, min.unwrap_or(0.5))).await?
 }
 
 #[tauri::command]
@@ -783,6 +808,10 @@ pub fn run() {
             ai_config,
             ai_chat,
             ai_chat_cancel,
+            ai_rules,
+            ai_face_embs,
+            ai_face_count,
+            ai_face_matches,
             ai_tags,
             ai_chat_warm,
             ai_download,
@@ -814,10 +843,11 @@ pub fn run() {
                 if prefs.get("aiEnabled").and_then(Value::as_bool) == Some(true) {
                     let perf = prefs.get("aiPerf").and_then(Value::as_str).unwrap_or("normal").to_string();
                     let tier = prefs.get("aiTier").and_then(Value::as_str).unwrap_or("eco").to_string();
+                    let faces = prefs.get("aiFaces").and_then(Value::as_bool).unwrap_or(false);
                     let a = st.ai.clone();
                     std::thread::spawn(move || {
                         std::thread::sleep(Duration::from_secs(3));
-                        a.configure(true, &perf, &tier);
+                        a.configure(true, &perf, &tier, faces);
                     });
                 }
             }

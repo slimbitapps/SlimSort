@@ -8,6 +8,7 @@
 //!
 //! Ausgeschaltet läuft hier gar nichts: kein Thread, kein geladenes Modell.
 
+pub mod faces;
 pub mod hw;
 pub mod labels;
 pub mod llm;
@@ -240,6 +241,11 @@ struct Inner {
     downloading: bool,
     /// Fingerabdrücke der Begriffe (für Stichwörter), je Modell einmal berechnet
     labels: Option<Arc<Vec<Vec<f32>>>>,
+    /// Fingerabdrücke von Texten (gemerkte Regeln wie "Autos"), je Modell
+    texts: HashMap<String, Vec<f32>>,
+    /// Gesichter erkennen (eigener Schalter)
+    faces_on: bool,
+    fstore: Option<faces::FaceStore>,
 }
 
 impl Default for Inner {
@@ -261,6 +267,9 @@ impl Default for Inner {
             busy: 0,
             downloading: false,
             labels: None,
+            texts: HashMap::new(),
+            faces_on: false,
+            fstore: None,
         }
     }
 }
@@ -278,6 +287,7 @@ pub struct Ai {
     index_gen: AtomicU64,
     labels_busy: AtomicBool,
     pub llm: Arc<llm::Llm>,
+    fproc: faces::FaceProc,
 }
 
 #[derive(Serialize)]
@@ -292,6 +302,9 @@ pub struct Status {
     /// Sprachmodell + Helfer da
     pub chat: bool,
     pub chat_running: bool,
+    /// Gesichtserkennung eingeschaltet / Modelle dafür da
+    pub faces: bool,
+    pub faces_ready: bool,
     pub downloading: bool,
     pub received: u64,
     pub size: u64,
@@ -307,6 +320,13 @@ pub struct Status {
 pub struct Hit {
     pub id: u64,
     pub score: f32,
+}
+
+#[derive(Serialize)]
+pub struct RuleHit {
+    pub id: u64,
+    pub rule: usize,
+    pub p: f32,
 }
 
 #[derive(Serialize)]
@@ -369,6 +389,7 @@ impl Ai {
             index_gen: AtomicU64::new(0),
             labels_busy: AtomicBool::new(false),
             llm: llm::Llm::new(),
+            fproc: faces::FaceProc::new(),
         })
     }
 
@@ -398,6 +419,10 @@ impl Ai {
 
     fn installed(&self, t: &TierDef) -> bool {
         self.vision_path(t).is_file()
+    }
+
+    fn faces_installed(&self) -> bool {
+        self.helper_path().is_file() && self.dir.join(faces::DETECT).is_file() && self.dir.join(faces::EMBED).is_file()
     }
 
     fn chat_installed(&self, t: &TierDef) -> bool {
@@ -444,10 +469,12 @@ impl Ai {
         Status {
             enabled: g.enabled,
             tier: t.id.to_string(),
-            installed: vision && (t.llm.is_none() || chat),
+            installed: vision && (t.llm.is_none() || chat) && (!g.faces_on || self.faces_installed()),
             vision,
             chat,
             chat_running: self.llm.running(),
+            faces: g.faces_on,
+            faces_ready: self.faces_installed(),
             downloading: g.downloading,
             received: self.dl_got.load(Ordering::Relaxed),
             size: self.dl_total.load(Ordering::Relaxed),
@@ -480,13 +507,22 @@ impl Ai {
     }
 
     /// KI ein-/ausschalten. Aus = Threads beenden, Modell und Fingerabdrücke aus dem Speicher.
-    pub fn configure(self: &Arc<Self>, enabled: bool, perf: &str, tier_id: &str) {
+    pub fn configure(self: &Arc<Self>, enabled: bool, perf: &str, tier_id: &str, faces_on: bool) {
         let threads = threads_for(perf);
         let t = tier(tier_id);
         let mut g = self.inner.lock().unwrap();
+        let faces_on = enabled && faces_on;
+        if faces_on && g.fstore.is_none() {
+            g.fstore = Some(faces::FaceStore::load(self.dir.join("gesichter.bin")));
+        } else if !faces_on {
+            g.fstore = None;
+            self.fproc.stop();
+        }
+        let faces_changed = g.faces_on != faces_on;
+        g.faces_on = faces_on;
         let was = g.enabled;
         let tier_changed = !std::ptr::eq(g.tier, t);
-        let changed = was != enabled || g.threads != threads || tier_changed;
+        let changed = was != enabled || g.threads != threads || tier_changed || faces_changed;
         g.enabled = enabled;
         g.tier = t;
         g.threads = if enabled { threads } else { 0 };
@@ -499,6 +535,7 @@ impl Ai {
             g.total = 0;
             g.learned = Learned::default();
             g.labels = None;
+            g.texts.clear();
             self.llm.stop();
         }
         if enabled && g.store.is_none() {
@@ -581,13 +618,23 @@ impl Ai {
                     g = self.cv.wait_timeout(g, Duration::from_secs(20)).unwrap().0;
                 }
             };
-            let res = self.model().and_then(|m| self.embed_file(&m, &mut sc, &job.path).ok_or_else(String::new));
+            let (need_emb, need_faces) = {
+                let g = self.inner.lock().unwrap();
+                let has = g.store.as_ref().is_some_and(|s| s.map.contains_key(&job.key));
+                let fdone = g.fstore.as_ref().map_or(true, |f| f.map.contains_key(&job.key));
+                (!has, g.faces_on && !fdone && self.faces_installed())
+            };
+            let res = if need_emb { self.model().and_then(|m| self.embed_file(&m, &mut sc, &job.path).ok_or_else(String::new)).map(Some) } else { Ok(None) };
+            let found = if need_faces && res.is_ok() { self.faces_of_file(&job.path) } else { None };
             let mut g = self.inner.lock().unwrap();
             g.busy -= 1;
             g.last_use = Some(Instant::now());
+            if let (Some(fs_), Some(f)) = (g.fstore.as_mut(), found) {
+                fs_.put(job.key, f);
+            }
             match res {
                 Ok(e) => {
-                    if let Some(s) = g.store.as_mut() {
+                    if let (Some(s), Some(e)) = (g.store.as_mut(), e) {
                         s.put(job.key, Emb::from(&e));
                     }
                     if let JobKind::Folder(t) = &job.kind {
@@ -616,6 +663,51 @@ impl Ai {
                 self.prepare_labels();
             }
         }
+    }
+
+    /// Gesichter eines Fotos (größere Vorschau, damit auch kleine Gesichter gefunden werden)
+    fn faces_of_file(&self, path: &Path) -> Option<Vec<faces::FaceRec>> {
+        let ext = path.extension().map(|e| format!(".{}", e.to_string_lossy().to_lowercase())).unwrap_or_default();
+        let jpg = thumbs::render(path, &ext, 1280, 88)?;
+        let tmp = self.dir.join(format!("gesicht-{:?}.jpg", std::thread::current().id()).replace(['(', ')', ' '], ""));
+        fs::write(&tmp, jpg).ok()?;
+        let r = self.fproc.detect(&self.helper_path(), &self.dir, &tmp);
+        let _ = fs::remove_file(&tmp);
+        r.ok()
+    }
+
+    /// Alle Gesichter (je 128 Zahlen) auf diesen Fotos – zum Merken ("das ist meine Familie")
+    pub fn face_embs(&self, ids: &[u64]) -> Vec<Vec<f32>> {
+        let g = self.inner.lock().unwrap();
+        let Some(fs_) = &g.fstore else { return vec![] };
+        ids.iter().filter_map(|id| g.ids.get(id).and_then(|k| fs_.map.get(k))).flatten().map(|f| f.emb.clone()).collect()
+    }
+
+    /// Anzahl Gesichter auf einem Foto (None = noch nicht untersucht)
+    pub fn face_count(&self, id: u64) -> Option<usize> {
+        let g = self.inner.lock().unwrap();
+        g.ids.get(&id).and_then(|k| g.fstore.as_ref()?.map.get(k)).map(Vec::len)
+    }
+
+    /// Fotos mit Gesichtern einer gemerkten Gruppe: je Foto die beste Gruppe (cos ≥ min)
+    pub fn face_matches(&self, groups: &[Vec<Vec<f32>>], ids: &[u64], min: f32) -> Vec<RuleHit> {
+        let g = self.inner.lock().unwrap();
+        let Some(fs_) = &g.fstore else { return vec![] };
+        let mut out = Vec::new();
+        for &id in ids {
+            let Some(faces) = g.ids.get(&id).and_then(|k| fs_.map.get(k)) else { continue };
+            let mut best: Option<(usize, f32)> = None;
+            for (i, gr) in groups.iter().enumerate() {
+                let c = faces::best_match(faces, gr);
+                if c >= min && best.map_or(true, |b| c > b.1) {
+                    best = Some((i, c));
+                }
+            }
+            if let Some((rule, p)) = best {
+                out.push(RuleHit { id, rule, p });
+            }
+        }
+        out
     }
 
     /// Fingerabdruck eines Fotos (Vorschaubild aus dem Zwischenspeicher, sonst neu erzeugt)
@@ -660,7 +752,8 @@ impl Ai {
                 for (id, path, k) in keyed {
                     let Some(k) = k else { continue };
                     g.ids.insert(id, k);
-                    let known = g.store.as_ref().is_some_and(|s| s.map.contains_key(&k)) || g.failed.contains(&k);
+                    let faces_missing = g.faces_on && g.fstore.as_ref().is_some_and(|f| !f.map.contains_key(&k));
+                    let known = (g.store.as_ref().is_some_and(|s| s.map.contains_key(&k)) && !faces_missing) || g.failed.contains(&k);
                     if !known {
                         g.queue.push_back(Job { kind: JobKind::Session(id), path, key: k });
                     }
@@ -787,6 +880,49 @@ impl Ai {
         hits.sort_by(|a, b| b.score.total_cmp(&a.score));
         hits.truncate(limit);
         hits
+    }
+
+    /// Wie wahrscheinlich zeigt jedes Foto den jeweiligen Begriff? (für gemerkte Regeln
+    /// wie "Fotos mit Autos → Ordner Autos"). Liefert je Foto die beste Regel mit Wahrscheinlichkeit ≥ `min`.
+    pub fn rule_matches(&self, texts: &[String], ids: &[u64], min: f32) -> Result<Vec<RuleHit>, String> {
+        if texts.is_empty() {
+            return Ok(vec![]);
+        }
+        let m = self.model()?;
+        let mut sc = net::Scratch::default();
+        let mut embs = Vec::new();
+        for t in texts {
+            let cached = self.inner.lock().unwrap().texts.get(t).cloned();
+            let e = match cached {
+                Some(e) => e,
+                None => {
+                    let e = m.text(&mut sc, t);
+                    self.inner.lock().unwrap().texts.insert(t.clone(), e.clone());
+                    e
+                }
+            };
+            embs.push(e);
+        }
+        let (k, bias, siglip) = (m.scale(), m.w.mf("logit_bias"), m.w.siglip());
+        let g = self.inner.lock().unwrap();
+        let Some(store) = &g.store else { return Ok(vec![]) };
+        let mut out = Vec::new();
+        for &id in ids {
+            let Some(e) = g.ids.get(&id).and_then(|k| store.map.get(k)) else { continue };
+            let mut best: Option<(usize, f32)> = None;
+            for (i, t) in embs.iter().enumerate() {
+                let logit = e.dot(t) * k;
+                // SigLIP liefert echte Wahrscheinlichkeiten (mit gelerntem Versatz), CLIP nur Ähnlichkeit
+                let p = if siglip { 1.0 / (1.0 + (-(logit + bias)).exp()) } else { 1.0 / (1.0 + (-(logit - 27.0) * 1.2).exp()) };
+                if p >= min && best.map_or(true, |b| p > b.1) {
+                    best = Some((i, p));
+                }
+            }
+            if let Some((rule, p)) = best {
+                out.push(RuleHit { id, rule, p });
+            }
+        }
+        Ok(out)
     }
 
     pub fn search(&self, text: &str, among: Option<Vec<u64>>, limit: usize) -> Result<Vec<Hit>, String> {
@@ -1208,6 +1344,26 @@ impl Ai {
                 }
             }
         }
+        // Gesichter: Helfer + zwei kleine Modelle
+        if self.inner.lock().unwrap().faces_on && !self.faces_installed() {
+            let a = Self::release_assets(&agent, LLM_TAG)?;
+            for n in [faces::DETECT, faces::EMBED] {
+                if !self.dir.join(n).is_file() {
+                    let (u, size, d) = a.get(n).cloned().ok_or("Gesichtsmodell nicht gefunden")?;
+                    jobs.push((vec![(u, size)], self.dir.join(n), d));
+                }
+            }
+            if !self.helper_path().is_file() && t.llm.is_none() {
+                let (u, size, d) = a.get(&helper_name()).cloned().ok_or("Helfer-Programm für dieses System fehlt")?;
+                jobs.push((vec![(u, size)], self.helper_path(), d));
+                #[cfg(windows)]
+                for dll in ["msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll"] {
+                    if let Some((u, size, d)) = a.get(&format!("slimsort-llm-windows-{dll}")).cloned() {
+                        jobs.push((vec![(u, size)], self.dir.join(dll), d));
+                    }
+                }
+            }
+        }
         if let Some(id) = t.llm {
             let gguf = self.llm_path(id);
             let helper = self.helper_path();
@@ -1275,6 +1431,10 @@ impl Ai {
         if let Some(st) = g.store.as_mut() {
             st.map.clear();
         }
+        if let Some(f) = g.fstore.as_mut() {
+            f.map.clear();
+        }
+        self.fproc.stop();
         g.learned = Learned::default();
         g.queue.clear();
         g.failed.clear();
