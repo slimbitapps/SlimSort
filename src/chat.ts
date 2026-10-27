@@ -17,6 +17,7 @@ export type Ref = 'results' | 'selection' | 'current';
 
 export type Intent =
   | { kind: 'help' }
+  | { kind: 'describe' }
   | { kind: 'greet' }
   | { kind: 'thanks' }
   | { kind: 'stats' }
@@ -156,6 +157,7 @@ export function parse(input: string): Intent {
   const s = text.toLowerCase();
   if (/^(hilfe|help|\?|was kannst du|what can you do|wie geht das|befehle|commands)\b/.test(s)) return { kind: 'help' };
   if (/^(hallo|hi|hey|servus|moin|grüß dich|guten (morgen|tag|abend)|hello|bonjour|hola|ciao)\b[!. ]*$/.test(s)) return { kind: 'greet' };
+  if (/\b(was|what)\b.*\b(ist|siehst du|sieht man|is|do you see|can you see)\b.*\b(auf|in|on|in)\b.*\b(dem|diesem|this|the)\b.*\b(foto|bild|photo|picture|image)\b/.test(s)) return { kind: 'describe' };
   if (/^(danke|vielen dank|dankeschön|thanks|thank you|thx|merci|gracias|grazie)\b/.test(s)) return { kind: 'thanks' };
   if (/^(rückgängig|undo|mach (das|es) rückgängig|zurück)\b/.test(s)) return { kind: 'undo' };
   if (/(dunkl\w*|dark) ?(modus|design|mode|theme)|dunkelmodus|nachtmodus/.test(s)) return { kind: 'theme', theme: 'dark' };

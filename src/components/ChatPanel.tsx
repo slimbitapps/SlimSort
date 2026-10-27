@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
 import { useStore, openDialog, prefs } from '../store';
-import { useAi, send, toggleChat, clearChat, openResult } from '../ai';
+import { useAi, send, toggleChat, clearChat, openResult, stopLlm, llmOn, currentTier } from '../ai';
+import { cleanAnswer } from '../assistant';
 import { thumbUrl } from '../util';
-import { IconClose, IconSend, IconSparkle, IconRefresh } from '../icons';
+import { IconClose, IconSend, IconSparkle, IconRefresh, IconStop } from '../icons';
 
 const EXAMPLES = ['ai.ex1', 'ai.ex2', 'ai.ex3', 'ai.ex4'] as const;
 
@@ -11,6 +12,8 @@ const EXAMPLES = ['ai.ex1', 'ai.ex2', 'ai.ex3', 'ai.ex4'] as const;
 export function ChatPanel() {
   const msgs = useAi((a) => a.msgs);
   const busy = useAi((a) => a.busy);
+  const busyText = useAi((a) => a.busyText);
+  const streaming = useAi((a) => a.msgs.some((m) => m.streaming));
   const status = useAi((a) => a.status);
   const session = useStore((s) => s.session);
   const enabled = useStore((s) => s.settings.prefs.aiEnabled);
@@ -22,7 +25,7 @@ export function ChatPanel() {
 
   useEffect(() => {
     list.current?.scrollTo({ top: list.current.scrollHeight, behavior: 'smooth' });
-  }, [msgs.length, busy]);
+  }, [msgs.length, busy, msgs[msgs.length - 1]?.text.length]);
   useEffect(() => {
     input.current?.focus();
   }, []);
@@ -51,7 +54,9 @@ export function ChatPanel() {
                 ? t('ai.stateNoModel')
                 : indexing
                   ? t('ai.stateIndexing', { done: status!.indexed, total: status!.total })
-                  : t('ai.stateReady')}
+                  : llmOn()
+                    ? t(currentTier() === 'max' ? 'ai.stateReadyMax' : 'ai.stateReadyLlm')
+                    : t('ai.stateReady')}
           </span>
         </div>
         <button className="btn icon ghost sm" onClick={clearChat} data-tip={t('ai.chatClear')} aria-label={t('ai.chatClear')}>
@@ -69,8 +74,8 @@ export function ChatPanel() {
       <div className="chat-list" ref={list}>
         {msgs.map((m) => (
           <div key={m.id} className={`msg ${m.from}`} data-testid={`msg-${m.from}`}>
-            <div className="bubble">
-              {m.text.split('\n').map((l, i) => (
+            <div className={`bubble ${m.streaming ? 'streaming' : ''}`}>
+              {(m.from === 'ai' ? cleanAnswer(m.text) : m.text).split('\n').map((l, i) => (
                 <p key={i}>{l}</p>
               ))}
               {m.ids && m.ids.length > 0 && session && (
@@ -98,12 +103,13 @@ export function ChatPanel() {
             </div>
           </div>
         ))}
-        {busy && (
+        {busy && !streaming && (
           <div className="msg ai">
             <div className="bubble typing">
               <i />
               <i />
               <i />
+              {busyText && <span className="busy-text">{busyText}</span>}
             </div>
           </div>
         )}
@@ -155,9 +161,15 @@ export function ChatPanel() {
             }
           }}
         />
-        <button className="btn icon primary" type="submit" disabled={!text.trim() || busy} aria-label={t('ai.send')} data-testid="chat-send">
-          <IconSend size={16} />
-        </button>
+        {busy ? (
+          <button className="btn icon" type="button" onClick={stopLlm} aria-label={t('ai.stop')} data-tip={t('ai.stop')} data-testid="chat-stop">
+            <IconStop size={15} />
+          </button>
+        ) : (
+          <button className="btn icon primary" type="submit" disabled={!text.trim()} aria-label={t('ai.send')} data-testid="chat-send">
+            <IconSend size={16} />
+          </button>
+        )}
       </form>
       {prefs().aiEnabled && <div className="chat-foot muted">{t('ai.private')}</div>}
     </aside>

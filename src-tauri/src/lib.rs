@@ -112,8 +112,38 @@ fn ai_status(st: State<AppState>) -> ai::Status {
 }
 
 #[tauri::command]
-fn ai_config(st: State<AppState>, enabled: bool, perf: String) {
-    st.ai.configure(enabled, &perf);
+fn ai_config(st: State<AppState>, enabled: bool, perf: String, tier: Option<String>) {
+    st.ai.configure(enabled, &perf, tier.as_deref().unwrap_or("eco"));
+}
+
+/// Sprachmodell antworten lassen (Wörter kommen nebenbei als "llm:token")
+#[tauri::command]
+async fn ai_chat(st: State<'_, AppState>, id: u64, req: Value) -> Res<Value> {
+    let a = st.ai.clone();
+    blocking(move || {
+        let llm = a.ensure_chat()?;
+        llm.generate(id, req)
+    })
+    .await?
+}
+
+/// Stichwörter zu einem Foto ("Wald", "Weg" …)
+#[tauri::command]
+async fn ai_tags(st: State<'_, AppState>, id: u64) -> Res<Vec<(String, f32)>> {
+    let a = st.ai.clone();
+    blocking(move || a.tags(id, 6)).await?
+}
+
+#[tauri::command]
+fn ai_chat_cancel(st: State<AppState>, id: u64) {
+    st.ai.llm.cancel(id);
+}
+
+/// Sprachmodell schon mal laden (wenn der Chat geöffnet wird)
+#[tauri::command]
+async fn ai_chat_warm(st: State<'_, AppState>) -> Res<bool> {
+    let a = st.ai.clone();
+    blocking(move || a.ensure_chat().is_ok()).await
 }
 
 #[tauri::command]
@@ -751,6 +781,10 @@ pub fn run() {
             open_with_default,
             ai_status,
             ai_config,
+            ai_chat,
+            ai_chat_cancel,
+            ai_tags,
+            ai_chat_warm,
             ai_download,
             ai_download_cancel,
             ai_remove,
@@ -771,16 +805,19 @@ pub fn run() {
             {
                 let st = handle.state::<AppState>();
                 let eh = handle.clone();
-                *st.ai.emit.lock().unwrap() = Some(Arc::new(move |ev: &str, v: Value| {
+                let em: session::Emit = Arc::new(move |ev: &str, v: Value| {
                     let _ = eh.emit(ev, v);
-                }));
+                });
+                *st.ai.emit.lock().unwrap() = Some(em.clone());
+                *st.ai.llm.emit.lock().unwrap() = Some(em);
                 let prefs = st.settings.get().get("prefs").cloned().unwrap_or(Value::Null);
                 if prefs.get("aiEnabled").and_then(Value::as_bool) == Some(true) {
                     let perf = prefs.get("aiPerf").and_then(Value::as_str).unwrap_or("normal").to_string();
+                    let tier = prefs.get("aiTier").and_then(Value::as_str).unwrap_or("eco").to_string();
                     let a = st.ai.clone();
                     std::thread::spawn(move || {
                         std::thread::sleep(Duration::from_secs(3));
-                        a.configure(true, &perf);
+                        a.configure(true, &perf, &tier);
                     });
                 }
             }

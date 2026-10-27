@@ -12,7 +12,8 @@ import {
   IconGlobe, IconSliders, IconTrash, IconImage, IconLayers, IconSettings, IconHelp, IconInfo, IconClose, IconCheck,
   IconLock, IconRefresh, IconPlus, IconMore, IconLayers as IconStack, IconSparkle,
 } from '../icons';
-import { useAi, applyAiPrefs, startDownload } from '../ai';
+import { useAi, applyAiPrefs, startDownload, currentTier } from '../ai';
+import type { AiTier } from '../types';
 import { actionKeyOf, keyLabel, modKey, uid } from '../util';
 import type { ActionKeys, DateFolders, Item } from '../types';
 
@@ -585,7 +586,43 @@ function SeriesTab() {
   );
 }
 
-const AI_SIZE_MB = 187;
+/** Download-Größe je Stufe (MB) */
+const TIER_MB: Record<AiTier, number> = { eco: 187, balanced: 1460, max: 3340 };
+const fmtSize = (mb: number) => (mb >= 1000 ? `${(mb / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} GB` : `${mb} MB`);
+
+function TierPicker({ busy, onPick }: { busy: boolean; onPick: (t: AiTier) => void }) {
+  const st = useAi((a) => a.status);
+  const cur = currentTier();
+  const hw = st?.hw;
+  const tiers: [AiTier, TKey, TKey][] = [
+    ['eco', 'ai.tierEco', 'ai.tierEcoDesc'],
+    ['balanced', 'ai.tierBalanced', 'ai.tierBalancedDesc'],
+    ['max', 'ai.tierMax', 'ai.tierMaxDesc'],
+  ];
+  return (
+    <div className="ai-tiers" data-testid="ai-tiers">
+      {tiers.map(([id, name, desc]) => {
+        const noChat = id !== 'eco' && hw && !hw.chatOk;
+        return (
+          <button
+            key={id}
+            className={`ai-tier ${cur === id ? 'on' : ''}`}
+            disabled={busy || !!noChat}
+            onClick={() => onPick(id)}
+            data-testid={`ai-tier-${id}`}
+          >
+            <span className="ai-tier-head">
+              <b>{t(name)}</b>
+              {hw?.recommended === id && <span className="ai-rec">{t('ai.recommended')}</span>}
+            </span>
+            <span className="ai-tier-desc">{noChat ? t('ai.tierNoCpu') : t(desc)}</span>
+            <span className="ai-tier-size">{fmtSize(TIER_MB[id])}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function AiTab() {
   const p = useStore((s) => s.settings.prefs);
@@ -595,8 +632,10 @@ function AiTab() {
     window.api.ai.status().then((s) => useAi.setState({ status: s }));
   }, []);
   const set = async (x: Partial<Prefs>) => {
+    // beim ersten Einschalten die empfohlene Stufe merken
+    if (x.aiEnabled && !p.aiTier && st?.hw) x = { ...x, aiTier: st.hw.recommended };
     updatePrefs(x);
-    if ('aiEnabled' in x || 'aiPerf' in x) {
+    if ('aiEnabled' in x || 'aiPerf' in x || 'aiTier' in x) {
       setBusy(true);
       await applyAiPrefs().finally(() => setBusy(false));
     }
@@ -612,8 +651,17 @@ function AiTab() {
             <Switch on={p.aiEnabled} onChange={(v) => set({ aiEnabled: v })} />
           </span>
         </Row>
+        {p.aiEnabled && (
+          <div className="ai-tier-wrap">
+            <div className="lbl">
+              <div className="t">{t('ai.tier')}</div>
+              {st?.hw && <div className="d">{t('ai.hw', { ram: Math.round(st.hw.ramGb), cores: st.hw.cores })}</div>}
+            </div>
+            <TierPicker busy={busy || !!st?.downloading} onPick={(id) => set({ aiTier: id })} />
+          </div>
+        )}
         {p.aiEnabled && st && !st.installed && (
-          <Row label={t('ai.model')} desc={st.downloading ? t('ai.downloading', { pct }) : st.error ? t('ai.downloadFailed', { error: st.error }) : t('ai.modelDesc', { mb: AI_SIZE_MB })}>
+          <Row label={t('ai.model')} desc={st.downloading ? t('ai.downloading', { pct }) : st.error ? t('ai.downloadFailed', { error: st.error }) : t('ai.modelDesc', { mb: fmtSize(TIER_MB[currentTier()]) })}>
             {st.downloading ? (
               <div className="row" style={{ gap: 8, minWidth: 220 }}>
                 <div className="ai-bar" data-testid="ai-download-bar">
@@ -625,7 +673,7 @@ function AiTab() {
               </div>
             ) : (
               <button className="btn primary" onClick={startDownload} data-testid="ai-download">
-                {t('ai.download', { mb: AI_SIZE_MB })}
+                {t('ai.download', { mb: fmtSize(TIER_MB[currentTier()]) })}
               </button>
             )}
           </Row>

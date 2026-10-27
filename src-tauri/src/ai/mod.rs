@@ -8,6 +8,9 @@
 //!
 //! Ausgeschaltet läuft hier gar nichts: kein Thread, kein geladenes Modell.
 
+pub mod hw;
+pub mod labels;
+pub mod llm;
 pub mod net;
 pub mod tok;
 
@@ -24,9 +27,38 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
-pub const MODEL_FILE: &str = "slimsort-ki-1.safetensors";
-const RELEASE_API: &str = "https://api.github.com/repos/slimbitapps/SlimSort/releases/tags/ki-modell-1";
-pub const DIM: usize = 512;
+const RELEASES: &str = "https://api.github.com/repos/slimbitapps/SlimSort/releases/tags/";
+
+/// KI-Stufen: welches Bildmodell und welches Sprachmodell (für den Chat)
+pub struct TierDef {
+    pub id: &'static str,
+    /// Release auf GitHub, in dem das Bildmodell liegt
+    tag: &'static str,
+    pub vision: &'static str,
+    dim: usize,
+    pub llm: Option<&'static str>,
+}
+
+pub const TIERS: [TierDef; 3] = [
+    TierDef { id: "eco", tag: "ki-modell-1", vision: "slimsort-ki-1.safetensors", dim: 512, llm: None },
+    TierDef { id: "balanced", tag: "ki-2", vision: "slimsort-ki-siglip2-b16.safetensors", dim: 768, llm: Some("qwen3-1.7b") },
+    TierDef { id: "max", tag: "ki-2", vision: "slimsort-ki-siglip2-l16.safetensors", dim: 1024, llm: Some("qwen3-4b") },
+];
+const LLM_TAG: &str = "ki-2";
+
+pub fn tier(id: &str) -> &'static TierDef {
+    TIERS.iter().find(|t| t.id == id).unwrap_or(&TIERS[0])
+}
+
+/// Name des Helfer-Programms für dieses System (wie im Release)
+pub fn helper_name() -> String {
+    let os = if cfg!(windows) { "windows" } else if cfg!(target_os = "macos") { "macos" } else { "linux" };
+    let ext = if cfg!(windows) { ".exe" } else { "" };
+    format!("slimsort-llm-{os}-{}{ext}", std::env::consts::ARCH)
+}
+
+#[cfg(test)]
+const DIM: usize = 512;
 /// Höchstens so viele gelernte Beispiele je Ordner (die neuesten zählen)
 const MAX_EXAMPLES: usize = 400;
 /// Beispielfotos, die aus einem bestehenden Zielordner gelernt werden
@@ -70,14 +102,12 @@ struct Store {
     map: HashMap<Key, Emb>,
 }
 
-const REC: usize = 20 + 4 + DIM;
-
 impl Store {
-    fn load(file: PathBuf) -> Store {
+    fn load(file: PathBuf, dim: usize) -> Store {
         let mut map = HashMap::new();
         if let Ok(f) = File::open(&file) {
             let mut r = BufReader::new(f);
-            let mut buf = vec![0u8; REC];
+            let mut buf = vec![0u8; 20 + 4 + dim];
             while r.read_exact(&mut buf).is_ok() {
                 let mut k = [0u8; 20];
                 k.copy_from_slice(&buf[..20]);
@@ -89,7 +119,7 @@ impl Store {
     }
 
     fn put(&mut self, k: Key, e: Emb) {
-        let mut rec = Vec::with_capacity(REC);
+        let mut rec = Vec::with_capacity(24 + e.q.len());
         rec.extend_from_slice(&k);
         rec.extend_from_slice(&e.s.to_le_bytes());
         rec.extend(e.q.iter().map(|&x| x as u8));
@@ -166,6 +196,11 @@ impl Model {
         let ids = self.tokens(text);
         net::embed_text(&self.w, sc, &ids)
     }
+    /// Faktor, mit dem Text-Bild-Ähnlichkeiten vergleichbar werden (CLIP 100, SigLIP gelernt)
+    pub fn scale(&self) -> f32 {
+        self.w.meta.get("logit_scale").and_then(|v| v.parse().ok()).unwrap_or(100.0)
+    }
+
     pub fn tokens(&self, text: &str) -> Vec<usize> {
         match &self.tok {
             Tok::Word(t) => t.encode(text, 64),
@@ -185,9 +220,9 @@ pub fn prepare(img: &image::DynamicImage) -> Vec<u8> {
     image::imageops::crop_imm(&r, x, y, 224, 224).to_image().into_raw()
 }
 
-#[derive(Default)]
 struct Inner {
     enabled: bool,
+    tier: &'static TierDef,
     threads: usize,
     workers_gen: u64,
     model: Option<Arc<Model>>,
@@ -203,6 +238,31 @@ struct Inner {
     total: usize,
     busy: usize,
     downloading: bool,
+    /// Fingerabdrücke der Begriffe (für Stichwörter), je Modell einmal berechnet
+    labels: Option<Arc<Vec<Vec<f32>>>>,
+}
+
+impl Default for Inner {
+    fn default() -> Inner {
+        Inner {
+            enabled: false,
+            tier: &TIERS[0],
+            threads: 0,
+            workers_gen: 0,
+            model: None,
+            load_error: None,
+            last_use: None,
+            store: None,
+            learned: Learned::default(),
+            queue: VecDeque::new(),
+            ids: HashMap::new(),
+            failed: HashSet::new(),
+            total: 0,
+            busy: 0,
+            downloading: false,
+            labels: None,
+        }
+    }
 }
 
 pub struct Ai {
@@ -216,13 +276,22 @@ pub struct Ai {
     dl_got: AtomicU64,
     dl_total: AtomicU64,
     index_gen: AtomicU64,
+    labels_busy: AtomicBool,
+    pub llm: Arc<llm::Llm>,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Status {
     pub enabled: bool,
+    pub tier: String,
+    /// alles für die gewählte Stufe da (Bild- und ggf. Sprachmodell)
     pub installed: bool,
+    /// Bildmodell da (Suche/Vorschläge gehen schon)
+    pub vision: bool,
+    /// Sprachmodell + Helfer da
+    pub chat: bool,
+    pub chat_running: bool,
     pub downloading: bool,
     pub received: u64,
     pub size: u64,
@@ -231,6 +300,7 @@ pub struct Status {
     pub examples: usize,
     pub threads: usize,
     pub error: Option<String>,
+    pub hw: hw::Hardware,
 }
 
 #[derive(Serialize)]
@@ -297,18 +367,63 @@ impl Ai {
             dl_got: AtomicU64::new(0),
             dl_total: AtomicU64::new(0),
             index_gen: AtomicU64::new(0),
+            labels_busy: AtomicBool::new(false),
+            llm: llm::Llm::new(),
         })
     }
 
+    fn cur_tier(&self) -> &'static TierDef {
+        self.inner.lock().unwrap().tier
+    }
+
     pub fn model_path(&self) -> PathBuf {
+        self.vision_path(self.cur_tier())
+    }
+
+    /// Bildmodell einer Stufe (ohne Sperre – darf aufgerufen werden, während `inner` gesperrt ist)
+    fn vision_path(&self, t: &TierDef) -> PathBuf {
         if let (Ok(_), Ok(p)) = (std::env::var("FOTOSORT_TEST"), std::env::var("FOTOSORT_AI_MODEL")) {
             return PathBuf::from(p);
         }
-        self.dir.join(MODEL_FILE)
+        self.dir.join(t.vision)
     }
 
-    fn installed(&self) -> bool {
-        self.model_path().is_file()
+    fn llm_path(&self, id: &str) -> PathBuf {
+        self.dir.join(format!("slimsort-llm-{id}.gguf"))
+    }
+
+    fn helper_path(&self) -> PathBuf {
+        self.dir.join(helper_name())
+    }
+
+    fn installed(&self, t: &TierDef) -> bool {
+        self.vision_path(t).is_file()
+    }
+
+    fn chat_installed(&self, t: &TierDef) -> bool {
+        t.llm.is_some_and(|id| self.llm_path(id).is_file() && self.helper_path().is_file())
+    }
+
+    /// Sprachmodell für den Chat starten (falls nötig) – liefert Fehlertext, wenn es nicht geht
+    pub fn ensure_chat(&self) -> Result<Arc<llm::Llm>, String> {
+        let (t, enabled, threads) = {
+            let g = self.inner.lock().unwrap();
+            (g.tier, g.enabled, g.threads)
+        };
+        let id = t.llm.ok_or("Diese KI-Stufe hat kein Sprachmodell")?;
+        if !enabled {
+            return Err("KI ist ausgeschaltet".into());
+        }
+        if !self.chat_installed(t) {
+            return Err("Sprachmodell nicht installiert".into());
+        }
+        if !hw::detect().chat_ok {
+            return Err("Prozessor zu alt für das Sprachmodell".into());
+        }
+        // Chat darf mehr Kerne nutzen als die Hintergrund-Analyse (er läuft nur kurz)
+        let n = hw::detect().cores.max(threads).max(1);
+        self.llm.start(&self.helper_path(), &self.llm_path(id), n, cfg!(all(target_os = "macos", target_arch = "aarch64")))?;
+        Ok(self.llm.clone())
     }
 
     fn send(&self, ev: &str, v: Value) {
@@ -323,9 +438,16 @@ impl Ai {
             Some(s) => g.ids.values().filter(|k| s.map.contains_key(*k) || g.failed.contains(*k)).count(),
             None => 0,
         };
+        let t = g.tier;
+        let vision = self.installed(t);
+        let chat = self.chat_installed(t);
         Status {
             enabled: g.enabled,
-            installed: self.installed(),
+            tier: t.id.to_string(),
+            installed: vision && (t.llm.is_none() || chat),
+            vision,
+            chat,
+            chat_running: self.llm.running(),
             downloading: g.downloading,
             received: self.dl_got.load(Ordering::Relaxed),
             size: self.dl_total.load(Ordering::Relaxed),
@@ -334,6 +456,7 @@ impl Ai {
             examples: g.learned.examples.len(),
             threads: g.threads,
             error: g.load_error.clone(),
+            hw: hw::detect(),
         }
     }
 
@@ -357,22 +480,30 @@ impl Ai {
     }
 
     /// KI ein-/ausschalten. Aus = Threads beenden, Modell und Fingerabdrücke aus dem Speicher.
-    pub fn configure(self: &Arc<Self>, enabled: bool, perf: &str) {
+    pub fn configure(self: &Arc<Self>, enabled: bool, perf: &str, tier_id: &str) {
         let threads = threads_for(perf);
+        let t = tier(tier_id);
         let mut g = self.inner.lock().unwrap();
         let was = g.enabled;
-        let changed = was != enabled || g.threads != threads;
+        let tier_changed = !std::ptr::eq(g.tier, t);
+        let changed = was != enabled || g.threads != threads || tier_changed;
         g.enabled = enabled;
+        g.tier = t;
         g.threads = if enabled { threads } else { 0 };
-        if !enabled {
+        if !enabled || tier_changed {
             g.model = None;
             g.store = None;
             g.queue.clear();
             g.ids.clear();
+            g.failed.clear();
             g.total = 0;
             g.learned = Learned::default();
-        } else if !was {
-            g.store = Some(Store::load(self.dir.join("fingerabdruecke.bin")));
+            g.labels = None;
+            self.llm.stop();
+        }
+        if enabled && g.store.is_none() {
+            let stem = t.vision.trim_end_matches(".safetensors");
+            g.store = Some(Store::load(self.dir.join(format!("fingerabdruecke-{stem}.bin")), t.dim));
             g.learned = fs::read(self.learned_path()).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
         }
         if changed {
@@ -406,7 +537,7 @@ impl Ai {
         if let Some(m) = &self.inner.lock().unwrap().model {
             return Ok(m.clone());
         }
-        if !self.installed() {
+        if !self.installed(self.cur_tier()) {
             return Err("Modell nicht installiert".into());
         }
         let m = Model::load(&self.model_path()).map(Arc::new);
@@ -437,7 +568,7 @@ impl Ai {
                     if g.workers_gen != gen || !g.enabled {
                         return;
                     }
-                    if self.installed() && g.load_error.is_none() {
+                    if self.installed(g.tier) && g.load_error.is_none() {
                         if let Some(j) = g.queue.pop_front() {
                             g.busy += 1;
                             break j;
@@ -482,6 +613,7 @@ impl Ai {
             }
             if idle {
                 self.send("ai:idle", Value::Null);
+                self.prepare_labels();
             }
         }
     }
@@ -558,7 +690,8 @@ impl Ai {
         std::thread::spawn(move || {
             lower_priority();
             for t in targets {
-                if me.inner.lock().unwrap().learned.folders.contains(&t.dir) {
+                let fkey = format!("{}|{}", me.cur_tier().id, t.dir);
+                if me.inner.lock().unwrap().learned.folders.contains(&fkey) {
                     continue;
                 }
                 let files = sample_images(Path::new(&t.dir), FOLDER_SAMPLES);
@@ -566,7 +699,7 @@ impl Ai {
                 if !g.enabled {
                     return;
                 }
-                g.learned.folders.insert(t.dir.clone());
+                g.learned.folders.insert(fkey);
                 for p in files {
                     let Some(k) = key_of(&p) else { continue };
                     if g.store.as_ref().is_some_and(|s| s.map.contains_key(&k)) {
@@ -660,7 +793,8 @@ impl Ai {
         let m = self.model()?;
         let mut sc = net::Scratch::default();
         let v = m.text(&mut sc, text);
-        Ok(self.rank(&v, among, limit))
+        let k = m.scale();
+        Ok(self.rank(&v, among, limit).into_iter().map(|h| Hit { id: h.id, score: h.score * k }).collect())
     }
 
     pub fn similar(&self, id: u64, among: Option<Vec<u64>>, limit: usize) -> Result<Vec<Hit>, String> {
@@ -672,6 +806,89 @@ impl Ai {
         let mut hits = self.rank(&v, among, limit + 1);
         hits.retain(|h| h.id != id);
         Ok(hits)
+    }
+
+    /// Fingerabdrücke aller Begriffe (beim ersten Mal ausrechnen – mehrere Kerne, dann gespeichert)
+    fn label_embeds(&self) -> Result<Arc<Vec<Vec<f32>>>, String> {
+        if let Some(l) = self.inner.lock().unwrap().labels.clone() {
+            return Ok(l);
+        }
+        let m = self.model()?;
+        let siglip = m.w.siglip();
+        let stem = self.cur_tier().vision.trim_end_matches(".safetensors");
+        let file = self.dir.join(format!("begriffe-{stem}-{}.bin", labels::LABELS.len()));
+        let dim = m.w.m("embed_dim").max(m.w.m("v_dim"));
+        let mut out: Vec<Vec<f32>> = Vec::new();
+        if let Ok(b) = fs::read(&file) {
+            let v: Vec<f32> = b.chunks_exact(4).map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect();
+            if !v.is_empty() && v.len() % labels::LABELS.len() == 0 {
+                let d = v.len() / labels::LABELS.len();
+                out = v.chunks(d).map(<[f32]>::to_vec).collect();
+            }
+        }
+        if out.is_empty() {
+            let threads = hw::detect().cores.clamp(1, 8);
+            let chunks: Vec<&[(&str, &str)]> = labels::LABELS.chunks(labels::LABELS.len().div_ceil(threads)).collect();
+            out = std::thread::scope(|sc| {
+                let hs: Vec<_> = chunks
+                    .iter()
+                    .map(|ch| {
+                        let m = m.clone();
+                        sc.spawn(move || {
+                            let mut scr = net::Scratch::default();
+                            ch.iter()
+                                .map(|(en, de)| if siglip { m.text(&mut scr, &format!("a photo of {en}.")) } else { m.text(&mut scr, &format!("ein Foto: {de}")) })
+                                .collect::<Vec<_>>()
+                        })
+                    })
+                    .collect();
+                hs.into_iter().flat_map(|h| h.join().unwrap_or_default()).collect()
+            });
+            let bytes: Vec<u8> = out.iter().flatten().flat_map(|f| f.to_le_bytes()).collect();
+            let _ = fs::write(&file, bytes);
+            let _ = dim;
+        }
+        let l = Arc::new(out);
+        self.inner.lock().unwrap().labels = Some(l.clone());
+        Ok(l)
+    }
+
+    /// Begriffe im Hintergrund vorbereiten (einmal je Modell)
+    pub fn prepare_labels(self: &Arc<Self>) {
+        if self.inner.lock().unwrap().labels.is_some() || self.labels_busy.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let me = self.clone();
+        std::thread::spawn(move || {
+            lower_priority();
+            let _ = me.label_embeds();
+            me.labels_busy.store(false, Ordering::SeqCst);
+        });
+    }
+
+    /// Stichwörter für ein Foto: (deutscher Begriff, Wert) – die besten zuerst.
+    /// Sind die Begriffe noch nicht vorbereitet, kommt sofort ein Fehler (der Chat wartet nicht).
+    pub fn tags(self: &Arc<Self>, id: u64, n: usize) -> Result<Vec<(String, f32)>, String> {
+        if self.inner.lock().unwrap().labels.is_none() {
+            self.prepare_labels();
+            return Err("Begriffe werden vorbereitet".into());
+        }
+        let e = {
+            let g = self.inner.lock().unwrap();
+            let k = g.ids.get(&id).ok_or("Foto noch nicht analysiert")?;
+            g.store.as_ref().and_then(|s| s.map.get(k)).ok_or("Foto noch nicht analysiert")?.clone()
+        };
+        let labels = self.label_embeds()?;
+        let k = self.model()?.scale();
+        let mut sc: Vec<(usize, f32)> = labels.iter().enumerate().map(|(i, v)| (i, e.dot(v) * k)).collect();
+        sc.sort_by(|a, b| b.1.total_cmp(&a.1));
+        let best = sc.first().map(|x| x.1).unwrap_or(0.0);
+        Ok(sc
+            .into_iter()
+            .take(n)
+            .filter(|(_, s)| *s >= best - 3.0)
+            .map(|(i, s)| (labels::LABELS[i].1.to_string(), s))
+            .collect())
     }
 
     /// Vorschläge: für jedes Foto der wahrscheinlichste Ordner und wie sicher.
@@ -752,46 +969,47 @@ impl Ai {
         self.cancel_dl.store(true, Ordering::SeqCst);
     }
 
-    fn download_inner(&self) -> Result<(), String> {
-        let agent: ureq::Agent = ureq::Agent::config_builder().timeout_connect(Some(Duration::from_secs(20))).build().into();
-        // Nur im Testmodus: Modell von einer anderen Adresse (lokaler Server im E2E-Test)
-        let test_url = std::env::var("FOTOSORT_TEST").ok().and(std::env::var("FOTOSORT_AI_URL").ok());
-        let (url, size, digest) = match test_url {
-            Some(u) => (u, 0u64, None),
-            None => {
-                let rel: Value = agent
-                    .get(RELEASE_API)
-                    .header("User-Agent", "SlimSort")
-                    .header("Accept", "application/vnd.github+json")
-                    .call()
-                    .map_err(|e| format!("GitHub nicht erreichbar ({e})"))?
-                    .body_mut()
-                    .read_to_string()
-                    .map_err(|e| e.to_string())
-                    .and_then(|t| serde_json::from_str(&t).map_err(|e| e.to_string()))?;
-                let a = rel["assets"].as_array().and_then(|a| a.iter().find(|x| x["name"] == MODEL_FILE)).ok_or("Modell nicht gefunden")?;
-                (
-                    a["browser_download_url"].as_str().unwrap_or_default().to_string(),
-                    a["size"].as_u64().unwrap_or(0),
-                    a["digest"].as_str().and_then(|d| d.strip_prefix("sha256:")).map(str::to_string),
-                )
-            }
-        };
-        fs::create_dir_all(&self.dir).map_err(|e| e.to_string())?;
-        let part = self.dir.join(format!("{MODEL_FILE}.part"));
-        let mut resp = agent.get(&url).header("User-Agent", "SlimSort").call().map_err(|e| format!("Download fehlgeschlagen ({e})"))?;
-        let total = if size > 0 { size } else { resp.body().content_length().unwrap_or(0) };
-        self.dl_total.store(total, Ordering::Relaxed);
-        let mut body = resp.body_mut().with_config().limit(2 << 30).reader();
-        let mut out = File::create(&part).map_err(|e| e.to_string())?;
-        let mut sha = Sha256::new();
+    fn agent() -> ureq::Agent {
+        ureq::Agent::config_builder().timeout_connect(Some(Duration::from_secs(20))).build().into()
+    }
+
+    /// Dateien eines Releases: Name → (Adresse, Größe, Prüfsumme)
+    fn release_assets(agent: &ureq::Agent, tag: &str) -> Result<HashMap<String, (String, u64, Option<String>)>, String> {
+        let rel: Value = agent
+            .get(&format!("{RELEASES}{tag}"))
+            .header("User-Agent", "SlimSort")
+            .header("Accept", "application/vnd.github+json")
+            .call()
+            .map_err(|e| format!("GitHub nicht erreichbar ({e})"))?
+            .body_mut()
+            .read_to_string()
+            .map_err(|e| e.to_string())
+            .and_then(|t| serde_json::from_str(&t).map_err(|e| e.to_string()))?;
+        Ok(rel["assets"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|a| {
+                Some((
+                    a["name"].as_str()?.to_string(),
+                    (
+                        a["browser_download_url"].as_str()?.to_string(),
+                        a["size"].as_u64().unwrap_or(0),
+                        a["digest"].as_str().and_then(|d| d.strip_prefix("sha256:")).map(str::to_lowercase),
+                    ),
+                ))
+            })
+            .collect())
+    }
+
+    /// Eine Datei laden und an `out` anhängen (für Teile großer Modelle)
+    fn fetch_into(&self, agent: &ureq::Agent, url: &str, out: &mut File, sha: &mut Sha256, last: &mut Instant) -> Result<u64, String> {
+        let mut resp = agent.get(url).header("User-Agent", "SlimSort").call().map_err(|e| format!("Download fehlgeschlagen ({e})"))?;
+        let mut body = resp.body_mut().with_config().limit(4 << 30).reader();
         let mut buf = vec![0u8; 1 << 16];
         let mut got = 0u64;
-        let mut last = Instant::now();
         loop {
             if self.cancel_dl.load(Ordering::SeqCst) {
-                drop(out);
-                let _ = fs::remove_file(&part);
                 return Err("abgebrochen".into());
             }
             let n = body.read(&mut buf).map_err(|e| format!("Download unterbrochen ({e})"))?;
@@ -801,38 +1019,122 @@ impl Ai {
             out.write_all(&buf[..n]).map_err(|e| format!("Speichern fehlgeschlagen ({e})"))?;
             sha.update(&buf[..n]);
             got += n as u64;
-            self.dl_got.store(got, Ordering::Relaxed);
+            self.dl_got.fetch_add(n as u64, Ordering::Relaxed);
             if last.elapsed() > Duration::from_millis(300) {
-                last = Instant::now();
+                *last = Instant::now();
                 self.push_status();
             }
         }
-        out.sync_all().map_err(|e| e.to_string())?;
-        drop(out);
-        if total > 0 && got != total {
-            let _ = fs::remove_file(&part);
-            return Err("Download unvollständig".into());
-        }
-        if let Some(d) = digest {
-            if hex::encode(sha.finalize()) != d.to_lowercase() {
-                let _ = fs::remove_file(&part);
-                return Err("Download beschädigt (Prüfsumme falsch)".into());
+        Ok(got)
+    }
+
+    /// Mehrere Teile nacheinander in eine Datei laden, Prüfsumme kontrollieren, dann umbenennen
+    fn fetch_file(&self, agent: &ureq::Agent, urls: &[(String, u64)], dest: &Path, want_sha: Option<&str>, last: &mut Instant) -> Result<(), String> {
+        let part = dest.with_extension("part");
+        let mut out = File::create(&part).map_err(|e| e.to_string())?;
+        let mut sha = Sha256::new();
+        let r = (|| {
+            for (u, size) in urls {
+                let got = self.fetch_into(agent, u, &mut out, &mut sha, last)?;
+                if *size > 0 && got != *size {
+                    return Err("Download unvollständig".to_string());
+                }
             }
-        }
-        // prüfen, ob sich die Datei laden lässt
-        if let Err(e) = net::Weights::load(&part) {
+            out.sync_all().map_err(|e| e.to_string())?;
+            if let Some(w) = want_sha {
+                if hex::encode(sha.clone().finalize()) != w {
+                    return Err("Download beschädigt (Prüfsumme falsch)".to_string());
+                }
+            }
+            Ok(())
+        })();
+        drop(out);
+        if let Err(e) = r {
             let _ = fs::remove_file(&part);
             return Err(e);
         }
-        fs::rename(&part, self.dir.join(MODEL_FILE)).map_err(|e| e.to_string())?;
+        fs::rename(&part, dest).map_err(|e| e.to_string())
+    }
+
+    fn download_inner(&self) -> Result<(), String> {
+        let agent = Self::agent();
+        let t = self.cur_tier();
+        fs::create_dir_all(&self.dir).map_err(|e| e.to_string())?;
+        let mut last = Instant::now();
+        // Nur im Testmodus: Bildmodell von einer anderen Adresse (lokaler Server im E2E-Test)
+        let test_url = std::env::var("FOTOSORT_TEST").ok().and(std::env::var("FOTOSORT_AI_URL").ok());
+        let vision_dest = self.dir.join(t.vision);
+        let mut jobs: Vec<(Vec<(String, u64)>, PathBuf, Option<String>)> = Vec::new();
+        if !vision_dest.is_file() {
+            match &test_url {
+                Some(u) => jobs.push((vec![(u.clone(), 0)], vision_dest, None)),
+                None => {
+                    let a = Self::release_assets(&agent, t.tag)?;
+                    let (u, size, d) = a.get(t.vision).cloned().ok_or("Bildmodell nicht gefunden")?;
+                    jobs.push((vec![(u, size)], vision_dest, d));
+                }
+            }
+        }
+        if let Some(id) = t.llm {
+            let gguf = self.llm_path(id);
+            let helper = self.helper_path();
+            if !gguf.is_file() || !helper.is_file() {
+                if !hw::detect().chat_ok {
+                    return Err("Dein Prozessor ist zu alt für das Sprachmodell. Wähle die Stufe „Sparsam“.".into());
+                }
+                let a = Self::release_assets(&agent, LLM_TAG)?;
+                if !gguf.is_file() {
+                    let (ju, _, _) = a.get(&format!("slimsort-llm-{id}.json")).cloned().ok_or("Sprachmodell nicht gefunden")?;
+                    let info: Value = agent
+                        .get(&ju)
+                        .header("User-Agent", "SlimSort")
+                        .call()
+                        .map_err(|e| format!("Download fehlgeschlagen ({e})"))?
+                        .body_mut()
+                        .read_to_string()
+                        .map_err(|e| e.to_string())
+                        .and_then(|t| serde_json::from_str(&t).map_err(|e| e.to_string()))?;
+                    let mut urls = Vec::new();
+                    for pn in info["parts"].as_array().into_iter().flatten().filter_map(Value::as_str) {
+                        let (u, size, _) = a.get(pn).cloned().ok_or("Teil des Sprachmodells fehlt")?;
+                        urls.push((u, size));
+                    }
+                    jobs.push((urls, gguf, info["sha256"].as_str().map(str::to_string)));
+                }
+                if !helper.is_file() {
+                    let (u, size, d) = a.get(&helper_name()).cloned().ok_or("Helfer-Programm für dieses System fehlt")?;
+                    jobs.push((vec![(u, size)], helper, d));
+                }
+            }
+        }
+        let total: u64 = jobs.iter().flat_map(|j| j.0.iter().map(|u| u.1)).sum();
+        self.dl_total.store(total, Ordering::Relaxed);
+        for (urls, dest, sha) in &jobs {
+            self.fetch_file(&agent, urls, dest, sha.as_deref(), &mut last)?;
+            if dest.extension().is_some_and(|e| e == "safetensors") {
+                // prüfen, ob sich die Datei laden lässt
+                if let Err(e) = net::Weights::load(dest) {
+                    let _ = fs::remove_file(dest);
+                    return Err(e);
+                }
+            }
+            #[cfg(unix)]
+            if dest.file_name().is_some_and(|n| n.to_string_lossy() == helper_name()) {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = fs::set_permissions(dest, fs::Permissions::from_mode(0o755));
+            }
+        }
         Ok(())
     }
 
     /// Modell und alles Gespeicherte löschen
     pub fn remove_all(&self) {
+        self.llm.stop();
         let mut g = self.inner.lock().unwrap();
         g.model = None;
-        g.store = if g.enabled { Some(Store { file: self.dir.join("fingerabdruecke.bin"), map: HashMap::new() }) } else { None };
+        if let Some(st) = g.store.as_mut() {
+            st.map.clear();
+        }
         g.learned = Learned::default();
         g.queue.clear();
         g.failed.clear();
@@ -925,5 +1227,51 @@ mod tests {
         net::normalize(&mut v);
         let e = Emb::from(&v);
         assert!((e.dot(&v) - 1.0).abs() < 0.01);
+    }
+}
+
+#[cfg(test)]
+mod quality {
+    use super::*;
+
+    /// Wie gut findet das Modell echte Fotos? (manuell: FOTOSORT_AI_MODEL=… FOTOSORT_AI_PICS=ordner
+    /// cargo test --release quality -- --ignored --nocapture)
+    #[test]
+    #[ignore]
+    fn probe() {
+        let (Ok(mp), Ok(dir)) = (std::env::var("FOTOSORT_AI_MODEL"), std::env::var("FOTOSORT_AI_PICS")) else { return };
+        let m = Model::load(Path::new(&mp)).unwrap();
+        let mut sc = net::Scratch::default();
+        let mut pics: Vec<(String, Vec<f32>)> = Vec::new();
+        for e in fs::read_dir(&dir).unwrap().flatten() {
+            let img = image::open(e.path()).unwrap();
+            pics.push((e.file_name().to_string_lossy().to_string(), m.image(&mut sc, &m.prepare(&img))));
+        }
+        pics.sort_by(|a, b| a.0.cmp(&b.0));
+        let k = m.scale();
+        let siglip = m.w.siglip();
+        let queries = [
+            "eine Katze", "eine Tasse Kaffee", "eine Rakete", "ein Astronaut", "Gras", "ein Motorrad", "eine Uhr",
+            "Münzen", "Text auf Papier", "der Mond", "Sterne im Weltall", "eine Ziegelmauer", "ein Mann mit Kamera",
+        ];
+        let mut ok = 0;
+        for q in queries {
+            let t = m.text(&mut sc, &format!("ein Foto von {q}"));
+            let mut r: Vec<(f32, &str)> = pics.iter().map(|(n, e)| (e.iter().zip(&t).map(|(a, b)| a * b).sum::<f32>() * k, n.as_str())).collect();
+            r.sort_by(|a, b| b.0.total_cmp(&a.0));
+            println!("{q:24} → {} ({:.1})  {} ({:.1})  {} ({:.1})", r[0].1, r[0].0, r[1].1, r[1].0, r[2].1, r[2].0);
+            ok += 1;
+        }
+        // Stichwörter je Foto
+        let lab: Vec<Vec<f32>> = labels::LABELS
+            .iter()
+            .map(|(en, de)| if siglip { m.text(&mut sc, &format!("a photo of {en}.")) } else { m.text(&mut sc, &format!("ein Foto: {de}")) })
+            .collect();
+        for (n, e) in &pics {
+            let mut r: Vec<(f32, &str)> = lab.iter().enumerate().map(|(i, v)| (e.iter().zip(v).map(|(a, b)| a * b).sum::<f32>() * k, labels::LABELS[i].1)).collect();
+            r.sort_by(|a, b| b.0.total_cmp(&a.0));
+            println!("{n:24} : {}, {}, {}", r[0].1, r[1].1, r[2].1);
+        }
+        assert!(ok > 0);
     }
 }

@@ -192,6 +192,7 @@ export const defaultPrefs: Prefs = {
   resume: true,
   updateCheck: true,
   aiEnabled: false,
+  aiTier: '',
   aiPerf: 'normal',
   aiSuggest: true,
   aiLearnFolders: true,

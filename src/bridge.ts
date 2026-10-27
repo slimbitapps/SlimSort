@@ -43,7 +43,11 @@ const api: Api = {
   photoInfo: (path) => invoke('photo_info', { path }),
   ai: {
     status: () => invoke('ai_status'),
-    config: (enabled, perf) => invoke('ai_config', { enabled, perf }),
+    config: (enabled, perf, tier) => invoke('ai_config', { enabled, perf, tier }),
+    chat: (id, req) => invoke('ai_chat', { id, req }),
+    chatCancel: (id) => invoke('ai_chat_cancel', { id }),
+    chatWarm: () => invoke('ai_chat_warm'),
+    tags: (id) => invoke('ai_tags', { id }),
     download: () => invoke('ai_download'),
     cancelDownload: () => invoke('ai_download_cancel'),
     remove: () => invoke('ai_remove'),

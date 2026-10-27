@@ -8,9 +8,11 @@ import {
   selectIds, touchSession, goTo, setView, findDuplicates, undo, type SessionState,
 } from './store';
 import { t } from './i18n';
-import type { AiStatus, Target } from './types';
+import type { AiStatus, AiTier, Target } from './types';
 import { itemTime } from './util';
 import { parse, findTarget, matchesDate, type Intent, type Ref, type DateFilter } from './chat';
+import { chatPrompt, warmPrompt, situation, describeItem, wantsPhotos, cleanAnswer, type Turn } from './assistant';
+import { getLang } from './i18n';
 
 const api = () => window.api;
 
@@ -25,6 +27,9 @@ export interface ChatMsg {
   id: number;
   from: 'me' | 'ai';
   text: string;
+  /** Antwort des Sprachmodells, die noch geschrieben wird */
+  llmId?: number;
+  streaming?: boolean;
   /** gefundene Fotos (als Vorschaubilder) */
   ids?: number[];
   actions?: ChatAction[];
@@ -46,13 +51,19 @@ interface AiUi {
   status: AiStatus | null;
   chatOpen: boolean;
   busy: boolean;
+  /** was gerade passiert (z. B. "Sprachmodell wird geladen …") */
+  busyText: string;
+  /** laufende Anfrage ans Sprachmodell (zum Abbrechen) */
+  llmId: number | null;
+  /** bisheriges Gespräch (für das Sprachmodell) */
+  hist: Turn[];
   msgs: ChatMsg[];
   /** Fotos, auf die sich "sie"/"diese" im Chat beziehen */
   lastIds: number[];
   plan: SortPlan | null;
 }
 
-export const useAi = create<AiUi>(() => ({ status: null, chatOpen: false, busy: false, msgs: [], lastIds: [], plan: null }));
+export const useAi = create<AiUi>(() => ({ status: null, chatOpen: false, busy: false, busyText: '', llmId: null, hist: [], msgs: [], lastIds: [], plan: null }));
 const ui = useAi.getState;
 const setUi = useAi.setState;
 let msgId = 0;
@@ -80,10 +91,19 @@ export function initAi() {
   a.on('ai:download', (r: { ok: boolean; error?: string }) => {
     if (r.ok) {
       toast('success', t('ai.downloaded'));
-      a.ai.config(prefs().aiEnabled, prefs().aiPerf).then(syncSession);
+      a.ai.config(prefs().aiEnabled, prefs().aiPerf, currentTier()).then(syncSession);
     } else if (r.error && r.error !== 'abgebrochen') toast('error', t('ai.downloadFailed', { error: r.error }));
   });
   a.ai.status().then((s) => setUi({ status: s }));
+  // Wörter des Sprachmodells live in die Antwort schreiben
+  a.on('llm:token', (e: { id: number; t: string }) => {
+    const msgs = ui().msgs;
+    const i = msgs.findIndex((m) => m.llmId === e.id && m.streaming);
+    if (i < 0) return;
+    const next = msgs.slice();
+    next[i] = { ...msgs[i], text: msgs[i].text + e.t };
+    setUi({ msgs: next });
+  });
   hooks.sessionStarted = () => {
     autopilotDone = false;
     syncSession();
@@ -107,9 +127,14 @@ export function initAi() {
 }
 
 /** Einstellung geändert (an/aus, Leistung) → Rust Bescheid geben */
+/** Gewählte Stufe (oder die für diesen Computer empfohlene) */
+export function currentTier(): AiTier {
+  return prefs().aiTier || ui().status?.hw.recommended || 'eco';
+}
+
 export async function applyAiPrefs() {
   const p = prefs();
-  await api().ai.config(p.aiEnabled, p.aiPerf);
+  await api().ai.config(p.aiEnabled, p.aiPerf, currentTier());
   setUi({ status: await api().ai.status() });
   if (p.aiEnabled) syncSession();
   else {
@@ -257,7 +282,8 @@ async function maybeAutopilot() {
 export function toggleChat(open?: boolean) {
   const o = open ?? !ui().chatOpen;
   setUi({ chatOpen: o });
-  if (o && !ui().msgs.length) say(t('ai.chatHello'));
+  if (o && !ui().msgs.length) say(t(llmOn() ? 'ai.chatHelloLlm' : 'ai.chatHello'));
+  if (o) warmLlm();
 }
 
 function say(text: string, extra: Partial<ChatMsg> = {}) {
@@ -265,7 +291,8 @@ function say(text: string, extra: Partial<ChatMsg> = {}) {
 }
 
 export function clearChat() {
-  setUi({ msgs: [], lastIds: [] });
+  stopLlm();
+  setUi({ msgs: [], lastIds: [], hist: [] });
   say(t('ai.chatHello'));
 }
 
@@ -282,7 +309,12 @@ function refIds(s: SessionState, ref: Ref): number[] {
 const fmtPct = (x: number) => `${Math.round(x * 100)} %`;
 
 /** Fotos suchen: Datum/Videos vorfiltern, dann nach Beschreibung ordnen */
-async function find(s: SessionState, q: { query?: string; date?: DateFilter; video?: boolean }): Promise<number[] | string> {
+const TEMPLATE: Record<string, string> = { de: 'ein Foto von {q}', en: 'a photo of {q}', fr: 'une photo de {q}', es: 'una foto de {q}', it: 'una foto di {q}' };
+
+async function find(
+  s: SessionState,
+  q: { query?: string; date?: DateFilter; video?: boolean; count?: number; raw?: boolean }
+): Promise<number[] | string> {
   let pool = s.viewIds.filter((id) => !s.done.has(id));
   if (s.only) pool = s.items.filter((it) => !s.done.has(it.id)).map((it) => it.id); // Suche über alle, nicht nur die letzte Auswahl
   if (q.video) pool = pool.filter((id) => s.byId.get(id)?.kind === 'video');
@@ -291,13 +323,17 @@ async function find(s: SessionState, q: { query?: string; date?: DateFilter; vid
   if (!on()) return t('ai.needAi');
   const st = ui().status;
   if (st && st.total && st.indexed < st.total * 0.2) say(t('ai.stillIndexing', { done: st.indexed, total: st.total }));
-  const hits = await api().ai.search(q.query, pool.filter((id) => s.byId.get(id)?.kind === 'image'), 300);
+  // kurze Beschreibung → "ein Foto von …" (so wurden die Modelle trainiert)
+  const text = q.raw ? q.query : (TEMPLATE[getLang()] || TEMPLATE.en).replace('{q}', q.query);
+  const hits = await api().ai.search(text, pool.filter((id) => s.byId.get(id)?.kind === 'image'), 300);
   if (!hits.length) return [];
+  // "ein Foto" → nur die besten paar zeigen
+  if (q.count && q.count > 0) return hits.slice(0, Math.max(q.count, Math.min(4, hits.length))).map((h) => h.id);
   return cutHits(hits).map((h) => h.id);
 }
 
 /**
- * Welche Treffer zeigen? Die Werte liegen bei solchen Modellen eng beieinander (0,2–0,35),
+ * Welche Treffer zeigen? Die Werte (Ähnlichkeit × Faktor des Modells) liegen eng beieinander,
  * deshalb zählt der Abstand: deutlich über dem Durchschnitt, nah am besten Treffer,
  * und Schluss bei einer klaren Lücke. Mindestens 3, höchstens 120.
  */
@@ -306,10 +342,10 @@ export function cutHits<T extends { score: number }>(hits: T[]): T[] {
   const xs = hits.map((h) => h.score);
   const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
   const sd = Math.sqrt(xs.reduce((a, b) => a + (b - mean) ** 2, 0) / xs.length);
-  const thr = Math.max(xs[0] - 0.03, mean + 0.5 * sd);
+  const thr = Math.max(xs[0] - 3, mean + 0.5 * sd);
   const out: T[] = [];
   for (let i = 0; i < hits.length && out.length < 120; i++) {
-    if (i >= 3 && (xs[i] < thr || xs[i - 1] - xs[i] > 0.015)) break;
+    if (i >= 3 && (xs[i] < thr || xs[i - 1] - xs[i] > 1.5)) break;
     out.push(hits[i]);
   }
   return out;
@@ -339,16 +375,110 @@ function moveTo(ids: number[], tg: Target) {
   setUi({ lastIds: [] });
 }
 
+/** Sprachmodell nutzbar? (Stufe mit Chat, installiert, Prozessor passt) */
+export function llmOn(): boolean {
+  const st = ui().status;
+  return !!st && prefs().aiEnabled && currentTier() !== 'eco' && st.chat && st.hw.chatOk;
+}
+
 export async function send(text: string) {
   text = text.trim();
   if (!text || ui().busy) return;
-  setUi({ msgs: [...ui().msgs, { id: ++msgId, from: 'me', text }], busy: true });
+  setUi({ msgs: [...ui().msgs, { id: ++msgId, from: 'me', text }], busy: true, busyText: '' });
   try {
-    await handle(parse(text));
+    const intent = parse(text);
+    // Klare Befehle direkt ausführen; Fragen, Gespräch und Suchen übernimmt das Sprachmodell
+    if (llmOn() && (intent.kind === 'search' || intent.kind === 'greet' || intent.kind === 'thanks' || intent.kind === 'describe')) {
+      try {
+        await llmTurn(text, intent);
+        return;
+      } catch (e: any) {
+        if (String(e?.message || e).includes('abgebrochen')) return;
+        api().log(`llm: ${e?.message || e}`);
+        say(t('ai.llmFailed'));
+      }
+    }
+    await handle(intent);
   } catch (e: any) {
     say(t('ai.error', { error: String(e?.message || e) }));
   } finally {
-    setUi({ busy: false });
+    setUi({ busy: false, busyText: '', llmId: null });
+  }
+}
+
+let llmSeq = Math.floor(Math.random() * 1e6);
+
+/** Laufende Antwort abbrechen */
+export function stopLlm() {
+  const id = ui().llmId;
+  if (id !== null) api().ai.chatCancel(id);
+}
+
+/** Sprachmodell schon laden, wenn der Chat aufgeht (damit die erste Antwort schneller kommt) */
+let warmed = false;
+export async function warmLlm() {
+  if (!llmOn() || warmed) return;
+  warmed = true;
+  try {
+    // Modell laden und die (immer gleiche) Anleitung schon einmal durchrechnen
+    if (await api().ai.chatWarm()) await api().ai.chat(++llmSeq, { prompt: warmPrompt(), max: 1, temp: 0 });
+  } catch {
+    warmed = false;
+  }
+}
+
+async function tagsOf(id: number | null | undefined): Promise<string[]> {
+  if (id === null || id === undefined || !on()) return [];
+  try {
+    return (await api().ai.tags(id)).map((x) => x[0]);
+  } catch {
+    return [];
+  }
+}
+
+async function llmTurn(text: string, intent: Intent) {
+  warmed = true; // Vorladen ist jetzt überflüssig
+  const s = session();
+  const think = currentTier() === 'balanced'; // Qwen3 1.7B denkt sonst erst lange nach
+  if (!ui().status?.chatRunning) setUi({ busyText: t('ai.llmLoading') });
+
+  // Schritt 1: Fotos suchen, wenn danach gefragt wird (entscheidet SlimSort selbst – zuverlässig und ohne Wartezeit)
+  let result: string | null = null;
+  let ids: number[] | undefined;
+  let actions: ChatAction[] | undefined;
+  if (s && intent.kind === 'search' && (intent.query || intent.date || intent.video) && wantsPhotos(text)) {
+    setUi({ busyText: t('ai.searching') });
+    const one = /\b(ein|eine|einen|einem|a|an|one|un|une|uno|una)\s+(foto|bild|photo|picture|image)\b/i.test(text);
+    const r = await find(s, { query: intent.query, date: intent.date, video: intent.video, count: one ? 1 : 0 });
+    if (typeof r === 'string') result = r;
+    else if (!r.length) result = `Keine passenden Fotos zu „${intent.query || text}“ gefunden.`;
+    else {
+      ids = r;
+      actions = resultActions(r);
+      setUi({ lastIds: r });
+      const best = s.byId.get(r[0])!;
+      result = `Suche nach „${intent.query || text}“: ${r.length} passende Fotos gefunden und angezeigt. Bestes: ${describeItem(best, await tagsOf(best.id))}.`;
+    }
+  }
+
+  // Schritt 2: Antwort in Sätzen (wird live geschrieben)
+  const prompt = chatPrompt(ui().hist.slice(-4), text, situation(s, await tagsOf(s?.currentId)), result, think);
+  const id = ++llmSeq;
+  const mid = ++msgId;
+  setUi({ llmId: id, busyText: ui().status?.chatRunning ? '' : t('ai.llmLoading') });
+  setUi({ msgs: [...ui().msgs, { id: mid, from: 'ai', text: '', llmId: id, streaming: true, ids: ids?.slice(0, 24), actions }] });
+  let answer = '';
+  try {
+    const r = await api().ai.chat(id, { prompt, max: 260, temp: 0.6, stop: ['<|im_end|>'] });
+    answer = cleanAnswer(r.text).trim();
+  } finally {
+    const fallback = ids?.length ? t('ai.found', { n: ids.length }) : t('ai.ok');
+    answer = answer || ui().msgs.find((m) => m.id === mid)?.text.trim() || fallback;
+    setUi({
+      msgs: ui().msgs.map((m) => (m.id === mid ? { ...m, text: answer, streaming: false } : m)),
+      hist: [...ui().hist, { user: text, assistant: answer }].slice(-8),
+      busyText: '',
+    });
   }
 }
 
@@ -359,6 +489,11 @@ async function handle(it: Intent) {
   switch (it.kind) {
     case 'help':
       return say(t('ai.help'));
+    case 'describe': {
+      if (!on()) return say(t('ai.needAi'));
+      const tags = await tagsOf(s!.currentId);
+      return say(tags.length ? t('ai.describe', { tags: tags.join(', ') }) : t('ai.noCurrent'));
+    }
     case 'greet':
       return say(t('ai.greet'));
     case 'thanks':

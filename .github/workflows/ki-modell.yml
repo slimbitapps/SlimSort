@@ -113,7 +113,7 @@ jobs:
       matrix:
         include:
           - { os: ubuntu-24.04, target: x86_64-unknown-linux-gnu, name: slimsort-llm-linux-x86_64, flags: '-C target-feature=+avx2,+fma,+f16c,+bmi2' }
-          - { os: windows-latest, target: x86_64-pc-windows-msvc, name: slimsort-llm-windows-x86_64.exe, flags: '-C target-feature=+avx2,+fma,+f16c,+bmi2,+crt-static' }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, name: slimsort-llm-windows-x86_64.exe, flags: '-C target-feature=+avx2,+fma,+f16c,+bmi2,+crt-static', crt: '1' }
           - { os: macos-latest, target: aarch64-apple-darwin, name: slimsort-llm-macos-aarch64, flags: '' }
           - { os: macos-latest, target: x86_64-apple-darwin, name: slimsort-llm-macos-x86_64, flags: '-C target-feature=+avx2,+fma,+f16c,+bmi2' }
     runs-on: ${{ matrix.os }}
@@ -127,6 +127,7 @@ jobs:
         shell: bash
         env:
           RUSTFLAGS: ${{ matrix.flags }}
+          LLAMA_STATIC_CRT: ${{ matrix.crt }}
         run: |
           cd src-llm
           set -o pipefail

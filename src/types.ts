@@ -123,6 +123,8 @@ export interface Prefs {
   updateCheck: boolean;
   /** KI: komplett an/aus (aus = beim Start passiert nichts) */
   aiEnabled: boolean;
+  /** KI: Stufe – Sparsam (klein), Ausgewogen (genauer + Chat), Maximal (für starke Computer); '' = noch nicht gewählt */
+  aiTier: AiTier | '';
   /** KI: Rechenleistung – schonend (1 Kern), normal, schnell */
   aiPerf: 'low' | 'normal' | 'high';
   /** KI: Zielordner vorschlagen */
@@ -247,7 +249,11 @@ export interface Api {
   photoInfo(path: string): Promise<PhotoInfo>;
   ai: {
     status(): Promise<AiStatus>;
-    config(enabled: boolean, perf: string): Promise<void>;
+    config(enabled: boolean, perf: string, tier: string): Promise<void>;
+    chat(id: number, req: LlmRequest): Promise<{ text: string; tokens: number; ms: number; cancelled?: boolean }>;
+    chatCancel(id: number): Promise<void>;
+    chatWarm(): Promise<boolean>;
+    tags(id: number): Promise<[string, number][]>;
     download(): Promise<void>;
     cancelDownload(): Promise<void>;
     remove(): Promise<void>;
@@ -283,9 +289,26 @@ declare global {
   }
 }
 
+export type AiTier = 'eco' | 'balanced' | 'max';
+
+export interface AiHardware {
+  ramGb: number;
+  cores: number;
+  chatOk: boolean;
+  appleGpu: boolean;
+  recommended: AiTier;
+}
+
 export interface AiStatus {
   enabled: boolean;
+  tier: AiTier;
   installed: boolean;
+  /** Bildmodell da */
+  vision: boolean;
+  /** Sprachmodell + Helfer da */
+  chat: boolean;
+  chatRunning: boolean;
+  hw: AiHardware;
   downloading: boolean;
   received: number;
   size: number;
@@ -294,6 +317,14 @@ export interface AiStatus {
   examples: number;
   threads: number;
   error: string | null;
+}
+
+export interface LlmRequest {
+  prompt: string;
+  max?: number;
+  temp?: number;
+  grammar?: string | null;
+  stop?: string[];
 }
 
 export interface AiHit {

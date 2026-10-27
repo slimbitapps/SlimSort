@@ -7,6 +7,8 @@
 //!   ← {"id":1,"t":"Hal"}  {"id":1,"t":"lo"}  …  {"id":1,"done":true,"text":"Hallo","tokens":2,"ms":120}
 //!   → {"cancel":1}       bricht die laufende Antwort ab
 //!
+//! Weitere Anfragen während einer Antwort werden der Reihe nach erledigt.
+//!
 //! Gleicher Anfang wie bei der vorigen Anfrage (z. B. die Anleitung für die KI) wird nicht
 //! neu berechnet – das macht Folgefragen schnell.
 
@@ -21,6 +23,7 @@ use serde::Deserialize;
 use serde_json::json;
 use std::io::{BufRead, Write};
 use std::num::NonZeroU32;
+use std::collections::VecDeque;
 use std::sync::mpsc;
 use std::time::Instant;
 
@@ -113,10 +116,11 @@ fn main() {
     let vocab = model.vocab();
     let mut cached: Vec<LlamaToken> = Vec::new();
     let mut batch = LlamaBatch::new(512, 1);
-    let mut pending: Option<Req> = None;
+    // Anfragen, die während einer Antwort ankommen, warten der Reihe nach
+    let mut pending: VecDeque<Req> = VecDeque::new();
 
     loop {
-        let req = match pending.take() {
+        let req = match pending.pop_front() {
             Some(r) => r,
             None => match rx.recv() {
                 Ok(r) => r,
@@ -205,9 +209,10 @@ fn main() {
                         return;
                     }
                 } else if r.prompt.is_some() {
-                    // neue Anfrage überholt die alte
-                    pending = Some(r);
-                    cancelled = true;
+                    pending.push_back(r);
+                } else if let Some(c) = r.cancel {
+                    // Abbruch einer wartenden Anfrage
+                    pending.retain(|p| p.id != Some(c));
                 }
             }
             if cancelled {
