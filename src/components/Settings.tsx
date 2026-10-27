@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { t, LANGS, type TKey } from '../i18n';
+import { t, LANGS, getLocale, type TKey } from '../i18n';
 import {
   useStore, closeDialog, updatePrefs, activeProfile, updateSettings, setActiveProfile, openDialog, restartTutorial,
   toast, previewSeriesCount, newName, updateProfile, checkForUpdate,
@@ -588,7 +588,7 @@ function SeriesTab() {
 
 /** Download-Größe je Stufe (MB) */
 const TIER_MB: Record<AiTier, number> = { eco: 187, balanced: 1460, max: 3340 };
-const fmtSize = (mb: number) => (mb >= 1000 ? `${(mb / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} GB` : `${mb} MB`);
+const fmtSize = (mb: number) => (mb >= 1000 ? `${(mb / 1000).toLocaleString(getLocale(), { maximumFractionDigits: 1 })} GB` : `${mb} MB`);
 
 function TierPicker({ busy, onPick }: { busy: boolean; onPick: (t: AiTier) => void }) {
   const st = useAi((a) => a.status);

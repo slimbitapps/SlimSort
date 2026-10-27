@@ -16,7 +16,7 @@ Free · no ads · no account · works offline · never overwrites anything.
 - **Real-world libraries** – tens of thousands of photos stay smooth; JPG, PNG, HEIC, WebP, TIFF, RAW (DNG, CR2, CR3, NEF, ARW, RAF, ORF, RW2) and videos; Live Photos and sidecar files (.xmp, .aae) move along.
 - **Sort by date** – optional year/month subfolders per target and renaming by capture date.
 - **Duplicates, search, info** – find exact duplicates, filter by name, show EXIF details (camera, lens, GPS).
-- **On-device AI (optional)** – learns where you sort your photos and suggests the folder, sorts by itself on request, and finds photos by description in a chat (“tree on the left, meadow, mountain”). Runs entirely on your computer; off by default.
+- **On-device AI (optional)** – learns where you sort your photos and suggests the folder, sorts by itself on request, finds photos by description and answers questions in a chat. Three levels (Light / Balanced / Maximum) from old laptops to high-end PCs. Runs entirely on your computer; off by default.
 - **Small & fast** – under 10 MB download, starts instantly (built with Tauri).
 - **Private** – no telemetry, no cloud. Your photos never leave your computer.
 - English, German, French, Spanish, Italian · light & dark theme · simple and expert mode.
@@ -112,9 +112,10 @@ startet schneller und braucht weniger Arbeitsspeicher. Neu:
 - **KI (freiwillig, läuft nur auf deinem Computer):**
   - lernt, welche Fotos du in welchen Ordner tust (auch aus Fotos, die schon in den Zielordnern liegen), und schlägt den Ordner mit Sicherheit in Prozent vor
   - **KI sortieren:** zeigt, wohin sie die offenen Fotos tun würde – du bestätigst; auf Wunsch **Autopilot** für sehr sichere Fotos
-  - **KI-Assistent (Chat, Strg/⌘ + K):** Fotos per Beschreibung finden („Baum links, Wiese und Berg“, „Strand im Sommer 2023“), ähnliche Fotos, verschieben/löschen per Satz, Doppelte finden, Statistik
+  - **KI-Assistent (Chat, Strg/⌘ + K):** Fotos per Beschreibung finden („Baum links, Wiese und Berg“, „Strand im Sommer 2023“), ähnliche Fotos, verschieben/löschen per Satz, Doppelte finden, Statistik – ab Stufe „Ausgewogen“ mit Sprachmodell, das Fragen beantwortet und sich unterhält
+  - **drei Stufen:** *Sparsam* (CLIP, ca. 190 MB, für alte Computer), *Ausgewogen* (SigLIP 2 + Qwen3 1.7B, ca. 1,5 GB, ab 8 GB RAM), *Maximal* (SigLIP 2 Large + Qwen3 4B, ca. 3,4 GB, für starke Computer); die App empfiehlt die passende
   - in den Einstellungen komplett abschaltbar – dann läuft auch beim Start nichts; Leistung einstellbar (schonend/normal/schnell)
-  - Modell (ca. 190 MB) wird erst beim Einschalten einmalig von GitHub geladen
+  - Modelle werden erst beim Einschalten einmalig von GitHub geladen; das Sprachmodell läuft in einem eigenen kleinen Helfer-Programm (llama.cpp), das nur bei Bedarf startet
 
 **Version 1.0** – erste offizielle Version unter dem Namen SlimSort.
 
@@ -155,8 +156,9 @@ Aufbau:
 - `src-tauri/src/reach.rs` – NAS-/Laufwerks-Überwachung
 - `src-tauri/src/thumbs.rs`, `protocol.rs` – Vorschaubilder und Auslieferung an die Oberfläche
 - `src-tauri/src/ai/` – KI: eigene Berechnung von CLIP (Bild) und mehrsprachigem Text, Lernen, Vorschläge, Download
-- `scripts/ai/export.py` – baut das KI-Modell (läuft auf GitHub, Workflow „KI-Modell bauen“)
-- `src/ai.ts`, `src/chat.ts` – KI in der Oberfläche und Verstehen der Chat-Eingaben
+- `scripts/ai/` – baut die KI-Modelle (läuft auf GitHub, Workflow „KI-Modell bauen“)
+- `src-llm/` – Helfer-Programm für das Sprachmodell (llama.cpp)
+- `src/ai.ts`, `src/chat.ts`, `src/assistant.ts` – KI in der Oberfläche, Verstehen der Chat-Eingaben, Anleitung für das Sprachmodell
 - `src-tauri/src/lib.rs` – Fenster und Befehle für die Oberfläche
 - `src/` – Oberfläche (React); `src/bridge.ts` verbindet sie mit Rust; Texte in `src/locales/`
 - `test/` – automatische Tests

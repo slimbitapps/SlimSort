@@ -129,7 +129,9 @@ export function initAi() {
 /** Einstellung geändert (an/aus, Leistung) → Rust Bescheid geben */
 /** Gewählte Stufe (oder die für diesen Computer empfohlene) */
 export function currentTier(): AiTier {
-  return prefs().aiTier || ui().status?.hw.recommended || 'eco';
+  const p = prefs();
+  // wer die KI schon an hatte (vor den Stufen), bleibt erst mal bei "Sparsam"
+  return p.aiTier || (p.aiEnabled ? 'eco' : ui().status?.hw.recommended || 'eco');
 }
 
 export async function applyAiPrefs() {
