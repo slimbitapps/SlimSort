@@ -559,7 +559,8 @@ export async function startSession(o: StartOptions) {
       aiSugg: new Map(),
       rev: 0,
     };
-    if (p.filter === 'skipped') updatePrefs({ filter: 'all' });
+    // Filter, die beim neuen Öffnen keinen Sinn ergeben (alte Übersprungene/Doppelte), zurücksetzen
+    if (p.filter === 'skipped' || p.filter === 'duplicates') updatePrefs({ filter: 'all' });
     updateSettings((st) => ({
       ...st,
       prefs: { ...st.prefs, activeProfileId: o.profileId },
@@ -754,6 +755,23 @@ export function setQuery(q: string) {
   const s = get().session;
   if (!s) return;
   s.query = q.trim().toLowerCase();
+  recompute(s, { keepId: s.currentId });
+}
+
+/** Wie viele offene Fotos sind gerade durch Filter, Suche oder KI-Auswahl ausgeblendet? */
+export function hiddenCount(s: SessionState): number {
+  let open = 0;
+  for (const it of s.items) if (!s.done.has(it.id)) open++;
+  return open - s.viewIds.length;
+}
+
+/** Alle Filter aufheben (Ansicht, Suche, KI-Auswahl) */
+export function showAll() {
+  const s = get().session;
+  if (!s) return;
+  s.query = '';
+  s.only = null;
+  if (prefs().filter !== 'all') updatePrefs({ filter: 'all' });
   recompute(s, { keepId: s.currentId });
 }
 

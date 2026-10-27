@@ -1,6 +1,7 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
-import { useStore, clickSelect, goTo, setView, photoDrag, openPhotoMenu, type SessionState } from '../store';
+import { useStore, clickSelect, goTo, setView, photoDrag, openPhotoMenu, hiddenCount, showAll, type SessionState } from '../store';
+import { EmptyView } from './ui';
 import { beginDrag } from '../dnd';
 import { browserCanPlay, browserCanShow, mediaUrl, thumbUrl } from '../util';
 import { heicUrl, isHeic } from '../heic';
@@ -93,7 +94,7 @@ export function GridView({ s }: { s: SessionState }) {
       }}
     >
       <div style={{ height: totalH, position: 'relative' }}>{tiles}</div>
-      {n === 0 && <div className="empty-view">{filter === 'skipped' ? t('ses.emptySkipped') : t('ses.empty')}</div>}
+      {n === 0 && <EmptyView hidden={hiddenCount(s)} text={filter === 'skipped' ? t('ses.emptySkipped') : t('ses.empty')} onShowAll={showAll} />}
     </div>
   );
 }

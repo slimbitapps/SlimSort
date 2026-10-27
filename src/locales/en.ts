@@ -691,4 +691,7 @@ export const en: Dict = {
   'ai.stop': 'Stop',
   'ai.stateReadyLlm': 'Ready · with language model',
   'ai.stateReadyMax': 'Ready · Maximum',
+
+  'ses.hidden': '{n} photos are currently hidden (by a filter, the search or an AI pick).',
+  'ses.showAll': 'Show all',
 };

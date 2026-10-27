@@ -204,3 +204,21 @@ export function Dialog({
 export function Spinner({ small }: { small?: boolean }) {
   return <div className={`spinner ${small ? 'sm' : ''}`} />;
 }
+
+/** Leere Ansicht: erklärt, ob Fotos nur ausgeblendet sind (Filter/Suche/KI-Auswahl) */
+export function EmptyView({ hidden, text, onShowAll }: { hidden: number; text: string; onShowAll: () => void }) {
+  return (
+    <div className="empty-view" data-testid="empty-view">
+      {hidden > 0 ? (
+        <>
+          <div>{t('ses.hidden', { n: hidden })}</div>
+          <button className="btn primary sm" onClick={onShowAll} data-testid="show-all" style={{ marginTop: 10 }}>
+            {t('ses.showAll')}
+          </button>
+        </>
+      ) : (
+        text
+      )}
+    </div>
+  );
+}

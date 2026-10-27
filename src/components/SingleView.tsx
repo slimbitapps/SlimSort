@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
 import {
-  useStore, currentItem, currentIndex, step, setView, openSeriesOf, openCompare, photoDrag, openPhotoMenu, type SessionState,
+  useStore, currentItem, currentIndex, step, setView, openSeriesOf, openCompare, photoDrag, openPhotoMenu, hiddenCount, showAll, type SessionState,
 } from '../store';
+import { EmptyView } from './ui';
 import { beginDrag } from '../dnd';
 import { InfoPanel } from './InfoPanel';
 import { browserCanShow, displayUrl, fullUrl, mediaUrl, fmtBytes, fmtDate, fmtNum, itemTime, clamp, previewSize } from '../util';
@@ -232,7 +233,7 @@ export function SingleView({ s }: { s: SessionState }) {
   if (!it) {
     return (
       <div className="single" ref={ref}>
-        <div className="empty-view">{t('ses.empty')}</div>
+        <EmptyView hidden={hiddenCount(s)} text={t('ses.empty')} onShowAll={showAll} />
       </div>
     );
   }

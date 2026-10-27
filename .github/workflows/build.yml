@@ -86,6 +86,7 @@ jobs:
           run() { name=$1; shift; timeout 1200 "$@" 2>&1 | tee e2e-shots/$name.log || { ok=1; tail -n 8 e2e-shots/$name.log | sed "s|^|::error title=$name::|"; }; }
           run run xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/run.cjs e2e-shots
           run v2 xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/v2.cjs e2e-shots/v2
+          run leer xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/empty.cjs
           run ki env FOTOSORT_AI_FILE=$PWD/ki-modell/slimsort-ki-1.safetensors xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/ai.cjs e2e-shots/ki
           pip install --break-system-packages scikit-image || true
           python3 scripts/ai/sample_photos.py /tmp/beispielfotos

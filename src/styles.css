@@ -1433,6 +1433,7 @@ h3 {
 .empty-view {
   position: absolute;
   inset: 0;
+  z-index: 3;
   display: grid;
   place-items: center;
   align-content: center;

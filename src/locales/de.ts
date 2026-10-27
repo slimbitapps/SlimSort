@@ -705,4 +705,7 @@ export const de = {
   'ai.stop': 'Stopp',
   'ai.stateReadyLlm': 'Bereit · mit Sprachmodell',
   'ai.stateReadyMax': 'Bereit · Maximal',
+
+  'ses.hidden': '{n} Fotos sind gerade ausgeblendet (durch einen Filter, die Suche oder eine KI-Auswahl).',
+  'ses.showAll': 'Alle zeigen',
 };

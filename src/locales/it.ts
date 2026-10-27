@@ -691,4 +691,7 @@ export const it: Dict = {
   'ai.stop': 'Ferma',
   'ai.stateReadyLlm': 'Pronta · con modello linguistico',
   'ai.stateReadyMax': 'Pronta · Massima',
+
+  'ses.hidden': '{n} foto sono nascoste (da un filtro, dalla ricerca o da una selezione IA).',
+  'ses.showAll': 'Mostra tutto',
 };

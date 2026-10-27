@@ -691,4 +691,7 @@ export const es: Dict = {
   'ai.stop': 'Detener',
   'ai.stateReadyLlm': 'Lista · con modelo de lenguaje',
   'ai.stateReadyMax': 'Lista · Máxima',
+
+  'ses.hidden': '{n} fotos están ocultas (por un filtro, la búsqueda o una selección de IA).',
+  'ses.showAll': 'Mostrar todo',
 };

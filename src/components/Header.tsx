@@ -130,6 +130,9 @@ function SessionHeader() {
 
       {s.view === 'grid' && !s.compare && (
         <input
+          ref={(el) => {
+            if (el && !s.query && el.value) el.value = '';
+          }}
           className="input sm ses-search no-drag"
           type="search"
           placeholder={t('ses.search')}
