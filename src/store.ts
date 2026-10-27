@@ -110,7 +110,7 @@ export interface SessionState {
   /** KI: nur diese Fotos zeigen (Ergebnis aus dem Chat) */
   only: Set<number> | null;
   /** KI: Vorschlag je Foto (Ziel-ID oder "trash") */
-  aiSugg: Map<number, { targetId: string; conf: number }>;
+  aiSugg: Map<number, { targetId: string; conf: number; why?: string }>;
   rev: number;
 }
 
@@ -198,6 +198,12 @@ export const defaultPrefs: Prefs = {
   aiLearnFolders: true,
   aiAutopilot: false,
   aiAutoConf: 0.95,
+  aiAllowMove: true,
+  aiAllowDelete: true,
+  aiAllowSettings: false,
+  aiAllowFolders: false,
+  aiNoConfirm: false,
+  aiFaces: false,
 };
 
 function defaultSettings(): SettingsData {

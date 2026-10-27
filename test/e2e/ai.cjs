@@ -179,6 +179,46 @@ for name, col in spec:
   await win.waitForFunction(() => /Noch \d+ Fotos offen/.test(document.querySelector('[data-testid="chat"]').textContent), null, { timeout: 8000 });
   console.log('Chat-Befehl ✔');
 
+  // ---------------------------------------------------------------- Gedächtnis: merken, anzeigen, vergessen
+  const chatText = () => win.evaluate(() => document.querySelector('[data-testid="chat"]').textContent);
+  const chatHas = (re, ms = 10000) => waitFor(async () => re.test(await chatText()), ms, String(re)).catch(async (e) => {
+    console.log('Chat:', (await chatText()).slice(-600));
+    throw e;
+  });
+  const saved = () => JSON.parse(fs.readFileSync(path.join(userData, 'einstellungen.json'), 'utf8'));
+  const say = async (text) => {
+    await win.fill('[data-testid="chat-input"]', text);
+    await win.keyboard.press('Enter');
+  };
+  await say('Merke dir: Fotos mit grünen Kreisen kommen immer in Rot');
+  await chatHas(/Gemerkt: Fotos mit „grünen Kreisen“/);
+  await waitFor(() => (saved().aiMemory || []).some((m) => m.kind === 'concept' && m.targetPath === rot), 5000, 'Gedächtnis gespeichert');
+  await say('Was hast du dir gemerkt?');
+  await chatHas(/Das habe ich mir gemerkt:/);
+  await shot('03b-memory');
+  await say('Das soll jetzt nicht mehr so sein');
+  await chatHas(/Okay, vergessen/);
+  await waitFor(() => (saved().aiMemory || []).length === 0, 5000, 'Gedächtnis gelöscht');
+  console.log('Merken + Vergessen ✔');
+
+  // ---------------------------------------------------------------- Rechte: Einstellungen ändern erst nach Erlaubnis
+  await say('Mach das Design hell');
+  await chatHas(/Das darf ich gerade nicht/);
+  await win.evaluate(() => {
+    window.api.confirm = async () => 0; // Risiko-Hinweis bestätigen (echtes Fenster kann der Test nicht klicken)
+  });
+  await win.click('[data-testid="menu-btn"]');
+  await win.click('text=Einstellungen');
+  await win.click('[data-testid="settings-ai"]');
+  await win.click('[data-testid="perm-aiAllowSettings"] button');
+  await waitFor(() => saved().prefs.aiAllowSettings === true, 5000, 'Recht gespeichert');
+  await shot('03c-permissions');
+  await win.keyboard.press('Escape');
+  await say('Mach das Design hell');
+  await chatHas(/Erledigt/);
+  await waitFor(() => saved().prefs.theme === 'light', 5000, 'Design per Chat');
+  console.log('Rechte + Einstellung per Chat ✔');
+
   // ---------------------------------------------------------------- KI sortieren
   await win.click('[data-testid="ai-sort-open"]');
   await win.waitForSelector('[data-testid="ai-sort"]');

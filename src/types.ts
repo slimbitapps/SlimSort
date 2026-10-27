@@ -135,6 +135,34 @@ export interface Prefs {
   aiAutopilot: boolean;
   /** KI: ab dieser Sicherheit (0–1) gilt ein Vorschlag als sicher */
   aiAutoConf: number;
+  /** KI-Rechte: was die KI im Chat selbst tun darf */
+  aiAllowMove: boolean;
+  aiAllowDelete: boolean;
+  aiAllowSettings: boolean;
+  aiAllowFolders: boolean;
+  /** KI führt ohne Nachfrage aus (z. B. Löschen) */
+  aiNoConfirm: boolean;
+  /** KI erkennt Gesichter (eigener Schalter, Datenschutz) */
+  aiFaces: boolean;
+}
+
+/** Etwas, das sich die KI auf Wunsch merkt */
+export interface AiMemory {
+  id: string;
+  /** concept: "Fotos mit Autos → Ordner"; faces: Personengruppe; note: freie Notiz */
+  kind: 'concept' | 'faces' | 'note';
+  /** so wie der Nutzer es gesagt hat */
+  text: string;
+  /** concept: wonach gesucht wird (z. B. "Autos") */
+  concept?: string;
+  /** concept: Suchtext für das Bildmodell (z. B. "ein Foto von Autos") */
+  query?: string;
+  /** Zielordner (Pfad) */
+  targetPath?: string;
+  /** faces: Name der Gruppe ("Familie") und die Gesichter (je 128 Zahlen) */
+  label?: string;
+  faces?: number[][];
+  created: number;
 }
 
 export interface SettingsData {
@@ -147,6 +175,8 @@ export interface SettingsData {
   tutorialDone?: boolean;
   /** v2: wann zuletzt nach einer neuen Version geschaut wurde */
   lastUpdateCheck?: number;
+  /** KI: was sie sich merken soll */
+  aiMemory?: AiMemory[];
 }
 
 export interface OpResult {
@@ -249,7 +279,11 @@ export interface Api {
   photoInfo(path: string): Promise<PhotoInfo>;
   ai: {
     status(): Promise<AiStatus>;
-    config(enabled: boolean, perf: string, tier: string): Promise<void>;
+    config(enabled: boolean, perf: string, tier: string, faces: boolean): Promise<void>;
+    rules(texts: string[], ids: number[], min?: number): Promise<{ id: number; rule: number; p: number }[]>;
+    faceMatches(groups: number[][][], ids: number[], min?: number): Promise<{ id: number; rule: number; p: number }[]>;
+    faceEmbs(ids: number[]): Promise<number[][]>;
+    faceCount(id: number): Promise<number | null>;
     chat(id: number, req: LlmRequest): Promise<{ text: string; tokens: number; ms: number; cancelled?: boolean }>;
     chatCancel(id: number): Promise<void>;
     chatWarm(): Promise<boolean>;
@@ -308,6 +342,10 @@ export interface AiStatus {
   /** Sprachmodell + Helfer da */
   chat: boolean;
   chatRunning: boolean;
+  faces: boolean;
+  facesReady: boolean;
+  /** Gefundene Gesichter insgesamt */
+  faceTotal: number;
   hw: AiHardware;
   downloading: boolean;
   received: number;

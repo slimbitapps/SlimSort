@@ -12,7 +12,8 @@ import {
   IconGlobe, IconSliders, IconTrash, IconImage, IconLayers, IconSettings, IconHelp, IconInfo, IconClose, IconCheck,
   IconLock, IconRefresh, IconPlus, IconMore, IconLayers as IconStack, IconSparkle,
 } from '../icons';
-import { useAi, applyAiPrefs, startDownload, currentTier } from '../ai';
+import { useAi, applyAiPrefs, startDownload, currentTier, refreshRules } from '../ai';
+import { grant, PERMISSION_TEXT, describeMemory, removeMemory, clearMemories, type Permission } from '../aimemory';
 import type { AiTier } from '../types';
 import { actionKeyOf, keyLabel, modKey, uid } from '../util';
 import type { ActionKeys, DateFolders, Item } from '../types';
@@ -635,7 +636,7 @@ function AiTab() {
     // beim ersten Einschalten die empfohlene Stufe merken
     if (x.aiEnabled && !p.aiTier && st?.hw) x = { ...x, aiTier: st.hw.recommended };
     updatePrefs(x);
-    if ('aiEnabled' in x || 'aiPerf' in x || 'aiTier' in x) {
+    if ('aiEnabled' in x || 'aiPerf' in x || 'aiTier' in x || 'aiFaces' in x) {
       setBusy(true);
       await applyAiPrefs().finally(() => setBusy(false));
     }
@@ -718,6 +719,9 @@ function AiTab() {
               </div>
             </Row>
           </Group>
+          <PermGroup />
+          <FacesGroup set={set} />
+          <MemoryGroup />
           <Group label={t('ai.groupPerf')}>
             <Row label={t('ai.perf')} desc={t('ai.perfDesc')}>
               <Seg
@@ -764,6 +768,92 @@ function AiTab() {
         {t('ai.privacy')}
       </p>
     </>
+  );
+}
+
+/** Was die KI selbst tun darf – riskante Rechte nur nach Hinweis */
+function PermGroup() {
+  const p = useStore((s) => s.settings.prefs);
+  const perms: Permission[] = ['aiAllowMove', 'aiAllowDelete', 'aiAllowFolders', 'aiAllowSettings'];
+  const all = perms.every((x) => p[x]) && p.aiNoConfirm;
+  return (
+    <Group label={t('perm.title')}>
+      <Row label={t('perm.allLabel')} desc={t('perm.hint')}>
+        <button className={`btn ${all ? '' : 'danger'}`} data-testid="perm-all" onClick={() => grant('all', !all)}>
+          {all ? t('perm.revokeAll') : t('perm.allowAll')}
+        </button>
+      </Row>
+      {perms.map((x) => (
+        <Row key={x} label={t(PERMISSION_TEXT[x])}>
+          <span data-testid={`perm-${x}`}>
+            <Switch on={!!p[x]} onChange={(v) => grant(x, v)} />
+          </span>
+        </Row>
+      ))}
+      <Row label={t('perm.noConfirm')} desc={t('perm.noConfirmDesc')}>
+        <span data-testid="perm-aiNoConfirm">
+          <Switch on={!!p.aiNoConfirm} onChange={(v) => grant('aiNoConfirm', v)} />
+        </span>
+      </Row>
+    </Group>
+  );
+}
+
+/** Gesichtserkennung (mit Datenschutz-Hinweis beim Einschalten) */
+function FacesGroup({ set }: { set: (x: Partial<Prefs>) => Promise<void> }) {
+  const p = useStore((s) => s.settings.prefs);
+  const st = useAi((a) => a.status);
+  const toggle = async (v: boolean) => {
+    if (v) {
+      const r = await window.api.confirm({ message: t('faces.ask'), detail: t('faces.privacy'), buttons: [t('faces.yes'), t('common.cancel')], type: 'warning' });
+      if (r !== 0) return;
+    }
+    await set({ aiFaces: v });
+    if (v) {
+      const s = await window.api.ai.status();
+      if (!s.installed && !s.downloading) startDownload();
+    }
+  };
+  const desc = p.aiFaces && st?.facesReady ? `${t('faces.desc')} ${t('faces.status', { n: st.faceTotal ?? 0 })}.` : t('faces.desc');
+  return (
+    <Group>
+      <Row label={t('faces.title')} desc={desc}>
+        <span data-testid="ai-faces">
+          <Switch on={p.aiFaces} onChange={toggle} />
+        </span>
+      </Row>
+    </Group>
+  );
+}
+
+/** Was sich die KI gemerkt hat – einzeln oder alles vergessen */
+function MemoryGroup() {
+  const list = useStore((s) => s.settings.aiMemory) || [];
+  return (
+    <Group label={t('mem.title')}>
+      {list.map((m) => (
+        <Row key={m.id} label={m.kind === 'note' ? t('mem.note', { text: m.text }) : describeMemory(m)} desc={m.kind === 'note' ? undefined : m.text}>
+          <button className="btn sm" data-testid="mem-remove" onClick={() => (removeMemory(m.id), refreshRules())}>
+            {t('mem.remove')}
+          </button>
+        </Row>
+      ))}
+      <Row label={list.length ? t('mem.count', { n: list.length }) : t('mem.none')} desc={t('mem.hint')}>
+        {list.length > 0 && (
+          <button
+            className="btn danger"
+            onClick={async () => {
+              const r = await window.api.confirm({ message: t('mem.forgetAllAsk', { n: list.length }), buttons: [t('mem.forgetAllYes'), t('common.cancel')], type: 'warning' });
+              if (r !== 0) return;
+              clearMemories();
+              refreshRules();
+            }}
+          >
+            {t('mem.clearAll')}
+          </button>
+        )}
+      </Row>
+    </Group>
   );
 }
 

@@ -49,20 +49,39 @@ export function systemPrompt(): string {
     '- Serien ähnlicher Fotos werden erkannt und nebeneinander verglichen; das schärfste wird vorgeschlagen. Es wird nie etwas überschrieben.',
     '- Im Chat kann der Nutzer Fotos beschreiben („Hund am Strand“, „Fotos aus dem Wald von 2023“), dann sucht SlimSort sie. Danach: „verschiebe sie nach Urlaub“, „lösche sie“, „nur diese zeigen“. Außerdem: „ähnliche wie dieses“, „finde Doppelte“, „sortiere automatisch“ (die KI schlägt vor, der Nutzer bestätigt), „wie viele sind übrig?“.',
     '- Die KI lernt beim Sortieren mit und schlägt unten den passenden Ordner vor (mit Prozent).',
+    '- Gedächtnis: „Merke dir: Fotos mit Autos kommen in Autos“, „Merke dir, die Personen auf diesem Foto sind meine Familie“ (Gesichtserkennung), „Vergiss das mit den Autos“, „Was hast du dir gemerkt?“. Gemerkte Regeln wirken auf die Vorschläge.',
+    '- Wenn in den Einstellungen erlaubt: Einstellungen ändern („mach das Design dunkel“), Ordner anlegen („lege den Ordner Urlaub an“), verschieben/löschen auch ohne Nachfrage.',
+    '- Fotos, die der Nutzer in der Übersicht markiert, stehen in der Lage. Beachte, was der Nutzer dir zum Merken gesagt hat.',
   ].join('\n');
 }
 
 /** Aktuelle Lage in der App (kommt in die Nachricht, nicht in die Anleitung) */
-export function situation(s: SessionState | null, currentTags: string[]): string {
-  if (!s) return 'Es ist gerade keine Sortierung geöffnet (Startseite).';
+export interface Extra {
+  /** Anzahl Gesichter auf dem aktuellen Foto (null = unbekannt/aus) */
+  faces?: number | null;
+  /** Was sich die KI merken soll (aus dem Gedächtnis) */
+  memory?: string;
+}
+
+export function situation(s: SessionState | null, currentTags: string[], extra: Extra = {}): string {
+  const mem = extra.memory ? `\n${extra.memory}` : '';
+  if (!s) return 'Es ist gerade keine Sortierung geöffnet (Startseite).' + mem;
   const lines: string[] = [];
   const left = s.items.filter((x) => !s.done.has(x.id)).length;
   lines.push(`Sortierung mit ${s.items.length} Fotos/Videos: noch ${left} offen, ${s.sorted} einsortiert, ${s.deleted} gelöscht.`);
   const tg = activeProfile().targets;
   if (tg.length) lines.push(`Zielordner: ${tg.map((x) => `${x.name}${x.key ? ` (Taste ${x.key})` : ''}`).join(', ')}.`);
   const cur = s.currentId !== null ? s.byId.get(s.currentId) : undefined;
-  if (cur) lines.push(`Aktuelles Foto: ${describeItem(cur, currentTags)}.`);
-  return lines.join('\n');
+  if (cur) {
+    const f = extra.faces === null || extra.faces === undefined ? '' : extra.faces ? `; ${extra.faces} Gesicht(er) erkannt` : '; keine Gesichter';
+    lines.push(`Aktuelles Foto (das der Nutzer gerade ansieht): ${describeItem(cur, currentTags)}${f}.`);
+  }
+  const sel = [...s.selection].filter((id) => s.byId.has(id) && !s.done.has(id));
+  if (sel.length > 1 || (sel.length === 1 && sel[0] !== s.currentId)) {
+    const names = sel.slice(0, 8).map((id) => s.byId.get(id)!.name);
+    lines.push(`Markiert: ${sel.length} Fotos (${names.join(', ')}${sel.length > 8 ? ', …' : ''}). „Diese“/„die markierten“ meint diese Fotos.`);
+  }
+  return lines.join('\n') + mem;
 }
 
 const IM = (role: string, text: string) => `<|im_start|>${role}\n${text}<|im_end|>\n`;

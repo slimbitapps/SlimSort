@@ -30,6 +30,7 @@ export function Dock({ s }: { s: SessionState }) {
   // KI-Vorschlag: Sicherheit anzeigen (nur wenn der Vorschlag von der KI kommt)
   const aiS = s.currentId !== null ? s.aiSugg.get(s.currentId) : undefined;
   const aiConf = aiS && aiS.targetId === suggestion ? aiS.conf : null;
+  const aiLabel = aiConf === null ? t('ses.suggest') : aiS?.why ? t('ai.suggestRule', { why: aiS.why }) : t('ai.suggestPct', { pct: Math.round(aiConf * 100) });
   const keys = useStore((st) => st.settings.prefs.keys);
   const expert = useStore((st) => st.settings.prefs.mode === 'expert');
   const inCompare = !!s.compare;
@@ -119,7 +120,7 @@ export function Dock({ s }: { s: SessionState }) {
         {...pressHandlers((x, y) => setMenu({ kind: 'target', target: tg, x, y }))}
         onPointerDownCapture={(e) => beginDrag(e, () => ({ kind: 'target', id: tg.id, label: tg.name, color: tg.color }))}
       >
-        {suggestion === tg.id && <span className="sugg">{aiConf !== null ? t('ai.suggestPct', { pct: Math.round(aiConf * 100) }) : t('ses.suggest')}</span>}
+        {suggestion === tg.id && <span className="sugg">{aiLabel}</span>}
         <div className="t-top">
           <span className="t-dot" />
           <span className="t-name ellipsis">{tg.name}</span>
@@ -200,7 +201,7 @@ export function Dock({ s }: { s: SessionState }) {
           <IconTrash size={18} />
           {t('ses.delete')}
           <KeyCap k={keyLabel(keys.trash)} />
-          {suggestion === 'trash' && aiConf !== null && <span className="sugg">{t('ai.suggestPct', { pct: Math.round(aiConf * 100) })}</span>}
+          {suggestion === 'trash' && aiConf !== null && <span className="sugg">{aiLabel}</span>}
         </button>
         <button className="act other" onClick={otherFolder} data-testid="other-folder" {...tip(t('ses.otherShort'), t('tip.other'), keyLabel(keys.other))}>
           <IconFolderOut size={18} />

@@ -13,6 +13,11 @@ import { itemTime } from './util';
 import { parse, findTarget, matchesDate, type Intent, type Ref, type DateFilter } from './chat';
 import { chatPrompt, warmPrompt, situation, describeItem, wantsPhotos, cleanAnswer, type Turn } from './assistant';
 import { getLang } from './i18n';
+import {
+  memories, addMemory, removeMemory, clearMemories, findMemory, describeMemory, memoryForPrompt, ruleTargets, allowed, noConfirm,
+  parseSetting, applySetting, settingsCatalog, settingGrammar, type Permission,
+} from './aimemory';
+import { createTargetFolder } from './store';
 
 const api = () => window.api;
 
@@ -91,7 +96,7 @@ export function initAi() {
   a.on('ai:download', (r: { ok: boolean; error?: string }) => {
     if (r.ok) {
       toast('success', t('ai.downloaded'));
-      a.ai.config(prefs().aiEnabled, prefs().aiPerf, currentTier()).then(syncSession);
+      a.ai.config(prefs().aiEnabled, prefs().aiPerf, currentTier(), prefs().aiFaces).then(syncSession);
     } else if (r.error && r.error !== 'abgebrochen') toast('error', t('ai.downloadFailed', { error: r.error }));
   });
   a.ai.status().then((s) => setUi({ status: s }));
@@ -136,7 +141,7 @@ export function currentTier(): AiTier {
 
 export async function applyAiPrefs() {
   const p = prefs();
-  await api().ai.config(p.aiEnabled, p.aiPerf, currentTier());
+  await api().ai.config(p.aiEnabled, p.aiPerf, currentTier(), p.aiFaces);
   setUi({ status: await api().ai.status() });
   if (p.aiEnabled) syncSession();
   else {
@@ -173,6 +178,14 @@ function targetIdOf(dest: string): string | null {
 
 // ---------------------------------------------------------------- Vorschläge für das aktuelle Foto
 
+/** Gelernte Vorschläge + gemerkte Regeln ("Autos → Autos", "Familie → Familie"); Regeln haben Vorrang */
+async function suggestWithRules(ids: number[]): Promise<{ id: number; target: string; conf: number; why?: string }[]> {
+  const [res, rules] = await Promise.all([api().ai.suggest(ids, targetsWithTrash()), memories().length ? ruleTargets(ids) : Promise.resolve(new Map())]);
+  const out = new Map<number, { id: number; target: string; conf: number; why?: string }>(res.map((r) => [r.id, r]));
+  for (const [id, r] of rules) out.set(id, { id, target: r.path, conf: r.conf, why: r.memory.label || r.memory.concept || r.memory.text });
+  return [...out.values()];
+}
+
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 function refreshSoon() {
   if (refreshTimer) return;
@@ -196,14 +209,14 @@ async function refresh() {
   if (!prefs().aiSuggest) return;
   const todo = ids.filter((id) => !s.aiSugg.has(id));
   if (!todo.length) return;
-  const res = await api().ai.suggest(todo, targetsWithTrash());
+  const res = await suggestWithRules(todo);
   const cur = session();
   if (cur !== s && cur?.items !== s.items) return;
   let changed = false;
   for (const r of res) {
     const tid = targetIdOf(r.target);
     if (!tid) continue;
-    s.aiSugg.set(r.id, { targetId: tid, conf: r.conf });
+    s.aiSugg.set(r.id, { targetId: tid, conf: r.conf, why: r.why });
     changed = true;
   }
   if (changed) touchSession();
@@ -216,7 +229,7 @@ async function suggestAll(): Promise<SortPlan['all'] | null> {
   const s = session();
   if (!s) return null;
   const ids = s.viewIds.filter((id) => s.byId.get(id)?.kind === 'image');
-  const res = await api().ai.suggest(ids, targetsWithTrash());
+  const res = await suggestWithRules(ids);
   return res.flatMap((r) => {
     const tid = targetIdOf(r.target);
     return tid ? [{ id: r.id, targetId: tid, conf: r.conf }] : [];
@@ -362,7 +375,21 @@ function resultActions(ids: number[]): ChatAction[] {
   ];
 }
 
+/** Darf die KI das? Sonst Hinweis mit Knopf zu den Einstellungen */
+function permitted(p: Permission): boolean {
+  if (allowed(p)) return true;
+  say(t('perm.denied', { what: t(`perm.${p === 'aiAllowMove' ? 'move' : p === 'aiAllowDelete' ? 'delete' : p === 'aiAllowSettings' ? 'settings' : 'folders'}` as any) }), {
+    actions: [{ label: t('perm.open'), run: () => openDialog({ type: 'settings', tab: 'ai' }), primary: true }],
+  });
+  return false;
+}
+
 function confirmDelete(ids: number[]) {
+  if (!permitted('aiAllowDelete')) return;
+  if (noConfirm()) {
+    trashIds(ids);
+    return say(t('ai.deleted', { n: ids.length }), { actions: [{ label: t('ai.undo'), run: () => (undo(), say(t('ai.undone'))) }] });
+  }
   say(t('ai.confirmDelete', { n: ids.length }), {
     ids: ids.slice(0, 12),
     actions: [
@@ -373,6 +400,7 @@ function confirmDelete(ids: number[]) {
 }
 
 function moveTo(ids: number[], tg: Target) {
+  if (!permitted('aiAllowMove')) return;
   sortIdsToTarget(ids, tg.id);
   say(t('ai.moved', { n: ids.length, name: tg.name }), { actions: [{ label: t('ai.undo'), run: () => (undo(), say(t('ai.undone'))) }] });
   setUi({ lastIds: [] });
@@ -439,6 +467,11 @@ async function tagsOf(id: number | null | undefined): Promise<string[]> {
   }
 }
 
+async function facesOf(id: number | null | undefined): Promise<number | null> {
+  if (id === null || id === undefined || !on() || !prefs().aiFaces) return null;
+  return api().ai.faceCount(id).catch(() => null);
+}
+
 async function llmTurn(text: string, intent: Intent) {
   warmed = true; // Vorladen ist jetzt überflüssig
   const s = session();
@@ -465,7 +498,7 @@ async function llmTurn(text: string, intent: Intent) {
   }
 
   // Schritt 2: Antwort in Sätzen (wird live geschrieben)
-  const prompt = chatPrompt(ui().hist.slice(-4), text, situation(s, await tagsOf(s?.currentId)), result, think);
+  const prompt = chatPrompt(ui().hist.slice(-4), text, situation(s, await tagsOf(s?.currentId), { faces: await facesOf(s?.currentId), memory: memoryForPrompt() }), result, think);
   const id = ++llmSeq;
   const mid = ++msgId;
   setUi({ llmId: id, busyText: ui().status?.chatRunning ? '' : t('ai.llmLoading') });
@@ -561,6 +594,8 @@ async function handle(it: Intent) {
         if (typeof r === 'string') return say(r);
         if (!r.length) return say(t('ai.nothing'));
         setUi({ lastIds: r });
+        if (!permitted('aiAllowMove')) return;
+        if (noConfirm()) return moveTo(r, tg);
         return say(t('ai.confirmMove', { n: r.length, name: tg.name }), {
           ids: r.slice(0, 24),
           actions: [
@@ -586,6 +621,30 @@ async function handle(it: Intent) {
       if (!ids.length) return say(t('ai.nothingRef'));
       return confirmDelete(ids);
     }
+    case 'remember':
+      return remember(it);
+    case 'forget': {
+      if (it.all) {
+        if (!memories().length) return say(t('mem.empty'));
+        return say(t('mem.forgetAllAsk', { n: memories().length }), {
+          actions: [
+            { label: t('mem.forgetAllYes'), run: () => (clearMemories(), refreshRules(), say(t('mem.forgotAll'))), danger: true },
+            { label: t('ai.no'), run: () => say(t('ai.ok')) },
+          ],
+        });
+      }
+      const m = it.text ? findMemory(it.text) : lastMemory();
+      if (!m) return listMemories(t('mem.notFound'));
+      removeMemory(m.id);
+      refreshRules();
+      return say(t('mem.forgot', { what: describeMemory(m) }), { actions: [{ label: t('ai.undo'), run: () => (addMemoryBack(m), say(t('ai.undone'))) }] });
+    }
+    case 'memories':
+      return listMemories();
+    case 'setting':
+      return changeSetting(it.text);
+    case 'mkfolder':
+      return makeFolder(it.name);
     case 'search': {
       if (!it.query && !it.date && !it.video) return say(t('ai.notUnderstood'));
       const r = await find(s!, it);
@@ -609,3 +668,141 @@ export function openResult(id: number) {
 }
 
 export { fmtPct };
+
+// ---------------------------------------------------------------- Gedächtnis, Einstellungen, Ordner
+
+let lastMemId: string | null = null;
+function lastMemory() {
+  const list = memories();
+  return list.find((m) => m.id === lastMemId) || list[list.length - 1];
+}
+function addMemoryBack(m: ReturnType<typeof memories>[number]) {
+  const n = addMemory({ ...m });
+  lastMemId = n.id;
+  refreshRules();
+}
+
+/** Nach Änderungen am Gedächtnis: Vorschläge neu berechnen */
+export function refreshRules() {
+  const s = session();
+  if (s) {
+    s.aiSugg.clear();
+    touchSession();
+    refreshSoon();
+  }
+}
+
+function listMemories(intro?: string) {
+  const list = memories();
+  if (!list.length) return say(intro ? `${intro} ${t('mem.empty')}` : t('mem.empty'));
+  say((intro ? intro + '\n' : '') + t('mem.list') + '\n' + list.map((m, i) => `${i + 1}. ${describeMemory(m)}`).join('\n'), {
+    actions: list.slice(0, 8).map((m, i) => ({ label: t('mem.forgetN', { n: i + 1 }), run: () => (removeMemory(m.id), refreshRules(), say(t('mem.forgot', { what: describeMemory(m) }))) })),
+  });
+}
+
+const TPL_Q: Record<string, string> = { de: 'ein Foto von {q}', en: 'a photo of {q}', fr: 'une photo de {q}', es: 'una foto de {q}', it: 'una foto di {q}' };
+
+async function remember(it: Extract<Intent, { kind: 'remember' }>) {
+  const s = session();
+  const targets = activeProfile().targets;
+  // Personen auf dem aktuellen/markierten Foto
+  if (it.faces) {
+    if (!prefs().aiFaces || !ui().status?.facesReady) {
+      return say(t('faces.needOn'), { actions: [{ label: t('faces.enable'), run: () => openDialog({ type: 'settings', tab: 'ai' }), primary: true }] });
+    }
+    if (!s) return say(t('ai.noSession'));
+    const ids = refIds(s, it.faces.ref);
+    const embs = await api().ai.faceEmbs(ids);
+    if (!embs.length) return say(t('faces.noneFound'));
+    const tg = findTarget(targets, it.faces.folder || it.faces.label);
+    const m = addMemory({ kind: 'faces', text: it.text, label: it.faces.label, faces: embs.map((e) => e.map((x) => Math.round(x * 1e4) / 1e4)), targetPath: tg?.path });
+    lastMemId = m.id;
+    refreshRules();
+    return say(t(tg ? 'faces.rememberedFolder' : 'faces.remembered', { n: embs.length, label: it.faces.label, folder: tg?.name || '' }), {
+      actions: [{ label: t('ai.undo'), run: () => (removeMemory(m.id), refreshRules(), say(t('ai.undone'))) }],
+    });
+  }
+  // Regel mit Ordner
+  let concept = it.concept;
+  let folder = it.folder;
+  let query: string | undefined;
+  if (!concept && llmOn()) {
+    // Sprachmodell zerlegt freie Sätze ("Katzenbilder gehören zu Haustiere")
+    const r = await llmJson(
+      `Zerlege diesen Satz des Nutzers. Ist es eine Regel, welche Fotos in welchen Ordner sollen? Dann art "regel", was = kurze englische Bildbeschreibung (z. B. "cars"), ordner = Name des Ordners. Sonst art "notiz".\nOrdner: ${targets.map((x) => x.name).join(', ')}\nSatz: ${it.text}`,
+      String.raw`root ::= "{\"art\": \"" art "\", \"was\": \"" t "\", \"ordner\": \"" t "\"}"
+art ::= "regel" | "notiz"
+t ::= [^"\\\n]{0,40}`
+    );
+    if (r?.art === 'regel' && r.was && r.ordner) {
+      concept = r.was;
+      folder = r.ordner;
+      query = `a photo of ${r.was}`;
+    }
+  }
+  if (concept && folder) {
+    const tg = findTarget(targets, folder);
+    if (!tg) {
+      return say(t('mem.noFolder', { name: folder }), {
+        actions: [
+          ...targets.slice(0, 6).map((x) => ({ label: x.name, run: () => remember({ ...it, concept, folder: x.name }) })),
+          ...(allowed('aiAllowFolders') ? [{ label: t('mem.createFolder', { name: folder }), run: async () => (await makeFolder(folder!)) && remember({ ...it, concept, folder }) }] : []),
+        ],
+      });
+    }
+    const m = addMemory({ kind: 'concept', text: it.text, concept, query: query || (TPL_Q[getLang()] || TPL_Q.en).replace('{q}', concept), targetPath: tg.path });
+    lastMemId = m.id;
+    refreshRules();
+    return say(t('mem.rememberedRule', { what: concept, folder: tg.name }), {
+      actions: [{ label: t('ai.undo'), run: () => (removeMemory(m.id), refreshRules(), say(t('ai.undone'))) }],
+    });
+  }
+  // freie Notiz (gilt für das Gespräch)
+  const m = addMemory({ kind: 'note', text: it.text });
+  lastMemId = m.id;
+  return say(t('mem.rememberedNote'), { actions: [{ label: t('ai.undo'), run: () => (removeMemory(m.id), say(t('ai.undone'))) }] });
+}
+
+async function changeSetting(text: string) {
+  if (!permitted('aiAllowSettings')) return;
+  let r = parseSetting(text);
+  if (!r && llmOn()) {
+    const j = await llmJson(`Welche Einstellung meint der Nutzer, und welchen Wert? Verfügbare Einstellungen (Schlüssel (Bedeutung): Werte):\n${settingsCatalog()}\nSatz: ${text}`, settingGrammar());
+    if (j?.key) {
+      const done = applySetting(j.key, j.value);
+      if (done) return say(t('set.changed', { what: done }));
+    }
+  }
+  if (!r) return say(t('set.unknown'), { actions: [{ label: t('ai.actSettings'), run: () => openDialog({ type: 'settings' }) }] });
+  const done = applySetting(String(r.def.key), r.value);
+  if (!done) return say(t('set.unknown'));
+  if (r.def.key === 'aiPerf') applyAiPrefs();
+  return say(t('set.changed', { what: done }));
+}
+
+async function makeFolder(name: string): Promise<string | null> {
+  if (!permitted('aiAllowFolders')) return null;
+  const targets = activeProfile().targets;
+  const s = session();
+  // neben die anderen Zielordner, sonst neben den Quellordner
+  const near = targets[0]?.path || s?.sources[0];
+  if (!near) {
+    say(t('folder.noPlace'));
+    return null;
+  }
+  const parent = await api().parentDir(near);
+  const dir = await createTargetFolder(parent, name);
+  if (dir) say(t('folder.created', { name, parent }));
+  return dir;
+}
+
+/** Sprachmodell in eine feste JSON-Form antworten lassen (für Gedächtnis/Einstellungen) */
+async function llmJson(instruction: string, grammar: string): Promise<any | null> {
+  try {
+    const prompt = `<|im_start|>system\nDu wandelst Sätze in JSON um. Antworte nur mit JSON.<|im_end|>\n<|im_start|>user\n${instruction}<|im_end|>\n<|im_start|>assistant\n${currentTier() === 'balanced' ? '<think>\n\n</think>\n\n' : ''}`;
+    const r = await api().ai.chat(++llmSeq, { prompt, max: 80, temp: 0, grammar });
+    return JSON.parse(r.text);
+  } catch {
+    return null;
+  }
+}

@@ -69,3 +69,32 @@ test('Zielordner ungefähr finden', () => {
   assert.equal(findTarget(ts, 'screens')?.name, 'Screenshots');
   assert.equal(findTarget(ts, 'Arbeit'), undefined);
 });
+
+test('Gedächtnis: merken, vergessen, auflisten', async () => {
+  const { parse } = await import('../src/chat.ts');
+  const a = parse('Merke dir, dass Fotos mit Autos immer in den Ordner Fahrzeuge sollen');
+  assert.deepEqual([a.kind, a.concept, a.folder], ['remember', 'Autos', 'Fahrzeuge']);
+  const b = parse('Merke dir: Fotos von Screenshots sollen in den Ordner "Handy Kram" kommen');
+  assert.deepEqual([b.concept, b.folder], ['Screenshots', 'Handy Kram']);
+  const c = parse('Merke dir, dass die vier Personen auf diesem Foto meine Familie sind');
+  assert.equal(c.faces.label, 'Familie');
+  assert.equal(c.faces.ref, 'current');
+  const c2 = parse('Merk dir: die Personen auf den markierten Fotos sind meine Familie und sollen in den Ordner Familie');
+  assert.deepEqual([c2.faces.label, c2.faces.folder, c2.faces.ref], ['Familie', 'Familie', 'selection']);
+  const d = parse('merke dir, mein Hund heißt Bello');
+  assert.deepEqual([d.kind, d.concept, d.faces], ['remember', undefined, undefined]);
+  assert.equal(parse('Was hast du dir gemerkt?').kind, 'memories');
+  assert.deepEqual(parse('Vergiss das mit den Autos'), { kind: 'forget', text: 'Autos', all: false });
+  assert.equal(parse('Das soll jetzt nicht mehr so sein').kind, 'forget');
+  assert.equal(parse('vergiss alles').all, true);
+});
+
+test('Einstellungen und Ordner per Chat', async () => {
+  const { parse } = await import('../src/chat.ts');
+  assert.equal(parse('Schalte den Autopiloten an').kind, 'setting');
+  assert.equal(parse('stell die Sprache auf Englisch').kind, 'setting');
+  assert.equal(parse('Mach das Design hell').kind, 'setting');
+  assert.equal(parse('Mach ein Foto vom Hund').kind, 'search');
+  assert.deepEqual(parse('Lege einen Ordner namens Urlaub 2025 an'), { kind: 'mkfolder', name: 'Urlaub 2025' });
+  assert.equal(parse('verschiebe sie nach Urlaub').kind, 'move');
+});

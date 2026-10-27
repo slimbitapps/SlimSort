@@ -32,7 +32,15 @@ export type Intent =
   | { kind: 'settings' }
   | { kind: 'move'; target: string; ref: Ref; query?: string; date?: DateFilter; video?: boolean }
   | { kind: 'delete'; ref: Ref; query?: string; date?: DateFilter; video?: boolean }
-  | { kind: 'search'; query: string; date?: DateFilter; video?: boolean };
+  | { kind: 'search'; query: string; date?: DateFilter; video?: boolean }
+  /** "Merke dir …" – Regel für Ordner, Personen oder freie Notiz */
+  | { kind: 'remember'; text: string; concept?: string; folder?: string; faces?: { label: string; folder?: string; ref: Ref } }
+  /** "Vergiss das" / "Das soll nicht mehr so sein" (text leer = das zuletzt Gemerkte) */
+  | { kind: 'forget'; text: string; all?: boolean }
+  | { kind: 'memories' }
+  /** Einstellung ändern (der Satz wird später zugeordnet) */
+  | { kind: 'setting'; text: string }
+  | { kind: 'mkfolder'; name: string };
 
 const MONTHS: [RegExp, number][] = [
   [/\b(januar|jänner|january|jan)\b/, 0],
@@ -152,9 +160,47 @@ function queryPart(s: string): { query?: string; date?: DateFilter; video?: bool
   return { query: only ? undefined : r, date, video: video || undefined };
 }
 
+/** "Merke dir …" in Regel/Personen/Notiz zerlegen */
+export function parseRemember(raw: string): Intent {
+  const text = raw.trim().replace(/[.!]+$/, '');
+  const s = text.toLowerCase();
+  // Personen: "die (vier) Personen auf diesem Foto sind meine Familie (und sollen in den Ordner X)"
+  const fm = /\b(?:personen|person|leute|menschen|gesichter|kinder|die beiden|die zwei|die drei|die vier|der|die|das)\b.*?\b(?:auf|in)\s+(?:diesem|dem|den|diesen|den markierten|den ausgewählten)\s+(?:fotos|foto|bildern|bilder|bild)\b\s*(?:(?:ist|sind|zeigt|zeigen)\s+)?(?:(?:meine|meinen|meiner|mein|unsere|unser|my|our)\s+)?([\wäöüß-]+)/i.exec(text);
+  if (fm) {
+    const folder = /\b(?:in|nach)\s+(?:den |dem |die |das )?(?:ordner\s+)?["„»]?([^"“«]+?)["“«]?(?:\s+(?:ordner|verschoben|sortiert|kommen|gehören|rein|sollen))*$/i.exec(text.slice(fm.index + fm[0].length))?.[1];
+    const ref: Ref = /markiert|ausgewählt|diesen fotos|diesen bildern|den fotos/.test(s) ? 'selection' : 'current';
+    return { kind: 'remember', text, faces: { label: fm[1], folder: folder?.trim(), ref } };
+  }
+  // Regel: "Fotos mit Autos sollen (immer) in den Ordner Autos"
+  const cm =
+    /\b(?:fotos?|bilder?|aufnahmen|alles)\s+(?:mit|von|vom|von einem|von einer|wo|auf denen)\s+(.+?)\s+(?:sollen|soll|gehören|gehört|kommen|kommt|immer|bitte)\b.*?\b(?:in|nach|zu)\s+(?:den |dem |die |das )?(?:ordner\s+)?["„»]?([^"“«]+?)["“«]?(?:\s+(?:ordner|verschoben|sortiert|kommen|gehören|rein|sortieren|schieben|sollen|soll|werden|wandern))*$/i.exec(text);
+  if (cm) return { kind: 'remember', text, concept: cm[1].trim(), folder: cm[2].trim() };
+  // "Autos immer nach Fahrzeuge"
+  const cm2 = /^(.+?)\s+(?:immer|grundsätzlich|automatisch)\s+(?:in|nach)\s+(?:den |dem |die |das )?(?:ordner\s+)?["„»]?([^"“«]+?)["“«]?$/i.exec(text);
+  if (cm2) return { kind: 'remember', text, concept: cm2[1].replace(/^(fotos?|bilder?)\s+(mit|von)\s+/i, '').trim(), folder: cm2[2].trim() };
+  return { kind: 'remember', text };
+}
+
+/** Wörter, an denen man eine Einstellung erkennt ("mach das Design hell") */
+const SETTING_WORDS = /\b(design|theme|thema|sprache|language|akzent\w*|farbe|modus|mode|filmstreifen|filmstrip|oberfläche|schrift\w*|autopilot\w*|vorschläge?|serien|restzeit|papierkorb|zen|updates?)\b/;
+
 export function parse(input: string): Intent {
   const text = input.trim();
   const s = text.toLowerCase();
+  // Gedächtnis
+  const rem = /^(?:bitte\s+)?(?:merk|merke|merken|notier|notiere|remember)\w*(?:\s+dir|\s+sich|\s+that)?\s*[,:]?\s*(?:dass\s+|that\s+)?(.+)$/i.exec(text);
+  if (rem && rem[1].trim().length > 2) return parseRemember(rem[1]);
+  if (/\b(was|welche)\b.*\b(hast du (dir )?gemerkt|weißt du (über mich|alles)|merkst du dir|regeln)\b|^(zeig|liste)\w*.*\b(gemerkt|gedächtnis|erinnerungen|regeln)\b|what do you remember/.test(s)) return { kind: 'memories' };
+  if (/^(bitte\s+)?(vergiss|vergessen|forget)\b/.test(s)) {
+    const rest = text.replace(/^(bitte\s+)?(vergiss|vergessen|forget)\b\s*(bitte\s+)?(das|es|dass|alles)?\s*/i, '').replace(/^(mit|von|über)\s+(den|dem|der)?\s*/i, '');
+    return { kind: 'forget', text: rest, all: /^(bitte\s+)?(vergiss|forget)\s+alles\b/.test(s) };
+  }
+  if (/\b(das|es|dies)\s+soll\s+(jetzt\s+|ab jetzt\s+)?nicht mehr\s+(so\s+)?(sein|gelten)|\bnicht mehr merken\b|\bgilt nicht mehr\b/.test(s)) return { kind: 'forget', text: '' };
+  // Ordner anlegen
+  const mk = /^(?:bitte\s+)?(?:leg|erstell|mach|erzeug|create|make)\w*\s+(?:mir\s+)?(?:einen\s+|einen neuen\s+|neuen\s+|a\s+|a new\s+)?(?:ziel)?(?:ordner|folder)\s+(?:an\s+)?(?:namens\s+|mit dem namen\s+|called\s+|named\s+)?["„»]?([^"“«]+?)["“«]?(?:\s+an)?[.!]?$/i.exec(text);
+  if (mk) return { kind: 'mkfolder', name: mk[1].trim() };
+  // Einstellungen ("schalte den Autopiloten an", "stelle die Sprache auf Englisch")
+  if (/^(?:bitte\s+)?(?:stell|schalt|aktivier|deaktivier|änder|setz|mach|turn|switch|enable|disable|set|change)\w*\b/.test(s) && (/\b(an|aus|ein|auf|on|off|to|aktivier\w*|deaktivier\w*)\b/.test(s) || SETTING_WORDS.test(s)) && (!/\b(foto|fotos|bild|bilder|photo|photos)\b/.test(s) || (SETTING_WORDS.test(s) && !/\b(nach|in den|into)\b/.test(s)))) return { kind: 'setting', text };
   if (/^(hilfe|help|\?|was kannst du|what can you do|wie geht das|befehle|commands)\b/.test(s)) return { kind: 'help' };
   if (/^(hallo|hi|hey|servus|moin|grüß dich|guten (morgen|tag|abend)|hello|bonjour|hola|ciao)\b[!. ]*$/.test(s)) return { kind: 'greet' };
   if (/\b(was|what)\b.*\b(ist|siehst du|sieht man|is|do you see|can you see)\b.*\b(auf|in|on|in)\b.*\b(dem|diesem|this|the)\b.*\b(foto|bild|photo|picture|image)\b/.test(s)) return { kind: 'describe' };

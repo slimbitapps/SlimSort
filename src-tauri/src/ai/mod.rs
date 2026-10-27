@@ -305,6 +305,7 @@ pub struct Status {
     /// Gesichtserkennung eingeschaltet / Modelle dafür da
     pub faces: bool,
     pub faces_ready: bool,
+    pub face_total: usize,
     pub downloading: bool,
     pub received: u64,
     pub size: u64,
@@ -475,6 +476,7 @@ impl Ai {
             chat_running: self.llm.running(),
             faces: g.faces_on,
             faces_ready: self.faces_installed(),
+            face_total: g.fstore.as_ref().map_or(0, |f| f.map.values().map(Vec::len).sum()),
             downloading: g.downloading,
             received: self.dl_got.load(Ordering::Relaxed),
             size: self.dl_total.load(Ordering::Relaxed),
@@ -511,12 +513,18 @@ impl Ai {
         let threads = threads_for(perf);
         let t = tier(tier_id);
         let mut g = self.inner.lock().unwrap();
+        let wanted = faces_on;
         let faces_on = enabled && faces_on;
         if faces_on && g.fstore.is_none() {
             g.fstore = Some(faces::FaceStore::load(self.dir.join("gesichter.bin")));
         } else if !faces_on {
             g.fstore = None;
             self.fproc.stop();
+            // Gesichtserkennung ausgeschaltet → gespeicherte Gesichter löschen (Datenschutz).
+            // Ist nur die ganze KI aus, bleiben sie für das Wiedereinschalten.
+            if !wanted {
+                let _ = fs::remove_file(self.dir.join("gesichter.bin"));
+            }
         }
         let faces_changed = g.faces_on != faces_on;
         g.faces_on = faces_on;

@@ -43,7 +43,11 @@ const api: Api = {
   photoInfo: (path) => invoke('photo_info', { path }),
   ai: {
     status: () => invoke('ai_status'),
-    config: (enabled, perf, tier) => invoke('ai_config', { enabled, perf, tier }),
+    config: (enabled, perf, tier, faces) => invoke('ai_config', { enabled, perf, tier, faces }),
+    rules: (texts, ids, min) => invoke('ai_rules', { texts, ids, min: min ?? null }),
+    faceMatches: (groups, ids, min) => invoke('ai_face_matches', { groups, ids, min: min ?? null }),
+    faceEmbs: (ids) => invoke('ai_face_embs', { ids }),
+    faceCount: (id) => invoke('ai_face_count', { id }),
     chat: (id, req) => invoke('ai_chat', { id, req }),
     chatCancel: (id) => invoke('ai_chat_cancel', { id }),
     chatWarm: () => invoke('ai_chat_warm'),
