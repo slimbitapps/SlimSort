@@ -121,6 +121,18 @@ export interface Prefs {
   resume: boolean;
   /** v2: einmal am Tag nach neuer Version schauen (nur GitHub) */
   updateCheck: boolean;
+  /** KI: komplett an/aus (aus = beim Start passiert nichts) */
+  aiEnabled: boolean;
+  /** KI: Rechenleistung – schonend (1 Kern), normal, schnell */
+  aiPerf: 'low' | 'normal' | 'high';
+  /** KI: Zielordner vorschlagen */
+  aiSuggest: boolean;
+  /** KI: aus vorhandenen Fotos in den Zielordnern lernen */
+  aiLearnFolders: boolean;
+  /** KI: sichere Fotos ohne Nachfrage einsortieren */
+  aiAutopilot: boolean;
+  /** KI: ab dieser Sicherheit (0–1) gilt ein Vorschlag als sicher */
+  aiAutoConf: number;
 }
 
 export interface SettingsData {
@@ -233,6 +245,22 @@ export interface Api {
   openExternal(url: string): Promise<void>;
   clearCache(): Promise<void>;
   photoInfo(path: string): Promise<PhotoInfo>;
+  ai: {
+    status(): Promise<AiStatus>;
+    config(enabled: boolean, perf: string): Promise<void>;
+    download(): Promise<void>;
+    cancelDownload(): Promise<void>;
+    remove(): Promise<void>;
+    index(items: { id: number; path: string }[]): Promise<void>;
+    prioritize(ids: number[]): Promise<void>;
+    learn(ids: number[], target: string | null): Promise<void>;
+    learnFolders(targets: { target: string; dir: string }[]): Promise<void>;
+    forget(): Promise<void>;
+    renameTarget(from: string, to: string | null): Promise<void>;
+    search(text: string, among?: number[] | null, limit?: number): Promise<AiHit[]>;
+    similar(id: number, among?: number[] | null, limit?: number): Promise<AiHit[]>;
+    suggest(ids: number[], targets: string[]): Promise<AiSuggestion[]>;
+  };
   fileHashes(paths: string[]): Promise<Record<string, string>>;
   openWithDefault(p: string): Promise<void>;
   showWindow(): Promise<void>;
@@ -253,4 +281,29 @@ declare global {
   interface Window {
     api: Api;
   }
+}
+
+export interface AiStatus {
+  enabled: boolean;
+  installed: boolean;
+  downloading: boolean;
+  received: number;
+  size: number;
+  indexed: number;
+  total: number;
+  examples: number;
+  threads: number;
+  error: string | null;
+}
+
+export interface AiHit {
+  id: number;
+  score: number;
+}
+
+export interface AiSuggestion {
+  id: number;
+  /** Zielordner (Pfad) oder "trash" */
+  target: string;
+  conf: number;
 }

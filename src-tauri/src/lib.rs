@@ -1,6 +1,7 @@
 //! SlimSort – Hauptprogramm (Tauri). Die Oberfläche (React) spricht über
 //! Befehle (invoke) und Ereignisse (emit) mit dieser Seite.
 
+mod ai;
 mod exif;
 mod fsops;
 mod protocol;
@@ -38,6 +39,7 @@ struct AppState {
     window_state: Mutex<Option<Value>>,
     /// Aufnahmezeiten der zuletzt geöffneten Sitzung – gelesen wird erst, wenn die Oberfläche bereit ist
     exif_todo: Mutex<Option<(u64, Vec<(u64, PathBuf, String)>)>>,
+    ai: Arc<ai::Ai>,
 }
 
 type Res<T> = Result<T, String>;
@@ -100,6 +102,81 @@ fn cleanup_electron(dir: &Path) {
 
 fn blocking<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> impl std::future::Future<Output = Res<T>> {
     async move { tauri::async_runtime::spawn_blocking(f).await.map_err(|e| e.to_string()) }
+}
+
+// ------------------------------------------------------------------ KI
+
+#[tauri::command]
+fn ai_status(st: State<AppState>) -> ai::Status {
+    st.ai.status()
+}
+
+#[tauri::command]
+fn ai_config(st: State<AppState>, enabled: bool, perf: String) {
+    st.ai.configure(enabled, &perf);
+}
+
+#[tauri::command]
+fn ai_download(st: State<AppState>) {
+    st.ai.download();
+}
+
+#[tauri::command]
+fn ai_download_cancel(st: State<AppState>) {
+    st.ai.cancel_download();
+}
+
+#[tauri::command]
+fn ai_remove(st: State<AppState>) {
+    st.ai.remove_all();
+}
+
+#[tauri::command]
+fn ai_index(st: State<AppState>, items: Vec<ai::IndexItem>) {
+    st.ai.index(items);
+}
+
+#[tauri::command]
+fn ai_prioritize(st: State<AppState>, ids: Vec<u64>) {
+    st.ai.prioritize(&ids);
+}
+
+#[tauri::command]
+fn ai_learn(st: State<AppState>, ids: Vec<u64>, target: Option<String>) {
+    st.ai.learn(&ids, target);
+}
+
+#[tauri::command]
+fn ai_learn_folders(st: State<AppState>, targets: Vec<ai::FolderTarget>) {
+    st.ai.learn_folders(targets);
+}
+
+#[tauri::command]
+fn ai_forget(st: State<AppState>) {
+    st.ai.forget();
+}
+
+#[tauri::command]
+fn ai_rename_target(st: State<AppState>, from: String, to: Option<String>) {
+    st.ai.rename_target(&from, to.as_deref());
+}
+
+#[tauri::command]
+async fn ai_search(st: State<'_, AppState>, text: String, among: Option<Vec<u64>>, limit: Option<usize>) -> Res<Vec<ai::Hit>> {
+    let a = st.ai.clone();
+    blocking(move || a.search(&text, among, limit.unwrap_or(200))).await?
+}
+
+#[tauri::command]
+async fn ai_similar(st: State<'_, AppState>, id: u64, among: Option<Vec<u64>>, limit: Option<usize>) -> Res<Vec<ai::Hit>> {
+    let a = st.ai.clone();
+    blocking(move || a.similar(id, among, limit.unwrap_or(200))).await?
+}
+
+#[tauri::command]
+async fn ai_suggest(st: State<'_, AppState>, ids: Vec<u64>, targets: Vec<String>) -> Res<Vec<ai::Suggestion>> {
+    let a = st.ai.clone();
+    blocking(move || a.suggest(&ids, &targets)).await
 }
 
 // ------------------------------------------------------------------ Einstellungen & App
@@ -607,6 +684,7 @@ pub fn run() {
             }
         }),
     });
+    let ai = ai::Ai::new(&user_data, media.cache.clone());
     let state = AppState {
         user_data: user_data.clone(),
         settings,
@@ -620,6 +698,7 @@ pub fn run() {
         fullscreen: AtomicBool::new(false),
         window_state: Mutex::new(None),
         exif_todo: Mutex::new(None),
+        ai,
     };
     let (m1, m2, m3) = (media.clone(), media.clone(), media.clone());
 
@@ -670,10 +749,41 @@ pub fn run() {
             photo_info,
             file_hashes,
             open_with_default,
+            ai_status,
+            ai_config,
+            ai_download,
+            ai_download_cancel,
+            ai_remove,
+            ai_index,
+            ai_prioritize,
+            ai_learn,
+            ai_learn_folders,
+            ai_forget,
+            ai_rename_target,
+            ai_search,
+            ai_similar,
+            ai_suggest,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
             create_window(&handle)?;
+            // KI: Ereignisse an die Oberfläche; nur wenn eingeschaltet nach dem Start (verzögert) aktivieren
+            {
+                let st = handle.state::<AppState>();
+                let eh = handle.clone();
+                *st.ai.emit.lock().unwrap() = Some(Arc::new(move |ev: &str, v: Value| {
+                    let _ = eh.emit(ev, v);
+                }));
+                let prefs = st.settings.get().get("prefs").cloned().unwrap_or(Value::Null);
+                if prefs.get("aiEnabled").and_then(Value::as_bool) == Some(true) {
+                    let perf = prefs.get("aiPerf").and_then(Value::as_str).unwrap_or("normal").to_string();
+                    let a = st.ai.clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(Duration::from_secs(3));
+                        a.configure(true, &perf);
+                    });
+                }
+            }
             // Erreichbarkeit überwachen: mehrmals nach dem Start, danach alle 15 s
             let h2 = handle.clone();
             std::thread::spawn(move || {

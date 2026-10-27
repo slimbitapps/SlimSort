@@ -8,6 +8,17 @@ import { computeSeries, rankSeries, MOTIF_DIST } from './series';
 import type { DragPayload } from './dnd';
 import { configureAnalysis, requestAnalysis, resetAnalysis } from './analysis';
 
+// ---------------------------------------------------------------- Erweiterungen (KI)
+
+/** Stellen, an denen sich die KI einklinkt (src/ai.ts) – vermeidet gegenseitige Importe. */
+export const hooks: {
+  sessionStarted?: (s: SessionState) => void;
+  sorted?: (ids: number[], target: Target | null, trash: boolean) => void;
+  undone?: (ids: number[]) => void;
+  changed?: (s: SessionState) => void;
+  targetRemoved?: (t: Target) => void;
+} = {};
+
 // ---------------------------------------------------------------- Typen
 
 export interface Toast {
@@ -96,6 +107,10 @@ export interface SessionState {
   dupeGroups: number;
   /** v2: Suche nach Dateinamen */
   query: string;
+  /** KI: nur diese Fotos zeigen (Ergebnis aus dem Chat) */
+  only: Set<number> | null;
+  /** KI: Vorschlag je Foto (Ziel-ID oder "trash") */
+  aiSugg: Map<number, { targetId: string; conf: number }>;
   rev: number;
 }
 
@@ -176,6 +191,12 @@ export const defaultPrefs: Prefs = {
   emptyToSystemTrash: true,
   resume: true,
   updateCheck: true,
+  aiEnabled: false,
+  aiPerf: 'normal',
+  aiSuggest: true,
+  aiLearnFolders: true,
+  aiAutopilot: false,
+  aiAutoConf: 0.95,
 };
 
 function defaultSettings(): SettingsData {
@@ -533,6 +554,8 @@ export async function startSession(o: StartOptions) {
       dupes: new Set(),
       dupeGroups: 0,
       query: '',
+      only: null,
+      aiSugg: new Map(),
       rev: 0,
     };
     if (p.filter === 'skipped') updatePrefs({ filter: 'all' });
@@ -554,6 +577,7 @@ export async function startSession(o: StartOptions) {
     });
     queueAnalysis(session);
     api().exifStart();
+    hooks.sessionStarted?.(session);
     if (o.fullscreen) api().setFullscreen(true);
     watchDirs();
     return true;
@@ -581,6 +605,7 @@ export function goHome() {
 // ---------------------------------------------------------------- Ansicht berechnen
 
 function matchesFilter(it: Item, f: Filter, s: SessionState) {
+  if (s.only && !s.only.has(it.id)) return false;
   if (s.query && !it.name.toLowerCase().includes(s.query) && !it.dir.toLowerCase().includes(s.query)) return false;
   if (f === 'duplicates') return s.dupes.has(it.id);
   if (f === 'images') return it.kind === 'image';
@@ -594,6 +619,7 @@ function commit(s: SessionState) {
   maybeOpenCompare(s);
   set({ session: { ...s, rev: s.rev + 1 } });
   scheduleResume();
+  hooks.changed?.(s);
 }
 
 // ---------------------------------------------------------------- v2: Weitermachen, wo man aufgehört hat
@@ -728,6 +754,32 @@ export function setQuery(q: string) {
   if (!s) return;
   s.query = q.trim().toLowerCase();
   recompute(s, { keepId: s.currentId });
+}
+
+/** KI: nur bestimmte Fotos zeigen (null = alle) */
+export function setOnly(ids: number[] | null, opts: { grid?: boolean } = {}) {
+  const s = get().session;
+  if (!s) return;
+  s.only = ids ? new Set(ids) : null;
+  if (opts.grid) s.view = 'grid';
+  const first = ids?.find((id) => !s.done.has(id));
+  recompute(s, { keepId: ids ? undefined : s.currentId, preferId: first });
+}
+
+/** KI: Auswahl in der Übersicht setzen */
+export function selectIds(ids: number[]) {
+  const s = get().session;
+  if (!s) return;
+  s.selection = new Set(ids.filter((id) => s.byId.has(id) && !s.done.has(id)));
+  s.view = 'grid';
+  if (ids.length) s.currentId = ids[0];
+  commit(s);
+}
+
+/** KI: Session neu zeichnen (z. B. nach neuen Vorschlägen) */
+export function touchSession() {
+  const s = get().session;
+  if (s) set({ session: { ...s, rev: s.rev + 1 } });
 }
 
 let dupeBusy = false;
@@ -1172,6 +1224,7 @@ function startOp(s: SessionState, ids: number[], o: { targetId?: string; destDir
     }
   }
   api().transfer({ opId, itemIds: ids, destDir: o.destDir, action, liveVideo: prefs().liveVideo, subdirs, names });
+  hooks.sorted?.(ids, targetId ? activeProfile().targets.find((x) => x.id === targetId) ?? null : null, trash);
   return { opId, ids, targetId, trash };
 }
 
@@ -1382,6 +1435,7 @@ export function undo() {
       s.lastSorted = s.lastSorted.filter((x) => !(x.targetId === op.targetId && times.has(x.t)));
     }
     api().undo(op.opId);
+    hooks.undone?.(op.ids);
     all.push(...op.ids);
   }
   if (u.seriesKey !== undefined) {
@@ -1398,6 +1452,8 @@ export function undo() {
 /** Zielvorschlag: Ziel eines zeitlich nahen, gerade einsortierten Bildes. */
 export function suggestionFor(s: SessionState, it: Item | null): string | null {
   const p = prefs();
+  const ai = it && p.aiEnabled && p.aiSuggest ? s.aiSugg.get(it.id) : undefined;
+  if (ai && ai.conf >= 0.5) return ai.targetId;
   if (!p.suggest || !it || !s.lastSorted.length) return null;
   const tc = itemTime(it);
   let best: { id: string; d: number } | null = null;
@@ -1452,6 +1508,8 @@ export function setTargetKey(id: string, key: string) {
 
 export function removeTarget(id: string) {
   const prof = activeProfile();
+  const gone = prof.targets.find((x) => x.id === id);
+  if (gone) hooks.targetRemoved?.(gone);
   updateProfile(prof.id, (p) => cleanupGroups({ ...p, targets: p.targets.filter((x) => x.id !== id) }));
 }
 
