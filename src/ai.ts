@@ -278,7 +278,7 @@ export function runPlan(plan: SortPlan): number {
 let autopilotDone = false;
 async function maybeAutopilot() {
   const p = prefs();
-  if (autopilotDone || !p.aiAutopilot || !on() || !session()) return;
+  if (autopilotDone || !p.aiAutopilot || !p.aiAllowMove || !on() || !session()) return;
   autopilotDone = true;
   const all = await suggestAll();
   if (!all?.length) return;
