@@ -21,7 +21,7 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::{self, File, OpenOptions};
-use std::io::{BufReader, Read, Seek, SeekFrom, Write};
+use std::io::{BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
@@ -1002,8 +1002,8 @@ impl Ai {
             .collect())
     }
 
-    /// Eine Datei laden und an `out` anhängen (für Teile großer Modelle)
-    fn fetch_into(&self, agent: &ureq::Agent, url: &str, out: &mut File, last: &mut Instant) -> Result<u64, String> {
+    /// Eine Datei am Stück laden und an `out` anhängen (wenn die Größe unbekannt ist)
+    fn fetch_into(&self, agent: &ureq::Agent, url: &str, out: &mut File) -> Result<u64, String> {
         let mut resp = agent.get(url).header("User-Agent", "SlimSort").call().map_err(|e| format!("Download fehlgeschlagen ({e})"))?;
         let mut body = resp.body_mut().with_config().limit(4 << 30).reader();
         let mut buf = vec![0u8; 1 << 16];
@@ -1019,70 +1019,174 @@ impl Ai {
             out.write_all(&buf[..n]).map_err(|e| format!("Speichern fehlgeschlagen ({e})"))?;
             got += n as u64;
             self.dl_got.fetch_add(n as u64, Ordering::Relaxed);
-            if last.elapsed() > Duration::from_millis(300) {
-                *last = Instant::now();
-                self.push_status();
-            }
         }
         Ok(got)
     }
 
-    /// Mehrere Teile nacheinander in eine Datei laden (jedes Teil bis zu 4 Versuche, falls die
-    /// Verbindung abbricht), Prüfsumme kontrollieren, dann umbenennen
-    fn fetch_file(&self, agent: &ureq::Agent, urls: &[(String, u64)], dest: &Path, want_sha: Option<&str>, last: &mut Instant) -> Result<(), String> {
-        let part = dest.with_extension("part");
-        let mut out = File::create(&part).map_err(|e| e.to_string())?;
+    /// Ein Stück (Byte-Bereich) laden und an die richtige Stelle der Datei schreiben
+    fn fetch_range(&self, agent: &ureq::Agent, url: &str, off: u64, len: u64, file: &File, pos: u64) -> Result<(), String> {
+        let mut resp = agent
+            .get(url)
+            .header("User-Agent", "SlimSort")
+            .header("Range", &format!("bytes={}-{}", off, off + len - 1))
+            .call()
+            .map_err(|e| format!("Download fehlgeschlagen ({e})"))?;
+        if resp.status().as_u16() != 206 {
+            return Err("Server unterstützt keine Teil-Downloads".into());
+        }
+        let mut body = resp.body_mut().with_config().limit(len + 1).reader();
+        let mut buf = vec![0u8; 1 << 16];
+        let mut got = 0u64;
         let r = (|| {
-            for (u, size) in urls {
-                let start = out.stream_position().map_err(|e| e.to_string())?;
-                let mut attempt = 0;
-                loop {
-                    attempt += 1;
-                    let res = self.fetch_into(agent, u, &mut out, last).and_then(|got| {
-                        if *size > 0 && got != *size {
-                            Err("Download unvollständig".to_string())
-                        } else {
-                            Ok(())
-                        }
-                    });
-                    match res {
-                        Ok(()) => break,
-                        Err(e) if e == "abgebrochen" || attempt >= 4 => return Err(e),
-                        Err(_) => {
-                            // zurück an den Anfang dieses Teils und neu versuchen
-                            let now = out.stream_position().unwrap_or(start);
-                            self.dl_got.fetch_sub(now.saturating_sub(start).min(self.dl_got.load(Ordering::Relaxed)), Ordering::Relaxed);
-                            out.set_len(start).map_err(|e| e.to_string())?;
-                            out.seek(SeekFrom::Start(start)).map_err(|e| e.to_string())?;
-                            std::thread::sleep(Duration::from_secs(2 * attempt as u64));
-                        }
-                    }
+            loop {
+                if self.cancel_dl.load(Ordering::SeqCst) {
+                    return Err("abgebrochen".to_string());
                 }
+                let n = body.read(&mut buf).map_err(|e| format!("Download unterbrochen ({e})"))?;
+                if n == 0 {
+                    break;
+                }
+                write_at(file, &buf[..n], pos + got).map_err(|e| format!("Speichern fehlgeschlagen ({e})"))?;
+                got += n as u64;
+                self.dl_got.fetch_add(n as u64, Ordering::Relaxed);
             }
-            out.sync_all().map_err(|e| e.to_string())?;
-            if let Some(w) = want_sha {
-                // Prüfsumme über die fertige Datei (Teile können wiederholt worden sein)
-                let mut f = File::open(&part).map_err(|e| e.to_string())?;
-                let mut sha = Sha256::new();
-                let mut buf = vec![0u8; 1 << 20];
-                loop {
-                    let n = f.read(&mut buf).map_err(|e| e.to_string())?;
-                    if n == 0 {
-                        break;
-                    }
-                    sha.update(&buf[..n]);
-                }
-                if hex::encode(sha.finalize()) != w {
-                    return Err("Download beschädigt (Prüfsumme falsch)".to_string());
-                }
+            if got != len {
+                return Err("Download unvollständig".to_string());
             }
             Ok(())
         })();
-        drop(out);
-        if let Err(e) = r {
-            let _ = fs::remove_file(&part);
-            return Err(e);
+        if r.is_err() {
+            // halb geladenes Stück zählt nicht
+            let cur = self.dl_got.load(Ordering::Relaxed);
+            self.dl_got.store(cur.saturating_sub(got), Ordering::Relaxed);
         }
+        r
+    }
+
+    /// Datei (ggf. aus mehreren Teilen) laden: in Stücken über mehrere Verbindungen gleichzeitig
+    /// (GitHub bremst jede einzelne Verbindung), jedes Stück mit mehreren Versuchen. Abgebrochene
+    /// Downloads machen beim nächsten Mal an der gleichen Stelle weiter. Am Ende: Prüfsumme.
+    fn fetch_file(&self, agent: &ureq::Agent, urls: &[(String, u64)], dest: &Path, want_sha: Option<&str>) -> Result<(), String> {
+        const CHUNK: u64 = 4 << 20;
+        const CONNS: usize = 8;
+        let part = dest.with_extension("part");
+        let state = dest.with_extension("part.json");
+
+        if urls.iter().any(|u| u.1 == 0) {
+            // Größe unbekannt (lokaler Test-Server): am Stück
+            let mut out = File::create(&part).map_err(|e| e.to_string())?;
+            for (u, _) in urls {
+                if let Err(e) = self.fetch_into(agent, u, &mut out) {
+                    drop(out);
+                    let _ = fs::remove_file(&part);
+                    return Err(e);
+                }
+            }
+            out.sync_all().map_err(|e| e.to_string())?;
+        } else {
+            let total: u64 = urls.iter().map(|u| u.1).sum();
+            // Stücke: (Teil, Anfang im Teil, Länge, Stelle in der Datei)
+            let mut chunks = Vec::new();
+            let mut base = 0u64;
+            for (i, (_, size)) in urls.iter().enumerate() {
+                let mut o = 0;
+                while o < *size {
+                    let l = CHUNK.min(size - o);
+                    chunks.push((i, o, l, base + o));
+                    o += l;
+                }
+                base += size;
+            }
+            // Weitermachen? (gleiche Dateien, gleiche Stückgröße)
+            let sig = format!("{total}|{CHUNK}|{}", urls.iter().map(|u| u.0.as_str()).collect::<Vec<_>>().join(","));
+            let mut done: HashSet<usize> = HashSet::new();
+            if fs::metadata(&part).map(|m| m.len() == total).unwrap_or(false) {
+                if let Ok(v) = fs::read(&state).map_err(|_| ()).and_then(|b| serde_json::from_slice::<Value>(&b).map_err(|_| ())) {
+                    if v["sig"].as_str() == Some(sig.as_str()) {
+                        done = v["done"].as_array().into_iter().flatten().filter_map(|x| x.as_u64().map(|x| x as usize)).collect();
+                    }
+                }
+            }
+            let file = OpenOptions::new().create(true).write(true).truncate(false).open(&part).map_err(|e| e.to_string())?;
+            file.set_len(total).map_err(|e| e.to_string())?;
+            self.dl_got.fetch_add(done.iter().map(|&c| chunks[c].2).sum::<u64>(), Ordering::Relaxed);
+            let queue = Mutex::new((0..chunks.len()).filter(|c| !done.contains(c)).collect::<VecDeque<_>>());
+            let done = Mutex::new((done, Instant::now()));
+            let err: Mutex<Option<String>> = Mutex::new(None);
+            let save = |d: &HashSet<usize>| {
+                let _ = fs::write(&state, json!({ "sig": sig, "done": d.iter().collect::<Vec<_>>() }).to_string());
+            };
+            std::thread::scope(|sc| {
+                let hs: Vec<_> = (0..CONNS)
+                    .map(|_| {
+                        sc.spawn(|| loop {
+                            if err.lock().unwrap().is_some() {
+                                return;
+                            }
+                            let Some(ci) = queue.lock().unwrap().pop_front() else { return };
+                            let (ui, off, len, pos) = chunks[ci];
+                            let mut res = Err(String::new());
+                            for attempt in 0..5u64 {
+                                res = self.fetch_range(agent, &urls[ui].0, off, len, &file, pos);
+                                match &res {
+                                    Ok(()) => break,
+                                    Err(e) if e == "abgebrochen" => break,
+                                    Err(_) => std::thread::sleep(Duration::from_secs(1 + attempt * 2)),
+                                }
+                            }
+                            match res {
+                                Ok(()) => {
+                                    let mut d = done.lock().unwrap();
+                                    d.0.insert(ci);
+                                    if d.1.elapsed() > Duration::from_secs(2) {
+                                        d.1 = Instant::now();
+                                        save(&d.0);
+                                    }
+                                }
+                                Err(e) => {
+                                    let mut er = err.lock().unwrap();
+                                    if er.is_none() {
+                                        *er = Some(e);
+                                    }
+                                    return;
+                                }
+                            }
+                        })
+                    })
+                    .collect();
+                // Fortschritt melden, bis alle Verbindungen fertig sind
+                while hs.iter().any(|h| !h.is_finished()) {
+                    std::thread::sleep(Duration::from_millis(300));
+                    self.push_status();
+                }
+            });
+            let d = done.into_inner().unwrap().0;
+            save(&d);
+            if let Some(e) = err.into_inner().unwrap() {
+                // .part und Stand bleiben liegen → beim nächsten Mal geht es hier weiter
+                return Err(e);
+            }
+            file.sync_all().map_err(|e| e.to_string())?;
+        }
+        if let Some(w) = want_sha {
+            // Prüfsumme über die fertige Datei
+            let mut f = File::open(&part).map_err(|e| e.to_string())?;
+            let mut sha = Sha256::new();
+            let mut buf = vec![0u8; 1 << 20];
+            loop {
+                let n = f.read(&mut buf).map_err(|e| e.to_string())?;
+                if n == 0 {
+                    break;
+                }
+                sha.update(&buf[..n]);
+            }
+            if hex::encode(sha.finalize()) != w {
+                let _ = fs::remove_file(&part);
+                let _ = fs::remove_file(&state);
+                return Err("Download beschädigt (Prüfsumme falsch)".to_string());
+            }
+        }
+        let _ = fs::remove_file(&state);
         fs::rename(&part, dest).map_err(|e| e.to_string())
     }
 
@@ -1090,7 +1194,6 @@ impl Ai {
         let agent = Self::agent();
         let t = self.cur_tier();
         fs::create_dir_all(&self.dir).map_err(|e| e.to_string())?;
-        let mut last = Instant::now();
         // Nur im Testmodus: Bildmodell von einer anderen Adresse (lokaler Server im E2E-Test)
         let test_url = std::env::var("FOTOSORT_TEST").ok().and(std::env::var("FOTOSORT_AI_URL").ok());
         let vision_dest = self.dir.join(t.vision);
@@ -1147,7 +1250,7 @@ impl Ai {
         let total: u64 = jobs.iter().flat_map(|j| j.0.iter().map(|u| u.1)).sum();
         self.dl_total.store(total, Ordering::Relaxed);
         for (urls, dest, sha) in &jobs {
-            self.fetch_file(&agent, urls, dest, sha.as_deref(), &mut last)?;
+            self.fetch_file(&agent, urls, dest, sha.as_deref())?;
             if dest.extension().is_some_and(|e| e == "safetensors") {
                 // prüfen, ob sich die Datei laden lässt
                 if let Err(e) = net::Weights::load(dest) {
@@ -1179,6 +1282,27 @@ impl Ai {
         let _ = fs::remove_dir_all(&self.dir);
         self.push_status();
     }
+}
+
+/// An eine bestimmte Stelle einer Datei schreiben (mehrere Verbindungen schreiben gleichzeitig)
+#[cfg(unix)]
+fn write_at(f: &File, buf: &[u8], pos: u64) -> std::io::Result<()> {
+    use std::os::unix::fs::FileExt;
+    f.write_all_at(buf, pos)
+}
+
+#[cfg(windows)]
+fn write_at(f: &File, mut buf: &[u8], mut pos: u64) -> std::io::Result<()> {
+    use std::os::windows::fs::FileExt;
+    while !buf.is_empty() {
+        let n = f.seek_write(buf, pos)?;
+        if n == 0 {
+            return Err(std::io::Error::new(std::io::ErrorKind::WriteZero, "nichts geschrieben"));
+        }
+        buf = &buf[n..];
+        pos += n as u64;
+    }
+    Ok(())
 }
 
 /// Bis zu `n` Bilder gleichmäßig verteilt aus einem Ordner (und seinen direkten Unterordnern)
@@ -1264,6 +1388,51 @@ mod tests {
         net::normalize(&mut v);
         let e = Emb::from(&v);
         assert!((e.dot(&v) - 1.0).abs() < 0.01);
+    }
+}
+
+#[cfg(test)]
+mod download {
+    use super::*;
+
+    /// Echter Download von GitHub mit mehreren Verbindungen (manuell, braucht Internet):
+    /// cargo test --release download -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn parallel_github() {
+        let dir = std::env::temp_dir().join(format!("slimsort-dl-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let ai = Ai::new(&dir, Arc::new(thumbs::Cache::new(&dir.join("c"))));
+        let agent = Ai::agent();
+        // DL_URL/DL_SIZE/DL_SHA: lokaler Testserver statt GitHub
+        let (name, u, size, d) = match std::env::var("DL_URL") {
+            Ok(u) => ("test.bin".to_string(), u, std::env::var("DL_SIZE").unwrap().parse().unwrap(), std::env::var("DL_SHA").ok()),
+            Err(_) => {
+                let a = Ai::release_assets(&agent, "ki-2").unwrap();
+                let name = std::env::var("DL_ASSET").unwrap_or("slimsort-ki-siglip2-b16.safetensors".into());
+                let (u, size, d) = a.get(&name).cloned().unwrap();
+                (name, u, size, d)
+            }
+        };
+        let dest = dir.join(&name);
+        if std::env::var("DL_RESUME").is_ok() {
+            // nach 6 s abbrechen, dann erneut starten → muss weitermachen
+            let ai2 = ai.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_secs(12));
+                ai2.cancel_dl.store(true, Ordering::SeqCst);
+            });
+            assert!(ai.fetch_file(&agent, &[(u.clone(), size)], &dest, d.as_deref()).is_err());
+            ai.cancel_dl.store(false, Ordering::SeqCst);
+            println!("abgebrochen bei {:.0} MB", ai.dl_got.load(Ordering::Relaxed) as f64 / 1e6);
+            ai.dl_got.store(0, Ordering::Relaxed);
+        }
+        let t0 = Instant::now();
+        ai.fetch_file(&agent, &[(u, size)], &dest, d.as_deref()).unwrap();
+        let s = t0.elapsed().as_secs_f64();
+        println!("{name}: {:.0} MB in {s:.1} s = {:.1} MB/s", size as f64 / 1e6, size as f64 / 1e6 / s);
+        assert_eq!(fs::metadata(&dest).unwrap().len(), size);
+        let _ = fs::remove_dir_all(&dir);
     }
 }
 
