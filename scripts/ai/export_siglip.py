@@ -14,7 +14,7 @@ import json, os, sys
 import numpy as np
 import torch
 from safetensors.numpy import save_file
-from transformers import AutoModel, AutoProcessor
+from transformers import AutoModel, AutoTokenizer, AutoImageProcessor
 
 NAME, ID, OUT = sys.argv[1], sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else 'out'
 os.makedirs(OUT, exist_ok=True)
@@ -62,11 +62,15 @@ def layers(prefix, enc):
 
 
 model = AutoModel.from_pretrained(NAME, torch_dtype=torch.float32).eval()
-proc = AutoProcessor.from_pretrained(NAME)
+tok = AutoTokenizer.from_pretrained(NAME)
+try:
+    improc = AutoImageProcessor.from_pretrained(NAME, use_fast=False).to_dict()
+except Exception as e:
+    improc = f'nicht lesbar: {e}'
 cfg = model.config
 vc, tc = cfg.vision_config, cfg.text_config
 print('Typ:', cfg.model_type, '| Bild:', vc.hidden_size, vc.num_hidden_layers, vc.image_size, vc.patch_size, vc.hidden_act, '| Text:', tc.hidden_size, tc.num_hidden_layers, tc.max_position_embeddings, tc.hidden_act)
-print('Bildvorbereitung:', proc.image_processor.to_dict())
+print('Bildvorbereitung:', improc)
 assert vc.hidden_act in ('gelu_pytorch_tanh', 'gelu_new'), vc.hidden_act
 assert tc.hidden_act in ('gelu_pytorch_tanh', 'gelu_new'), tc.hidden_act
 try:
@@ -97,7 +101,6 @@ linear('v.hfc1', H.mlp.fc1)
 linear('v.hfc2', H.mlp.fc2)
 
 # ------------------------------------------------------------------ Text + Wortliste
-tok = proc.tokenizer
 tj = json.loads(tok.backend_tokenizer.to_str())
 m = tj['model']
 print('Tokenizer:', m['type'], {k: m.get(k) for k in ('byte_fallback', 'fuse_unk', 'ignore_merges', 'unk_token', 'continuing_subword_prefix', 'end_of_word_suffix')})

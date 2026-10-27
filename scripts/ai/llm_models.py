@@ -14,7 +14,7 @@ os.makedirs(OUT, exist_ok=True)
 
 # id: (Kandidaten [Repo, ...], bevorzugte Quantisierungen, denkt das Modell standardmäßig?)
 MODELS = {
-    'qwen3-1.7b': (['Qwen/Qwen3-1.7B-GGUF', 'unsloth/Qwen3-1.7B-GGUF'], ['Q4_K_M', 'Q5_K_M', 'Q8_0'], True),
+    'qwen3-1.7b': (['unsloth/Qwen3-1.7B-GGUF', 'Qwen/Qwen3-1.7B-GGUF'], ['Q4_K_M', 'Q5_K_M', 'Q8_0'], True),
     'qwen3-4b': (['Qwen/Qwen3-4B-Instruct-2507-GGUF', 'unsloth/Qwen3-4B-Instruct-2507-GGUF', 'Qwen/Qwen3-4B-GGUF', 'unsloth/Qwen3-4B-GGUF'], ['Q4_K_M', 'Q5_K_M', 'Q8_0'], None),
 }
 
@@ -60,7 +60,7 @@ for mid, (repos, quants, think) in MODELS.items():
             json.dump({'id': mid, 'repo': repo, 'file': f, 'quant': q, 'think': is_think, 'license': 'Apache-2.0',
                        'size': size, 'sha256': sha.hexdigest(), 'parts': parts},
                       open(os.path.join(OUT, f'slimsort-llm-{mid}.json'), 'w'))
-            print(f'==> {mid}: {repo}/{f} ({os.path.getsize(dst) / 1e9:.2f} GB, denkt: {is_think})')
+            print(f'==> {mid}: {repo}/{f} ({size / 1e9:.2f} GB, denkt: {is_think}, Teile: {len(parts)})')
             done = True
             break
         if done:

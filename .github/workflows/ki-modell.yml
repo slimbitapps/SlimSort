@@ -34,12 +34,12 @@ jobs:
       - name: Python-Pakete
         run: |
           pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install "transformers>=4.49,<5" safetensors numpy sentencepiece protobuf huggingface_hub
+          pip install "transformers>=4.49,<5" safetensors numpy sentencepiece protobuf huggingface_hub pillow torchvision --extra-index-url https://download.pytorch.org/whl/cpu
       - name: Exportieren
         shell: bash
         run: |
           set -o pipefail
-          python scripts/ai/export_siglip.py ${{ matrix.name }} ${{ matrix.id }} out 2>&1 | tee export.log || { grep -v Warning export.log | tail -n 20 | sed 's|^|::error title=export::|'; exit 1; }
+          python scripts/ai/export_siglip.py ${{ matrix.name }} ${{ matrix.id }} out 2>&1 | tee export.log || { grep -iE "error|exception|requires|install" export.log | tail -n 8 | sed 's|^|::error title=export::|'; exit 1; }
           grep -vE "Warning|warn" export.log | tail -n 30 | sed 's|^|::notice title=export::|'
       - uses: softprops/action-gh-release@v2
         with:
