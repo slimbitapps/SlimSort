@@ -260,6 +260,7 @@ for name, col in spec:
   await app.close();
   server.close();
   console.log('KI-E2E OK');
+  fs.rmSync(base, { recursive: true, force: true });
   process.exit(0);
 })().catch(async (e) => {
   console.error('KI-E2E FEHLER:', e);
