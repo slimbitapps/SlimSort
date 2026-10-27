@@ -1,0 +1,39 @@
+# Baut das KI-Modell (einmalig bzw. bei Änderung von scripts/ai/) und stellt es als
+# Download bereit. Die App lädt es nur, wenn man die KI in den Einstellungen einschaltet.
+# Als „Vorabversion“ markiert, damit die Download-Seite weiter auf die App zeigt.
+name: KI-Modell bauen
+
+on:
+  push:
+    paths: ['scripts/ai/**', '.github/workflows/ki-modell.yml']
+  workflow_dispatch:
+
+jobs:
+  model:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: Python-Pakete
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install "transformers>=4.44,<5" "sentence-transformers>=3,<6" safetensors numpy
+      - name: Exportieren
+        run: python scripts/ai/export.py out
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ki-modell-1
+          name: KI-Modell 1 (für SlimSort)
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          make_latest: false
+          body: |
+            Wird von SlimSort automatisch geladen, wenn man in den Einstellungen die KI einschaltet.
+            Nicht von Hand herunterladen nötig.
+            Enthält: CLIP ViT-B/32 (OpenAI, MIT-Lizenz) und clip-ViT-B-32-multilingual-v1 (sentence-transformers, Apache-2.0), auf 8 Bit verkleinert.
+          files: |
+            out/slimsort-ki-1.safetensors
+            out/slimsort-ki-1-ref.json
