@@ -16,6 +16,7 @@ jobs:
       siglip: ${{ steps.f.outputs.siglip }}
       llm: ${{ steps.f.outputs.llm }}
       helper: ${{ steps.f.outputs.helper }}
+      faces: ${{ steps.f.outputs.faces }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -25,6 +26,7 @@ jobs:
             siglip: ['scripts/ai/export_siglip.py']
             llm: ['scripts/ai/llm_models.py']
             helper: ['src-llm/**', '.github/workflows/ki-modell.yml']
+            faces: ['scripts/ai/faces.py']
 
   # Stufe "Sparsam": CLIP (bleibt unter ki-modell-1)
   clip:
@@ -74,6 +76,32 @@ jobs:
             Helfer-Programm: llama.cpp (MIT).
           files: |
             out/*
+
+  # Gesichter: YuNet + SFace (OpenCV Zoo) + Vergleichswerte
+  faces:
+    needs: changes
+    if: needs.changes.outputs.faces == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install opencv-python-headless scikit-image onnx numpy
+      - name: Laden + Vergleichswerte
+        shell: bash
+        run: |
+          set -o pipefail
+          python scripts/ai/faces.py out 2>&1 | tee faces.log || { tail -n 10 faces.log | sed 's|^|::error title=faces::|'; exit 1; }
+          grep -vE "^geladen" faces.log | cut -c1-900 | sed 's|^|::notice title=faces::|'
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ki-2
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          make_latest: false
+          files: out/*
 
   # Sprachmodelle (GGUF)
   llm:
