@@ -58,6 +58,7 @@ jobs:
 
   # Sprachmodelle (GGUF)
   llm:
+    if: contains(join(github.event.commits.*.modified, ','), 'llm_models.py') || contains(join(github.event.commits.*.added, ','), 'llm_models.py') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -80,3 +81,46 @@ jobs:
           make_latest: false
           files: |
             out/*
+
+  # Helfer-Programm für den Chat (llama.cpp), je System
+  helper:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, target: x86_64-unknown-linux-gnu, name: slimsort-llm-linux-x86_64, flags: '-C target-feature=+avx2,+fma,+f16c,+bmi2' }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, name: slimsort-llm-windows-x86_64.exe, flags: '-C target-feature=+avx2,+fma,+f16c,+bmi2,+crt-static' }
+          - { os: macos-latest, target: aarch64-apple-darwin, name: slimsort-llm-macos-aarch64, flags: '' }
+          - { os: macos-latest, target: x86_64-apple-darwin, name: slimsort-llm-macos-x86_64, flags: '-C target-feature=+avx2,+fma,+f16c,+bmi2' }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: '${{ matrix.target }}' }
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: src-llm, key: '${{ matrix.target }}' }
+      - name: Bauen
+        shell: bash
+        env:
+          RUSTFLAGS: ${{ matrix.flags }}
+        run: |
+          cd src-llm
+          cargo build --release --target ${{ matrix.target }}
+          mkdir -p ../out
+          f=target/${{ matrix.target }}/release/slimsort-llm
+          [ -f "$f.exe" ] && f="$f.exe"
+          cp "$f" "../out/${{ matrix.name }}"
+          ls -la ../out
+      - name: Prüfen
+        if: matrix.target != 'x86_64-apple-darwin'
+        shell: bash
+        run: ./out/${{ matrix.name }} --version
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ki-2
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          make_latest: false
+          files: out/*
