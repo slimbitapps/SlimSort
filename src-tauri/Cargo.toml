@@ -31,7 +31,7 @@ jpeg-decoder = "0.3"
 percent-encoding = "2"
 trash = "5"
 num_cpus = "1"
-matrixmultiply = { version = "0.3", features = ["std"] }
+gemm = { version = "0.19", default-features = false, features = ["std"] }
 ureq = { version = "3", default-features = false, features = ["rustls", "platform-verifier", "gzip"] }
 sha2 = "0.10"
 

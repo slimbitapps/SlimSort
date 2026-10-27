@@ -152,12 +152,17 @@ fn linear(wt: &Weights, sc: &mut Scratch, name: &str, x: &[f32], n: usize) -> Ve
         }
     }
     let mut y = vec![0f32; n * out];
+    // y[n × out] = x[n × inp] · Wᵀ  (W liegt zeilenweise als [out × inp])
     unsafe {
-        matrixmultiply::sgemm(
-            n, inp, out, 1.0,
-            x.as_ptr(), inp as isize, 1,
-            sc.w.as_ptr(), 1, inp as isize,
-            0.0, y.as_mut_ptr(), out as isize, 1,
+        gemm::gemm(
+            n, out, inp,
+            y.as_mut_ptr(), 1, out as isize,
+            false,
+            x.as_ptr(), 1, inp as isize,
+            sc.w.as_ptr(), inp as isize, 1,
+            0.0f32, 1.0f32,
+            false, false, false,
+            gemm::Parallelism::None,
         );
     }
     if let Some(b) = wt.f.get(&format!("{name}.b")) {
@@ -201,31 +206,46 @@ fn attention_x(q: &[f32], nq: usize, k: &[f32], v: &[f32], n: usize, d: usize, h
     let dh = d / heads;
     let scale = 1.0 / (dh as f32).sqrt();
     let mut out = vec![0f32; nq * d];
-    let mut p = vec![0f32; n];
+    let mut p = vec![0f32; nq * n];
     for h in 0..heads {
         let o = h * dh;
-        for i in 0..nq {
-            let qi = &q[i * d + o..i * d + o + dh];
-            let mut mx = f32::MIN;
-            for j in 0..n {
-                let kj = &k[j * d + o..j * d + o + dh];
-                let s = qi.iter().zip(kj).map(|(a, b)| a * b).sum::<f32>() * scale;
-                p[j] = s;
-                mx = mx.max(s);
-            }
+        // Ähnlichkeiten: P[nq × n] = Q_h · K_hᵀ · scale  (Kopf-Spalten direkt aus den Zeilen gelesen)
+        unsafe {
+            gemm::gemm(
+                nq, n, dh,
+                p.as_mut_ptr(), 1, n as isize,
+                false,
+                q.as_ptr().add(o), 1, d as isize,
+                k.as_ptr().add(o), d as isize, 1,
+                0.0f32, scale,
+                false, false, false,
+                gemm::Parallelism::None,
+            );
+        }
+        for row in p.chunks_exact_mut(n) {
+            let mx = row.iter().fold(f32::MIN, |a, &b| a.max(b));
             let mut sum = 0.0;
-            for pj in p.iter_mut() {
-                *pj = (*pj - mx).exp();
-                sum += *pj;
+            for x in row.iter_mut() {
+                *x = (*x - mx).exp();
+                sum += *x;
             }
-            let dst = &mut out[i * d + o..i * d + o + dh];
-            for j in 0..n {
-                let w = p[j] / sum;
-                let vj = &v[j * d + o..j * d + o + dh];
-                for (a, b) in dst.iter_mut().zip(vj) {
-                    *a += w * b;
-                }
+            let inv = 1.0 / sum;
+            for x in row.iter_mut() {
+                *x *= inv;
             }
+        }
+        // Ergebnis: O_h[nq × dh] = P · V_h
+        unsafe {
+            gemm::gemm(
+                nq, dh, n,
+                out.as_mut_ptr().add(o), 1, d as isize,
+                false,
+                p.as_ptr(), 1, n as isize,
+                v.as_ptr().add(o), 1, d as isize,
+                0.0f32, 1.0f32,
+                false, false, false,
+                gemm::Parallelism::None,
+            );
         }
     }
     out
