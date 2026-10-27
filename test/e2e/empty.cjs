@@ -41,9 +41,12 @@ const ROOT = path.join(__dirname, '..', '..');
   await app.close();
 
   // 2) „nur Videos“ in einem Ordner ohne Videos → Hinweis + „Alle zeigen“
-  fs.writeFileSync(path.join(userData, 'einstellungen.json'), settings('videos'));
+  // frischer Datenordner (sonst wird die Fensterposition vom ersten Start übernommen)
+  const userData2 = path.join(base, 'userdata2');
+  fs.mkdirSync(userData2);
+  fs.writeFileSync(path.join(userData2, 'einstellungen.json'), settings('videos'));
   await sleep(1500);
-  app = await launch({ app: exe, env });
+  app = await launch({ app: exe, env: { ...env, FOTOSORT_USERDATA: userData2 } });
   globalThis.__app = app;
   win = app.page;
   await win.waitForSelector('[data-testid="home"]');

@@ -114,7 +114,27 @@ class Page {
   }
 
   async clickId(id, modifiers = []) {
-    if (!modifiers.length) return this.cmd('POST', `/element/${id}/click`, {});
+    if (!modifiers.length) {
+      // WebKit meldet manchmal kurz „nicht anklickbar“, während die Ansicht sich aufbaut → nochmal
+      for (let i = 0; ; i++) {
+        try {
+          return await this.cmd('POST', `/element/${id}/click`, {});
+        } catch (e) {
+          if (!/not interactable/.test(String(e))) throw e;
+          if (i >= 2) {
+            // dann wie ein Mensch: Maus hinbewegen und klicken
+            await this.cmd('POST', '/actions', {
+              actions: [{ type: 'pointer', id: 'mouse', parameters: { pointerType: 'mouse' }, actions: [
+                { type: 'pointerMove', duration: 0, origin: { [ELEMENT]: id }, x: 0, y: 0 },
+                { type: 'pointerDown', button: 0 }, { type: 'pointerUp', button: 0 },
+              ] }],
+            });
+            return this.cmd('DELETE', '/actions');
+          }
+          await sleep(300);
+        }
+      }
+    }
     const keys = modifiers.map(keyValue);
     return this.cmd('POST', '/actions', {
       actions: [
@@ -272,6 +292,12 @@ async function launch({ app, env, port = 4444 }) {
   }).then((x) => x.json());
   if (!r.value || !r.value.sessionId) throw new Error('Sitzung konnte nicht starten: ' + JSON.stringify(r) + errText);
   const page = new Page(base, r.value.sessionId);
+  // warten, bis das Fenster wirklich sichtbar ist (es erscheint erst, wenn die Oberfläche bereit ist)
+  for (let i = 0; i < 100; i++) {
+    const w = await page.evaluate(() => window.innerWidth).catch(() => 0);
+    if (w > 0) break;
+    await sleep(100);
+  }
   return {
     page,
     close: async () => {
