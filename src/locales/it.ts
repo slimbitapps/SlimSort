@@ -862,4 +862,9 @@ export const it: Dict = {
   'sugg.similar': 'Foto simili',
   'sugg.unknown': 'Dai un nome agli sconosciuti',
   'sugg.whoIs': 'Chi c\'è nella foto?',
+
+  'people.howToName': 'Certo! Per questo devo vedere i volti: apri una foto della persona e scrivi ad es. «mia madre è a sinistra» o «questa è mia madre», oppure clicca sul suo volto.',
+
+  'people.ruleAsk': 'Hai già ordinato {n} volte foto con {name} in «{folder}». Devo suggerirlo d\'ora in poi?',
+  'people.ruleYes': 'Sì, ricorda',
 };

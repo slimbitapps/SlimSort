@@ -22,3 +22,8 @@ test('Antwort säubern', () => {
   assert.equal(cleanAnswer('Moment <tool'), 'Moment ');
   assert.equal(cleanAnswer('<think>\n\n</think>\n\nHallo'), 'Hallo');
 });
+
+test('"der Nutzer" wird zu "du"', () => {
+  assert.equal(cleanAnswer('Der Nutzer sieht nun das Foto mit der Katze.'), 'Du siehst nun das Foto mit der Katze.');
+  assert.equal(cleanAnswer('Ich habe dem Nutzer 3 Fotos gezeigt.'), 'Ich habe dir 3 Fotos gezeigt.');
+});

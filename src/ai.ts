@@ -138,6 +138,7 @@ export function initAi() {
     if (!prefs().aiEnabled) return;
     const dest = trash ? TRASH : target?.path;
     if (dest) a.ai.learn(ids, dest);
+    if (target && !trash) notePeopleSorted(ids, target);
     // Gelerntes hat sich geändert → Vorschläge neu berechnen
     const s = session();
     if (s) s.aiSugg.clear();
@@ -525,7 +526,8 @@ async function llmTurn(text: string, intent: Intent) {
   setUi({ msgs: [...ui().msgs, { id: mid, from: 'ai', text: '', streaming: true }] });
 
   // Eindeutige Fotosuche macht SlimSort selbst (zuverlässig) – als wäre es ein Werkzeug-Aufruf des Modells
-  const notSearch = /\b(merk\w*|notier\w*|speicher\w*|vergiss|vergessen|sollen|soll|immer|gehören|warum|wieso|erklär\w*)\b/i.test(text);
+  // Fragen ("Hast du …", "Weißt du …") und Merk-Sätze sind keine Fotosuche
+  const notSearch = /\b(\w*merk\w*|notier\w*|speicher\w*|vergiss|vergessen|sollen|soll|immer|gehören|warum|wieso|erklär\w*)\b/i.test(text) || /^(hast|hat|habt|weißt|kennst|kannst|ist|sind|bist|gibt)\b/i.test(text.trim());
   if (s && intent.kind === 'search' && (intent.query || intent.date || intent.video) && wantsPhotos(text) && !notSearch && !peopleInQuery(intent.query || '')) {
     const call = `<tool_call>\n${JSON.stringify({ name: 'fotos_suchen', arguments: { beschreibung: intent.query || text } })}`;
     const out = await runTool('fotos_suchen', { beschreibung: intent.query || text, _intent: intent, _text: text });
@@ -541,7 +543,7 @@ async function llmTurn(text: string, intent: Intent) {
       const id = ++llmSeq;
       setUi({ llmId: id, busyText: ui().status?.chatRunning ? '' : t('ai.llmLoading') });
       update({ llmId: id, text: '', streaming: true });
-      const r = await api().ai.chat(id, { prompt, max: 300, temp: 0.4, stop: ['<|im_end|>', '</tool_call>', '</tool>'] });
+      const r = await api().ai.chat(id, { prompt, max: 300, temp: currentTier() === 'balanced' ? 0.15 : 0.3, stop: ['<|im_end|>', '</tool_call>', '</tool>'] });
       if (r.cancelled) {
         answer = cleanAnswer(r.text).trim();
         break;
@@ -615,7 +617,7 @@ async function runTool(name: string, a: Record<string, any>, userText = ''): Pro
       if (!r.length) return { text: `Keine passenden Fotos zu „${q}“ gefunden.` };
       setUi({ lastIds: r });
       const best = s!.byId.get(r[0])!;
-      return { text: `${r.length} passende Fotos gefunden und dem Nutzer als Vorschaubilder gezeigt. Bestes: ${describeItem(best, await tagsOf(best.id))}.`, ids: r.slice(0, 24), actions: resultActions(r) };
+      return { text: `Gezeigt: ${r.length} passende Fotos (als Vorschaubilder unter deiner Antwort). Bestes: ${describeItem(best, await tagsOf(best.id))}.`, ids: r.slice(0, 24), actions: resultActions(r) };
     }
     case 'fotos_mit_personen': {
       const names: string[] = Array.isArray(a.namen) ? a.namen.map(String) : [str(a.namen)].filter(Boolean);
@@ -623,11 +625,11 @@ async function runTool(name: string, a: Record<string, any>, userText = ''): Pro
       if (!r) return { text: `Diese Personen kenne ich nicht: ${names.join(', ')}. Bekannt: ${people().map((p) => p.name).join(', ') || 'noch niemand'}.` };
       setUi({ lastIds: r.ids });
       return r.ids.length
-        ? { text: `${r.ids.length} Fotos mit ${r.names} gefunden und gezeigt.`, ids: r.ids.slice(0, 24), actions: resultActions(r.ids) }
+        ? { text: `Gezeigt: ${r.ids.length} Fotos mit ${r.names} (als Vorschaubilder unter deiner Antwort).`, ids: r.ids.slice(0, 24), actions: resultActions(r.ids) }
         : { text: `Keine Fotos mit ${r.names} gefunden.` };
     }
     case 'personen_auf_foto': {
-      if (!prefs().aiFaces || !ui().status?.facesReady) return { text: 'Die Gesichtserkennung ist ausgeschaltet. Der Nutzer kann sie unter Einstellungen → KI einschalten.' };
+      if (!prefs().aiFaces || !ui().status?.facesReady) return { text: 'Die Gesichtserkennung ist ausgeschaltet. Sie lässt sich unter Einstellungen → KI einschalten.' };
       if (s!.currentId === null) return { text: 'Kein Foto ausgewählt.' };
       const f = await facesAt(s!.currentId);
       if (!f) return { text: 'Das Foto wird noch untersucht.' };
@@ -636,7 +638,7 @@ async function runTool(name: string, a: Record<string, any>, userText = ''): Pro
     case 'personen_benennen': {
       // nur wenn der Nutzer wirklich Namen nennt (kleine Modelle verwechseln Fragen mit Aufträgen)
       if (userText && !parseNaming(userText) && !/\b(heißt|heisst|ist (mein|meine|unser|unsere)|bin ich|das bin|sind (meine|unsere)|is my|named)\b/i.test(userText))
-        return { text: 'Nicht ausgeführt: Der Nutzer hat niemanden benannt. Wenn er wissen will, wer auf dem Foto ist, benutze personen_auf_foto.' };
+        return { text: 'Nicht ausgeführt: Dein Gegenüber hat niemanden benannt. Um zu sehen, wer auf dem Foto ist, benutze personen_auf_foto.' };
       const z: { gesicht: number; name: string }[] = Array.isArray(a.zuordnung) ? a.zuordnung : [];
       const items = z.filter((x) => x && x.name && Number(x.gesicht) >= 1).map((x) => ({ pos: { from: 'left' as const, n: Number(x.gesicht) - 1 }, name: String(x.name) }));
       if (!items.length) return { text: 'Keine Zuordnung angegeben.' };
@@ -644,7 +646,7 @@ async function runTool(name: string, a: Record<string, any>, userText = ''): Pro
     }
     case 'merken': {
       if (userText && !/\b(merk\w*|notier\w*|speicher\w*|vergiss nicht|immer|sollen|soll|gehören|gehört|kommen|kommt|remember)\b/i.test(userText))
-        return { text: 'Nicht ausgeführt: Der Nutzer hat nicht gesagt, dass du dir etwas merken sollst. Beantworte seine Frage mit dem, was in <lage> steht.' };
+        return { text: 'Nicht ausgeführt: Du sollst dir hier nichts merken. Beantworte die Frage mit dem, was in <lage> steht.' };
       const text = str(a.text);
       if (!text) return { text: 'Nichts zum Merken angegeben.' };
       const it = parse(`merke dir ${text}`);
@@ -820,6 +822,44 @@ async function handle(it: Intent) {
 }
 
 // ---------------------------------------------------------------- Personen
+
+/** Wer wohin sortiert wurde: Person → Zielordner → Anzahl (für den Vorschlag "soll ich mir das merken?") */
+const sortedBy = new Map<string, Map<string, number>>();
+const asked = new Set<string>();
+
+async function notePeopleSorted(ids: number[], target: Target) {
+  if (!prefs().aiFaces || !people().length) return;
+  const faces = await facesOn(ids);
+  for (const f of faces.values()) {
+    for (const pid of new Set(f.map((x) => x.person?.id).filter((x): x is string => !!x))) {
+      const m = sortedBy.get(pid) || new Map<string, number>();
+      m.set(target.path, (m.get(target.path) || 0) + 1);
+      sortedBy.set(pid, m);
+      const total = [...m.values()].reduce((a, b) => a + b, 0);
+      const here = m.get(target.path)!;
+      const key = `${pid}>${target.path}`;
+      // oft und fast immer in denselben Ordner → einmal fragen
+      if (here >= 5 && here / total >= 0.85 && !asked.has(key)) {
+        const has = memories().some((x) => x.kind === 'people' && x.targetPath === target.path && x.personIds?.includes(pid));
+        const person = people().find((p) => p.id === pid);
+        asked.add(key);
+        if (has || !person) continue;
+        const who = displayName(person);
+        toast('info', t('people.ruleAsk', { name: who, folder: target.name, n: here }), {
+          timeout: 15000,
+          action: {
+            label: t('people.ruleYes'),
+            run: () => {
+              addMemory({ kind: 'people', text: `${person.name} → ${target.name}`, label: who, personIds: [pid], targetPath: target.path });
+              refreshRules();
+              toast('success', t('mem.rememberedPeople', { who, folder: target.name }));
+            },
+          },
+        });
+      }
+    }
+  }
+}
 
 function facesReady(): boolean {
   if (prefs().aiFaces && ui().status?.facesReady) return true;
@@ -1158,6 +1198,10 @@ t ::= [^"\\\n]{0,40}`
     return say(t('mem.rememberedRule', { what: concept, folder: tg.name }), {
       actions: [{ label: t('ai.undo'), run: () => (removeMemory(m.id), refreshRules(), say(t('ai.undone'))) }],
     });
+  }
+  // "Merk dir, wer meine Mutter ist" – dafür braucht es das Gesicht
+  if (/^(wer|wen|wem|welche)\b/i.test(it.text.trim()) || /\b(person|personen|gesicht|gesichter)\b/i.test(it.text)) {
+    return say(t('people.howToName'), { actions: [{ label: t('people.showFaces'), run: () => (updatePrefs({ showFaces: true }), setView('single')) }] });
   }
   // freie Notiz (gilt für das Gespräch)
   const m = addMemory({ kind: 'note', text: it.text });

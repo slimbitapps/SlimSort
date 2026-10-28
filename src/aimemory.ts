@@ -74,7 +74,7 @@ export function describeMemory(m: AiMemory): string {
 export function memoryForPrompt(): string {
   const list = memories();
   if (!list.length) return '';
-  return 'Das hat der Nutzer dir zum Merken gesagt:\n' + list.map((m) => `- ${describeMemory(m)}`).join('\n');
+  return 'Dein Gedächtnis – das hast du (der Assistent) dir gemerkt; antworte darüber in der Ich-Form („Ich habe mir gemerkt …“):\n' + list.map((m) => `- ${describeMemory(m)}`).join('\n');
 }
 
 /**

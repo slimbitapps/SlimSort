@@ -876,4 +876,9 @@ export const de = {
   'sugg.similar': 'Ähnliche Fotos',
   'sugg.unknown': 'Unbekannte Personen benennen',
   'sugg.whoIs': 'Wer ist auf dem Foto?',
+
+  'people.howToName': 'Gern! Dafür muss ich die Gesichter sehen: Öffne ein Foto mit der Person und schreib z. B. „links ist meine Mutter“ oder „das ist meine Mutter“ – oder klick im Foto auf ihr Gesicht.',
+
+  'people.ruleAsk': 'Fotos mit {name} hast du schon {n}-mal nach „{folder}“ sortiert. Soll ich das künftig vorschlagen?',
+  'people.ruleYes': 'Ja, merken',
 };

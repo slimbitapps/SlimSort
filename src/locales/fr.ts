@@ -862,4 +862,9 @@ export const fr: Dict = {
   'sugg.similar': 'Photos similaires',
   'sugg.unknown': 'Nommer les inconnus',
   'sugg.whoIs': 'Qui est sur la photo ?',
+
+  'people.howToName': 'Avec plaisir ! Pour ça je dois voir les visages : ouvre une photo de la personne et écris p. ex. « ma mère est à gauche » ou « c\'est ma mère » – ou clique sur son visage.',
+
+  'people.ruleAsk': 'Tu as déjà classé {n} fois des photos avec {name} dans « {folder} ». Dois-je le proposer désormais ?',
+  'people.ruleYes': 'Oui, retenir',
 };

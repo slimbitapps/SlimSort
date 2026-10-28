@@ -40,6 +40,18 @@ export function PeopleDialog() {
 
   const visible = (clusters || []).map((c, i) => ({ c, i })).filter((x) => !hidden.has(x.i)).slice(0, 12);
 
+  // Wie oft kommt jede Person vor? (einmal für alle Karten)
+  const [counts, setCounts] = useState<Map<string, number> | null>(null);
+  useEffect(() => {
+    if (!session || !facesOn_) return;
+    const ids = session.items.filter((x) => x.kind === 'image').map((x) => x.id);
+    facesOn(ids).then((m) => {
+      const c = new Map<string, number>();
+      for (const f of m.values()) for (const id of new Set(f.map((x) => x.person?.id).filter(Boolean))) c.set(id!, (c.get(id!) || 0) + 1);
+      setCounts(c);
+    });
+  }, [session?.items, list.map((p) => p.embs.length).join(), facesOn_]); // eslint-disable-line
+
   return (
     <Dialog title={t('people.title')} icon={<IconUsers size={20} />} size="xwide" testId="people-dialog">
       {!facesOn_ && (
@@ -91,7 +103,7 @@ export function PeopleDialog() {
       ) : (
         <div className="people-grid">
           {list.map((p) => (
-            <PersonCard key={p.id} p={p} others={list.filter((x) => x.id !== p.id)} />
+            <PersonCard key={p.id} p={p} others={list.filter((x) => x.id !== p.id)} count={counts ? counts.get(p.id) || 0 : null} />
           ))}
         </div>
       )}
@@ -150,20 +162,12 @@ function ClusterCard({ c, crops, onName, onHide, onShow }: { c: FaceCluster; cro
   );
 }
 
-function PersonCard({ p, others }: { p: Person; others: Person[] }) {
+function PersonCard({ p, others, count }: { p: Person; others: Person[]; count: number | null }) {
   const session = useStore((s) => s.session);
   const targets = activeProfile().targets;
   const rule = memories().find((m) => m.kind === 'people' && m.personIds?.length === 1 && m.personIds[0] === p.id);
   const [name, setName] = useState(p.me ? displayName(p) : p.name);
   const [groups, setGroupsText] = useState((p.groups || []).join(', '));
-  const [count, setCount] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!session) return;
-    const ids = session.items.filter((x) => x.kind === 'image').map((x) => x.id);
-    facesOn(ids).then((m) => setCount([...m.values()].filter((f) => f.some((x) => x.person?.id === p.id)).length));
-  }, [session?.items, p.embs.length]); // eslint-disable-line
-
   const showPhotos = async () => {
     if (!session) return;
     const ids = session.items.filter((x) => x.kind === 'image').map((x) => x.id);

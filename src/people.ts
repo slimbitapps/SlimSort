@@ -242,9 +242,9 @@ export function facesForPrompt(faces: FaceHit[]): string {
   if (!faces.length) return 'Auf dem aktuellen Foto wurden keine Gesichter gefunden.';
   const parts = faces.map((f, i) => {
     const who = f.person
-      ? `${f.person.me ? 'der Nutzer selbst' : f.person.name} (sicher ${Math.round(f.p * 100)} %)`
+      ? `${f.person.me ? 'du (dein Gegenüber selbst)' : f.person.name} (sicher ${Math.round(f.p * 100)} %)`
       : f.maybe
-        ? `unbekannt, vielleicht ${f.maybe.me ? 'der Nutzer selbst' : f.maybe.name} (nur ${Math.round(f.p * 100)} %)`
+        ? `unbekannt, vielleicht ${f.maybe.me ? 'du (dein Gegenüber selbst)' : f.maybe.name} (nur ${Math.round(f.p * 100)} %)`
         : 'unbekannt';
     return `Gesicht ${i + 1}: ${who}`;
   });
@@ -255,5 +255,5 @@ export function facesForPrompt(faces: FaceHit[]): string {
 export function peopleForPrompt(): string {
   const list = people();
   if (!list.length) return '';
-  return 'Personen, deren Gesichter du kennst: ' + list.map((p) => (p.me ? `${p.name} (der Nutzer selbst)` : p.name) + (p.groups?.length ? ` [${p.groups.join(', ')}]` : '')).join(', ') + '.';
+  return 'Personen, deren Gesichter du kennst: ' + list.map((p) => (p.me ? `${p.name} (dein Gegenüber selbst)` : p.name) + (p.groups?.length ? ` [${p.groups.join(', ')}]` : '')).join(', ') + '.';
 }

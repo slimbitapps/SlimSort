@@ -111,8 +111,8 @@ async function waitFor(fn, ms, label) {
   // Werkzeuge: das Sprachmodell entscheidet selbst, dass es sich etwas merken soll
   const saved = () => JSON.parse(fs.readFileSync(path.join(userData, 'einstellungen.json'), 'utf8'));
   await ask('Kannst du dir bitte merken, dass Fotos mit Katzen immer in den Ordner Tiere kommen?');
-  await waitFor(() => (saved().aiMemory || []).some((m) => m.targetPath === path.join(base, 'Tiere')), 10000, 'Regel gemerkt (per Werkzeug)');
-  console.log('  Regel per Werkzeug gemerkt ✔', JSON.stringify(saved().aiMemory.map((m) => [m.kind, m.concept])));
+  await waitFor(() => (saved().aiMemory || []).some((m) => m.targetPath === path.join(base, 'Tiere')), 10000, 'Regel gemerkt');
+  console.log('  Regel gemerkt ✔', JSON.stringify(saved().aiMemory.map((m) => [m.kind, m.concept])));
   // eine Frage darf nichts verändern
   const n = (saved().aiMemory || []).length;
   await ask('Hast du dir gemerkt, wohin Fotos mit Katzen kommen?');

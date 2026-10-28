@@ -45,5 +45,14 @@ export function cleanAnswer(t: string): string {
     .replace(/<think>[\s\S]*?(<\/think>|$)/g, '')
     .replace(/<\/?(lage|ergebnis|tool_response)>\s*/g, '')
     .replace(/<(t(o(o(l(_(c(a(l(l)?)?)?)?)?)?)?)?)?$/, '')
-    .replace(/^\s+/, '');
+    .replace(/^\s+/, '')
+    // kleine Modelle rutschen manchmal in chinesische Zeichen
+    .replace(/\s*[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]+\s*(\([^)]*\))?/g, ' ')
+    // kleine Modelle reden manchmal über "den Nutzer" statt mit ihm
+    .replace(/\b[Dd]er Nutzer (sieht|hat|kann|möchte|will|ist|findet|bekommt)\b/g, (_, v: string) => `Du ${DU[v] || v}`)
+    .replace(/\bdem Nutzer\b/g, 'dir')
+    .replace(/\bden Nutzer\b/g, 'dich')
+    .replace(/\bdes Nutzers\b/g, 'deine');
 }
+
+const DU: Record<string, string> = { sieht: 'siehst', hat: 'hast', kann: 'kannst', möchte: 'möchtest', will: 'willst', ist: 'bist', findet: 'findest', bekommt: 'bekommst' };

@@ -113,6 +113,12 @@ startet schneller und braucht weniger Arbeitsspeicher. Neu:
   - lernt, welche Fotos du in welchen Ordner tust (auch aus Fotos, die schon in den Zielordnern liegen), und schlägt den Ordner mit Sicherheit in Prozent vor
   - **KI sortieren:** zeigt, wohin sie die offenen Fotos tun würde – du bestätigst; auf Wunsch **Autopilot** für sehr sichere Fotos
   - **KI-Assistent (Chat, Strg/⌘ + K):** Fotos per Beschreibung finden („Baum links, Wiese und Berg“, „Strand im Sommer 2023“), ähnliche Fotos, verschieben/löschen per Satz, Doppelte finden, Statistik – ab Stufe „Ausgewogen“ mit Sprachmodell, das Fragen beantwortet und sich unterhält
+  - **Personen (freiwillig, eigener Schalter):** erkennt Gesichter und merkt sich, wer wer ist – am Gesicht, nicht an der Position im Foto. Benennen per Klick aufs Gesicht, per Satz („ich bin links, mein Bruder daneben, Mama rechts“) oder für Unbekannte, die öfter vorkommen („Wer ist das?“). Namen im Foto, „Fotos mit Mama“, Regeln wie „Fotos mit Mama → Familie“, Personen-Übersicht (umbenennen, Gruppen, zusammenlegen). Fragt von selbst, wenn eine Person immer im selben Ordner landet
+  - **Gedächtnis:** „Merke dir …“, „Was hast du dir gemerkt?“, „Das soll nicht mehr so sein“ – Regeln wirken auf Vorschläge, KI sortieren und Autopilot
+  - **Rechte:** was die KI selbst darf (verschieben, löschen, Ordner anlegen, Einstellungen ändern, ohne Nachfrage) – mit Hinweis auf die Risiken
+  - **Chats bleiben gespeichert** und lassen sich wieder öffnen; Vorschlags-Knöpfe passend zur Lage
+  - **KI-Wissen sichern:** Personen, Gedächtnis, Chats und Gelerntes in eine Datei – für einen neuen Computer
+  - Das Sprachmodell benutzt Werkzeuge (suchen, Personen erkennen/benennen, merken, verschieben …) und bekommt echte Ergebnisse statt zu raten
   - **drei Stufen:** *Sparsam* (CLIP, ca. 190 MB, für alte Computer), *Ausgewogen* (SigLIP 2 + Qwen3 1.7B, ca. 1,5 GB, ab 8 GB RAM), *Maximal* (SigLIP 2 Large + Qwen3 4B, ca. 3,4 GB, für starke Computer); die App empfiehlt die passende
   - in den Einstellungen komplett abschaltbar – dann läuft auch beim Start nichts; Leistung einstellbar (schonend/normal/schnell)
   - Modelle werden erst beim Einschalten einmalig von GitHub geladen; das Sprachmodell läuft in einem eigenen kleinen Helfer-Programm (llama.cpp), das nur bei Bedarf startet
@@ -158,7 +164,8 @@ Aufbau:
 - `src-tauri/src/ai/` – KI: eigene Berechnung von CLIP (Bild) und mehrsprachigem Text, Lernen, Vorschläge, Download
 - `scripts/ai/` – baut die KI-Modelle (läuft auf GitHub, Workflow „KI-Modell bauen“)
 - `src-llm/` – Helfer-Programm für das Sprachmodell (llama.cpp)
-- `src/ai.ts`, `src/chat.ts`, `src/assistant.ts` – KI in der Oberfläche, Verstehen der Chat-Eingaben, Anleitung für das Sprachmodell
+- `src/ai.ts`, `src/chat.ts`, `src/assistant.ts` – KI in der Oberfläche, Verstehen der Chat-Eingaben, Anleitung und Werkzeuge für das Sprachmodell
+- `src/people.ts`, `src/aimemory.ts`, `src/chats.ts`, `src/knowledge.ts` – Personen, Gedächtnis/Rechte, gespeicherte Chats, KI-Wissen sichern
 - `src-tauri/src/lib.rs` – Fenster und Befehle für die Oberfläche
 - `src/` – Oberfläche (React); `src/bridge.ts` verbindet sie mit Rust; Texte in `src/locales/`
 - `test/` – automatische Tests

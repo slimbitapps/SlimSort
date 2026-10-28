@@ -128,3 +128,12 @@ test('Personen: wer ist das, unbekannte, verwalten', () => {
   const r = parse('Fotos mit meinem Bruder kommen in den Ordner Lukas');
   assert.deepEqual([r.kind, r.concept, r.folder], ['remember', 'meinem Bruder', 'Lukas']);
 });
+
+test('Merken auch als Frage formuliert', () => {
+  const a = parse('Kannst du dir bitte merken, dass Fotos mit Katzen immer in den Ordner Tiere kommen?');
+  assert.deepEqual([a.kind, a.concept, a.folder], ['remember', 'Katzen', 'Tiere']);
+  const b = parse('Kannst du dir diese Personen merken? Ich bin in der Mitte, links ist meine Mutter und rechts mein Bruder');
+  assert.equal(b.kind, 'name');
+  assert.equal(b.items.length, 3);
+  assert.equal(parse('Ich möchte, dass du dir merkst: mein Hund heißt Bello').kind, 'remember');
+});

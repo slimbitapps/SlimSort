@@ -328,6 +328,15 @@ export function parse(input: string): Intent {
   // Gedächtnis
   const rem = /^(?:bitte\s+)?(?:merk|merke|merken|notier|notiere|remember)\w*(?:\s+dir|\s+sich|\s+that)?\s*[,:]?\s*(?:dass\s+|that\s+)?(.+)$/i.exec(text);
   if (rem && rem[1].trim().length > 2) return parseRemember(rem[1]);
+  // "Kannst du dir (bitte) merken, dass …", "Ich möchte, dass du dir merkst: …"
+  const rem2 = /\b(?:kannst|könntest|würdest|sollst|musst)\s+du\s+(?:dir\s+)?(?:bitte\s+)?(?:\w+\s+){0,3}?(?:merken|notieren|speichern)\b\s*[,:]?\s*(?:dass\s+)?(.*)$|\bdass du dir (?:merkst|notierst)\s*[,:]?\s*(?:dass\s+)?(.+)$/i.exec(text);
+  if (rem2) {
+    const rest = (rem2[1] || rem2[2] || '').replace(/[?]+$/, '').trim();
+    if (rest.length > 2) return parseRemember(rest);
+    // "Kannst du dir diese Personen merken? Ich bin links …" → Rest des Satzes
+    const after = text.slice(text.search(/[?!.]/) + 1).trim();
+    if (after.length > 2) return parseRemember(after);
+  }
   if (/\b(was|welche)\b.*\b(hast du (dir )?gemerkt|weißt du (über mich|alles)|merkst du dir|regeln)\b|^(zeig|liste)\w*.*\b(gemerkt|gedächtnis|erinnerungen|regeln)\b|what do you remember/.test(s)) return { kind: 'memories' };
   if (/^(bitte\s+)?(vergiss|vergessen|forget)\b/.test(s)) {
     const rest = text.replace(/^(bitte\s+)?(vergiss|vergessen|forget)\b\s*(bitte\s+)?(das|es|dass|alles)?\s*/i, '').replace(/^(mit|von|über)\s+(den|dem|der)?\s*/i, '');
