@@ -175,3 +175,130 @@ pub fn best_match(faces: &[FaceRec], group: &[Vec<f32>]) -> f32 {
     }
     best
 }
+
+fn cos(a: &[f32], b: &[f32]) -> f32 {
+    let n = b.iter().map(|x| x * x).sum::<f32>().sqrt().max(1e-9);
+    a.iter().zip(b).map(|(x, y)| x * y).sum::<f32>() / n
+}
+
+/// Ähnlichkeit eines Gesichts zu einer Person: Mittel der zwei besten Beispiele
+/// (ein einzelnes zufällig ähnliches Beispiel reicht so nicht für einen Treffer)
+pub fn person_score(emb: &[f32], samples: &[Vec<f32>]) -> f32 {
+    let mut s: Vec<f32> = samples.iter().map(|x| cos(emb, x)).collect();
+    s.sort_by(|a, b| b.total_cmp(a));
+    match s.len() {
+        0 => -1.0,
+        1 => s[0],
+        _ => 0.65 * s[0] + 0.35 * s[1],
+    }
+}
+
+/// Gesichter eines Fotos den Personen zuordnen: je Gesicht höchstens eine Person, jede Person
+/// höchstens einmal je Foto (beste Paare zuerst). Liefert je Gesicht (Person, Ähnlichkeit).
+pub fn assign(faces: &[FaceRec], people: &[Vec<Vec<f32>>], min: f32) -> Vec<(Option<usize>, f32)> {
+    let mut pairs: Vec<(f32, usize, usize)> = Vec::new();
+    for (fi, f) in faces.iter().enumerate() {
+        for (pi, p) in people.iter().enumerate() {
+            let c = person_score(&f.emb, p);
+            if c >= min {
+                pairs.push((c, fi, pi));
+            }
+        }
+    }
+    pairs.sort_by(|a, b| b.0.total_cmp(&a.0));
+    let mut out: Vec<(Option<usize>, f32)> = faces.iter().map(|_| (None, 0.0)).collect();
+    let mut used = vec![false; people.len()];
+    for (c, fi, pi) in pairs {
+        if out[fi].0.is_none() && !used[pi] {
+            out[fi] = (Some(pi), c);
+            used[pi] = true;
+        }
+    }
+    // unbekannte Gesichter: beste (auch schwache) Ähnlichkeit für "Ist das …?"
+    for (fi, f) in faces.iter().enumerate() {
+        if out[fi].0.is_none() {
+            out[fi].1 = people.iter().map(|p| person_score(&f.emb, p)).fold(0.0, f32::max);
+        }
+    }
+    out
+}
+
+/// Unbekannte Gesichter zu Gruppen zusammenfassen (wahrscheinlich dieselbe Person).
+/// `faces`: (Foto, Nummer des Gesichts, Zahlen). Gruppen mit mindestens `min_size` Gesichtern,
+/// größte zuerst.
+pub fn cluster(faces: &[(u64, usize, &[f32])], link: f32, min_size: usize) -> Vec<Vec<usize>> {
+    let mut groups: Vec<(Vec<usize>, Vec<f32>)> = Vec::new();
+    for (i, (_, _, e)) in faces.iter().enumerate() {
+        let mut best: Option<(usize, f32)> = None;
+        for (gi, (_, c)) in groups.iter().enumerate() {
+            let s = cos(e, c);
+            if s >= link && best.map_or(true, |b| s > b.1) {
+                best = Some((gi, s));
+            }
+        }
+        match best {
+            Some((gi, _)) => {
+                let (m, c) = &mut groups[gi];
+                m.push(i);
+                // Mittelpunkt nachführen (bleibt auf Länge 1)
+                for (cv, ev) in c.iter_mut().zip(e.iter()) {
+                    *cv += ev;
+                }
+                let n = c.iter().map(|x| x * x).sum::<f32>().sqrt().max(1e-9);
+                c.iter_mut().for_each(|x| *x /= n);
+            }
+            None => groups.push((vec![i], e.to_vec())),
+        }
+    }
+    // Ein Foto zeigt jede Person nur einmal → je Gruppe nur ein Gesicht pro Foto
+    let mut out: Vec<Vec<usize>> = groups
+        .into_iter()
+        .map(|(m, _)| {
+            let mut seen = std::collections::HashSet::new();
+            m.into_iter().filter(|&i| seen.insert(faces[i].0)).collect::<Vec<_>>()
+        })
+        .filter(|m| m.len() >= min_size)
+        .collect();
+    out.sort_by(|a, b| b.len().cmp(&a.len()));
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn unit(v: &[f32]) -> Vec<f32> {
+        let n = v.iter().map(|x| x * x).sum::<f32>().sqrt();
+        v.iter().map(|x| x / n).collect()
+    }
+    fn rec(v: &[f32]) -> FaceRec {
+        FaceRec { bbox: [0.0; 4], emb: unit(v) }
+    }
+
+    #[test]
+    fn assign_each_person_once() {
+        let a = unit(&[1.0, 0.0, 0.0]);
+        let b = unit(&[0.0, 1.0, 0.0]);
+        // zwei Gesichter, beide eher wie A – nur eines darf A sein
+        let faces = vec![rec(&[1.0, 0.1, 0.0]), rec(&[1.0, 0.4, 0.0]), rec(&[0.0, 0.0, 1.0])];
+        let r = assign(&faces, &[vec![a], vec![b]], 0.42);
+        assert_eq!(r[0].0, Some(0));
+        assert_eq!(r[1].0, None); // B ist zu unähnlich (cos ~0.37)
+        assert_eq!(r[2].0, None);
+    }
+
+    #[test]
+    fn clusters_by_person() {
+        let a1 = unit(&[1.0, 0.05, 0.0]);
+        let a2 = unit(&[1.0, -0.05, 0.02]);
+        let b1 = unit(&[0.0, 1.0, 0.1]);
+        let b2 = unit(&[0.05, 1.0, 0.0]);
+        let x = unit(&[0.0, 0.0, 1.0]);
+        let faces = vec![(1, 0, &a1[..]), (2, 0, &b1[..]), (3, 0, &a2[..]), (4, 0, &b2[..]), (5, 0, &x[..]), (3, 1, &a1[..])];
+        let c = cluster(&faces, 0.5, 2);
+        assert_eq!(c.len(), 2);
+        // Foto 3 zählt in der A-Gruppe nur einmal
+        assert!(c.iter().any(|g| g == &vec![0, 2]));
+        assert!(c.iter().any(|g| g == &vec![1, 3]));
+    }
+}

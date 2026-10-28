@@ -11,7 +11,7 @@ import { tip } from './Tooltip';
 import {
   IconArrowLeft, IconGrid, IconImage, IconUndo, IconEye, IconMaximize, IconMinimize, IconSettings, IconHelp,
   IconMore, IconSliders, IconCheck, IconTrash, IconSearch, IconChart, IconKeyboard, IconInfo, IconFolderOut, IconLayers, IconCopy,
-  IconSparkle, IconChat, IconClose,
+  IconSparkle, IconChat, IconClose, IconUsers,
 } from '../icons';
 import { basename, fmtBytes, fmtDuration, fmtNum, modKey } from '../util';
 
@@ -281,6 +281,12 @@ function SessionHeader() {
             <IconLayers size={16} />
             {t('dupes.show')}
             <span className="k">{s.dupes.size}</span>
+          </button>
+        )}
+        {prefs.aiEnabled && prefs.aiFaces && (
+          <button className="mi" onClick={() => openDialog({ type: 'people' })} data-testid="menu-people">
+            <IconUsers size={16} />
+            {t('people.title')}
           </button>
         )}
         <button className="mi" onClick={() => openDialog({ type: 'trash' })}>

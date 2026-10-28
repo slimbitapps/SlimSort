@@ -6,6 +6,7 @@ import {
 import { EmptyView } from './ui';
 import { beginDrag } from '../dnd';
 import { InfoPanel } from './InfoPanel';
+import { FaceOverlay } from './FaceOverlay';
 import { browserCanShow, displayUrl, fullUrl, mediaUrl, fmtBytes, fmtDate, fmtNum, itemTime, clamp, previewSize } from '../util';
 import { IconChevronLeft, IconChevronRight, IconFolderOut, IconLive, IconMaximize, IconLayers } from '../icons';
 import { tip } from './Tooltip';
@@ -324,6 +325,7 @@ export function SingleView({ s }: { s: SessionState }) {
               else setError(true);
             }}
           />
+          {nat && !fadeHold && !error && !livePlaying && <FaceOverlay it={it} style={rect} />}
           {livePlaying && it.live && nat && (
             <video
               className="media"

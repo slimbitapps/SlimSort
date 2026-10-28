@@ -107,6 +107,8 @@ export interface Prefs {
   preselectBest: boolean;
   /** Info-Anzeige (Kamera, Belichtung …) in der Einzelansicht */
   showInfo: boolean;
+  /** Gesichter mit Namen im Foto zeigen (wenn Gesichtserkennung an) */
+  showFaces: boolean;
   /** v2: Dateinamen beim Einsortieren */
   renameMode: RenameMode;
   /** v2: Aussehen */
@@ -149,8 +151,8 @@ export interface Prefs {
 /** Etwas, das sich die KI auf Wunsch merkt */
 export interface AiMemory {
   id: string;
-  /** concept: "Fotos mit Autos → Ordner"; faces: Personengruppe; note: freie Notiz */
-  kind: 'concept' | 'faces' | 'note';
+  /** concept: "Fotos mit Autos → Ordner"; people: Personen/Gruppe → Ordner; faces: alte Gruppenform; note: freie Notiz */
+  kind: 'concept' | 'people' | 'faces' | 'note';
   /** so wie der Nutzer es gesagt hat */
   text: string;
   /** concept: wonach gesucht wird (z. B. "Autos") */
@@ -162,7 +164,40 @@ export interface AiMemory {
   /** faces: Name der Gruppe ("Familie") und die Gesichter (je 128 Zahlen) */
   label?: string;
   faces?: number[][];
+  /** people: diese Personen (ids) oder alle einer Gruppe ("Familie") */
+  personIds?: string[];
+  group?: string;
   created: number;
+}
+
+/** Eine Person, deren Gesicht die KI kennt */
+export interface Person {
+  id: string;
+  /** "Mama", "Lukas", "Ich" */
+  name: string;
+  /** das bin ich (für "ich", "mir", "mich") */
+  me?: boolean;
+  /** Gruppen ("Familie", "Freunde") */
+  groups?: string[];
+  /** Gesichts-Beispiele (je 128 Zahlen); mehr Beispiele = sicherer */
+  embs: number[][];
+  /** Gesichter, die ausdrücklich NICHT diese Person sind (Korrekturen) */
+  not?: number[][];
+  /** kleines Bild des Gesichts (data:-Adresse) */
+  crop?: string;
+  created: number;
+  updated: number;
+}
+
+/** Gesichter auf einem Foto; Kasten relativ zur Bildgröße (x, y, Breite, Höhe) */
+export interface PhotoFaces {
+  id: number;
+  faces: { box: [number, number, number, number]; person: number | null; p: number; emb?: number[] }[];
+}
+
+export interface FaceCluster {
+  members: { id: number; face: number; box: [number, number, number, number] }[];
+  samples: number[][];
 }
 
 export interface SettingsData {
@@ -177,6 +212,8 @@ export interface SettingsData {
   lastUpdateCheck?: number;
   /** KI: was sie sich merken soll */
   aiMemory?: AiMemory[];
+  /** KI: Personen, deren Gesichter sie kennt */
+  people?: Person[];
 }
 
 export interface OpResult {
@@ -277,6 +314,8 @@ export interface Api {
   openExternal(url: string): Promise<void>;
   clearCache(): Promise<void>;
   photoInfo(path: string): Promise<PhotoInfo>;
+  storeGet(name: 'chats'): Promise<any>;
+  storeSet(name: 'chats', data: unknown): Promise<void>;
   ai: {
     status(): Promise<AiStatus>;
     config(enabled: boolean, perf: string, tier: string, faces: boolean): Promise<void>;
@@ -284,6 +323,12 @@ export interface Api {
     faceMatches(groups: number[][][], ids: number[], min?: number): Promise<{ id: number; rule: number; p: number }[]>;
     faceEmbs(ids: number[]): Promise<number[][]>;
     faceCount(id: number): Promise<number | null>;
+    peopleOn(ids: number[], people: number[][][], min?: number, emb?: boolean): Promise<PhotoFaces[]>;
+    faceClusters(ids: number[], people: number[][][], minSize?: number): Promise<FaceCluster[]>;
+    faceCrop(path: string, box: [number, number, number, number], size?: number): Promise<string | null>;
+    exportFile(data: unknown, name: string): Promise<string | null>;
+    importFile(): Promise<any | null>;
+    importLearned(data: unknown, remap: Record<string, string>): Promise<number>;
     chat(id: number, req: LlmRequest): Promise<{ text: string; tokens: number; ms: number; cancelled?: boolean }>;
     chatCancel(id: number): Promise<void>;
     chatWarm(): Promise<boolean>;

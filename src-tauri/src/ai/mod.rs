@@ -64,6 +64,10 @@ const DIM: usize = 512;
 const MAX_EXAMPLES: usize = 400;
 /// Beispielfotos, die aus einem bestehenden Zielordner gelernt werden
 const FOLDER_SAMPLES: usize = 40;
+/// Gesichter je Foto (Kästen relativ zur Bildgröße, von links nach rechts)
+const FACE_FILE: &str = "gesichter-2.bin";
+/// Ab dieser Ähnlichkeit gilt ein Gesicht als die gemerkte Person
+pub const FACE_SAME: f32 = 0.42;
 /// Modell nach so langer Pause wieder aus dem Speicher werfen
 const UNLOAD_AFTER: Duration = Duration::from_secs(120);
 
@@ -324,6 +328,66 @@ pub struct Hit {
 }
 
 #[derive(Serialize)]
+pub struct FaceInfo {
+    #[serde(rename = "box")]
+    pub bbox: [f32; 4],
+    /// Nummer der gemerkten Person (None = unbekannt)
+    pub person: Option<usize>,
+    /// Ähnlichkeit (bei Unbekannten: zur ähnlichsten Person)
+    pub p: f32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub emb: Option<Vec<f32>>,
+}
+
+#[derive(Serialize)]
+pub struct PhotoFaces {
+    pub id: u64,
+    pub faces: Vec<FaceInfo>,
+}
+
+#[derive(Serialize)]
+pub struct ClusterFace {
+    pub id: u64,
+    pub face: usize,
+    #[serde(rename = "box")]
+    pub bbox: [f32; 4],
+}
+
+#[derive(Serialize)]
+pub struct FaceCluster {
+    pub members: Vec<ClusterFace>,
+    pub samples: Vec<Vec<f32>>,
+}
+
+const B64: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+pub fn b64(data: &[u8]) -> String {
+    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
+    for c in data.chunks(3) {
+        let n = (c[0] as u32) << 16 | (*c.get(1).unwrap_or(&0) as u32) << 8 | *c.get(2).unwrap_or(&0) as u32;
+        for i in 0..4 {
+            out.push(if i <= c.len() { B64[(n >> (18 - 6 * i) & 63) as usize] as char } else { '=' });
+        }
+    }
+    out
+}
+
+pub fn unb64(s: &str) -> Option<Vec<u8>> {
+    let mut out = Vec::with_capacity(s.len() / 4 * 3);
+    let (mut acc, mut bits) = (0u32, 0);
+    for ch in s.bytes().filter(|&b| b != b'=') {
+        acc = acc << 6 | B64.iter().position(|&x| x == ch)? as u32;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((acc >> bits) as u8);
+            acc &= (1 << bits) - 1;
+        }
+    }
+    Some(out)
+}
+
+#[derive(Serialize)]
 pub struct RuleHit {
     pub id: u64,
     pub rule: usize,
@@ -516,14 +580,16 @@ impl Ai {
         let wanted = faces_on;
         let faces_on = enabled && faces_on;
         if faces_on && g.fstore.is_none() {
-            g.fstore = Some(faces::FaceStore::load(self.dir.join("gesichter.bin")));
+            // ältere Fassung (Kästen in Pixeln) ist nicht mehr brauchbar
+            let _ = fs::remove_file(self.dir.join("gesichter.bin"));
+            g.fstore = Some(faces::FaceStore::load(self.dir.join(FACE_FILE)));
         } else if !faces_on {
             g.fstore = None;
             self.fproc.stop();
             // Gesichtserkennung ausgeschaltet → gespeicherte Gesichter löschen (Datenschutz).
             // Ist nur die ganze KI aus, bleiben sie für das Wiedereinschalten.
             if !wanted {
-                let _ = fs::remove_file(self.dir.join("gesichter.bin"));
+                let _ = fs::remove_file(self.dir.join(FACE_FILE));
             }
         }
         let faces_changed = g.faces_on != faces_on;
@@ -677,11 +743,19 @@ impl Ai {
     fn faces_of_file(&self, path: &Path) -> Option<Vec<faces::FaceRec>> {
         let ext = path.extension().map(|e| format!(".{}", e.to_string_lossy().to_lowercase())).unwrap_or_default();
         let jpg = thumbs::render(path, &ext, 1280, 88)?;
+        let (w, h) = image::ImageReader::new(std::io::Cursor::new(&jpg)).with_guessed_format().ok()?.into_dimensions().ok()?;
         let tmp = self.dir.join(format!("gesicht-{:?}.jpg", std::thread::current().id()).replace(['(', ')', ' '], ""));
         fs::write(&tmp, jpg).ok()?;
         let r = self.fproc.detect(&self.helper_path(), &self.dir, &tmp);
         let _ = fs::remove_file(&tmp);
-        r.ok()
+        // Kästen relativ zur Bildgröße (passt so auf jede Anzeigegröße), von links nach rechts
+        let (w, h) = (w.max(1) as f32, h.max(1) as f32);
+        let mut faces = r.ok()?;
+        for f in &mut faces {
+            f.bbox = [f.bbox[0] / w, f.bbox[1] / h, f.bbox[2] / w, f.bbox[3] / h];
+        }
+        faces.sort_by(|a, b| a.bbox[0].total_cmp(&b.bbox[0]));
+        Some(faces)
     }
 
     /// Alle Gesichter (je 128 Zahlen) auf diesen Fotos – zum Merken ("das ist meine Familie")
@@ -695,6 +769,136 @@ impl Ai {
     pub fn face_count(&self, id: u64) -> Option<usize> {
         let g = self.inner.lock().unwrap();
         g.ids.get(&id).and_then(|k| g.fstore.as_ref()?.map.get(k)).map(Vec::len)
+    }
+
+    /// Gesichter auf Fotos mit der Person, die es ist (gemerkte Personen, je Person einige Beispiele).
+    /// Fotos, die noch nicht untersucht sind, fehlen in der Antwort.
+    pub fn people_on(&self, ids: &[u64], people: &[Vec<Vec<f32>>], min: f32, with_emb: bool) -> Vec<PhotoFaces> {
+        let g = self.inner.lock().unwrap();
+        let Some(fs_) = &g.fstore else { return vec![] };
+        ids.iter()
+            .filter_map(|&id| {
+                let faces = g.ids.get(&id).and_then(|k| fs_.map.get(k))?;
+                let who = faces::assign(faces, people, min);
+                Some(PhotoFaces {
+                    id,
+                    faces: faces
+                        .iter()
+                        .zip(who)
+                        .map(|(f, (person, p))| FaceInfo { bbox: f.bbox, person, p, emb: with_emb.then(|| f.emb.clone()) })
+                        .collect(),
+                })
+            })
+            .collect()
+    }
+
+    /// Unbekannte Gesichter, die mehrfach vorkommen, zu Gruppen zusammenfassen ("Wer ist das?")
+    pub fn face_clusters(&self, ids: &[u64], people: &[Vec<Vec<f32>>], min_size: usize) -> Vec<FaceCluster> {
+        let g = self.inner.lock().unwrap();
+        let Some(fs_) = &g.fstore else { return vec![] };
+        let mut all: Vec<(u64, usize, &[f32])> = Vec::new();
+        let mut boxes: Vec<[f32; 4]> = Vec::new();
+        for &id in ids {
+            let Some(faces) = g.ids.get(&id).and_then(|k| fs_.map.get(k)) else { continue };
+            let who = faces::assign(faces, people, FACE_SAME);
+            for (i, (f, w)) in faces.iter().zip(who).enumerate() {
+                // sehr kleine Gesichter (Hintergrund) nicht abfragen
+                if w.0.is_none() && f.bbox[2] >= 0.02 {
+                    all.push((id, i, &f.emb));
+                    boxes.push(f.bbox);
+                }
+            }
+        }
+        faces::cluster(&all, 0.5, min_size)
+            .into_iter()
+            .take(30)
+            .map(|m| FaceCluster {
+                samples: m.iter().take(12).map(|&i| all[i].2.to_vec()).collect(),
+                members: m.iter().map(|&i| ClusterFace { id: all[i].0, face: all[i].1, bbox: boxes[i] }).collect(),
+            })
+            .collect()
+    }
+
+    /// Ausschnitt eines Gesichts als kleines Bild (für Listen und zum Benennen)
+    pub fn face_crop(&self, path: &Path, bbox: [f32; 4], size: u32) -> Option<String> {
+        let ext = path.extension().map(|e| format!(".{}", e.to_string_lossy().to_lowercase())).unwrap_or_default();
+        let key = thumbs::Cache::key(path, &format!("face-{:.3}-{:.3}-{size}", bbox[0], bbox[1]));
+        let cached = key.as_ref().and_then(|k| fs::read(self.cache.thumb_path(k)).ok());
+        let jpg = match cached {
+            Some(b) => b,
+            None => {
+                let img = image::load_from_memory(&thumbs::render(path, &ext, 1280, 90)?).ok()?;
+                let (w, h) = (img.width() as f32, img.height() as f32);
+                // Quadrat um das Gesicht mit etwas Rand
+                let side = (bbox[2] * w).max(bbox[3] * h) * 1.5;
+                let cx = (bbox[0] + bbox[2] / 2.0) * w;
+                let cy = (bbox[1] + bbox[3] / 2.0) * h;
+                let x = (cx - side / 2.0).clamp(0.0, (w - 1.0).max(0.0));
+                let y = (cy - side / 2.0).clamp(0.0, (h - 1.0).max(0.0));
+                let sw = side.min(w - x).max(1.0);
+                let sh = side.min(h - y).max(1.0);
+                let crop = img.crop_imm(x as u32, y as u32, sw as u32, sh as u32).resize_to_fill(size, size, image::imageops::FilterType::Triangle);
+                let mut out = Vec::new();
+                image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 85).encode_image(&crop.to_rgb8()).ok()?;
+                if let Some(k) = &key {
+                    self.cache.store_thumb(k, &out);
+                }
+                out
+            }
+        };
+        Some(format!("data:image/jpeg;base64,{}", b64(&jpg)))
+    }
+
+    /// Gelernte Beispiele zum Mitnehmen auf einen anderen Computer (mit ihren Fingerabdrücken)
+    pub fn export_learned(&self) -> Value {
+        let g = self.inner.lock().unwrap();
+        let Some(store) = &g.store else { return Value::Null };
+        let ex: Vec<Value> = g
+            .learned
+            .examples
+            .iter()
+            .filter_map(|e| {
+                let mut k = [0u8; 20];
+                hex::decode_to_slice(&e.k, &mut k).ok()?;
+                let emb = store.map.get(&k)?;
+                Some(json!({ "t": e.t, "k": e.k, "f": e.f, "s": emb.s, "q": b64(&emb.q.iter().map(|&x| x as u8).collect::<Vec<_>>()) }))
+            })
+            .collect();
+        json!({ "tier": g.tier.id, "dim": g.tier.dim, "examples": ex })
+    }
+
+    /// Gelernte Beispiele übernehmen; `remap`: alter Ordnerpfad → neuer (anderer Computer)
+    pub fn import_learned(&self, data: &Value, remap: &HashMap<String, String>) -> usize {
+        let mut g = self.inner.lock().unwrap();
+        if data["tier"].as_str() != Some(g.tier.id) {
+            return 0;
+        }
+        let dim = g.tier.dim;
+        let Some(ex) = data["examples"].as_array() else { return 0 };
+        let have: HashSet<(String, String)> = g.learned.examples.iter().map(|e| (e.t.clone(), e.k.clone())).collect();
+        let mut n = 0;
+        for e in ex {
+            let (Some(t), Some(k), Some(q), Some(sc)) = (e["t"].as_str(), e["k"].as_str(), e["q"].as_str(), e["s"].as_f64()) else { continue };
+            let t = remap.get(t).cloned().unwrap_or_else(|| t.to_string());
+            let Some(bytes) = unb64(q).filter(|b| b.len() == dim) else { continue };
+            let mut key = [0u8; 20];
+            if hex::decode_to_slice(k, &mut key).is_err() || have.contains(&(t.clone(), k.to_string())) {
+                continue;
+            }
+            if let Some(st) = g.store.as_mut() {
+                if !st.map.contains_key(&key) {
+                    st.put(key, Emb { q: bytes.iter().map(|&b| b as i8).collect(), s: sc as f32 });
+                }
+            }
+            g.learned.examples.push(Example { t, k: k.to_string(), f: e["f"].as_bool().unwrap_or(false) });
+            n += 1;
+        }
+        let l = std::mem::take(&mut g.learned);
+        self.save_learned(&l);
+        g.learned = l;
+        drop(g);
+        self.push_status();
+        n
     }
 
     /// Fotos mit Gesichtern einer gemerkten Gruppe: je Foto die beste Gruppe (cos ≥ min)
@@ -1509,6 +1713,16 @@ fn sample_images(dir: &Path, n: usize) -> Vec<PathBuf> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn base64_roundtrip() {
+        for v in [&b""[..], b"a", b"ab", b"abc", b"hello world!", &[0u8, 255, 128, 7][..]] {
+            let e = super::b64(v);
+            assert_eq!(super::unb64(&e).unwrap(), v);
+        }
+        assert_eq!(super::b64(b"Man"), "TWFu");
+        assert_eq!(super::b64(b"Ma"), "TWE=");
+    }
+
     use super::*;
 
     /// Vergleicht mit den Werten von PyTorch (Datei aus dem Release, nur wenn vorhanden):

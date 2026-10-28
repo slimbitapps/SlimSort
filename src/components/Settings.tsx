@@ -11,8 +11,11 @@ import { Help, KeyCap, Logo, Switch, MenuPopup, useMenu } from './ui';
 import {
   IconGlobe, IconSliders, IconTrash, IconImage, IconLayers, IconSettings, IconHelp, IconInfo, IconClose, IconCheck,
   IconLock, IconRefresh, IconPlus, IconMore, IconLayers as IconStack, IconSparkle,
+  IconDownload, IconUpload,
 } from '../icons';
 import { useAi, applyAiPrefs, startDownload, currentTier, refreshRules } from '../ai';
+import { exportKnowledge, importKnowledge } from '../knowledge';
+import { useChats, deleteAllChats } from '../chats';
 import { grant, PERMISSION_TEXT, describeMemory, removeMemory, clearMemories, type Permission } from '../aimemory';
 import type { AiTier } from '../types';
 import { actionKeyOf, keyLabel, modKey, uid } from '../util';
@@ -722,6 +725,7 @@ function AiTab() {
           <PermGroup />
           <FacesGroup set={set} />
           <MemoryGroup />
+          <KnowledgeGroup />
           <Group label={t('ai.groupPerf')}>
             <Row label={t('ai.perf')} desc={t('ai.perfDesc')}>
               <Seg
@@ -815,6 +819,7 @@ function FacesGroup({ set }: { set: (x: Partial<Prefs>) => Promise<void> }) {
     }
   };
   const desc = p.aiFaces && st?.facesReady ? `${t('faces.desc')} ${t('faces.status', { n: st.faceTotal ?? 0 })}.` : t('faces.desc');
+  const n = useStore((s) => (s.settings.people || []).length);
   return (
     <Group>
       <Row label={t('faces.title')} desc={desc}>
@@ -822,6 +827,18 @@ function FacesGroup({ set }: { set: (x: Partial<Prefs>) => Promise<void> }) {
           <Switch on={p.aiFaces} onChange={toggle} />
         </span>
       </Row>
+      {p.aiFaces && (
+        <>
+          <Row label={t('faces.show')} desc={t('faces.showDesc')}>
+            <Switch on={p.showFaces} onChange={(v) => updatePrefs({ showFaces: v })} />
+          </Row>
+          <Row label={t('people.title')} desc={t('people.count', { n })}>
+            <button className="btn" onClick={() => openDialog({ type: 'people' })} data-testid="people-open">
+              {t('people.manage')}
+            </button>
+          </Row>
+        </>
+      )}
     </Group>
   );
 }
@@ -852,6 +869,39 @@ function MemoryGroup() {
             {t('mem.clearAll')}
           </button>
         )}
+      </Row>
+    </Group>
+  );
+}
+
+/** KI-Wissen sichern / auf einen neuen Computer mitnehmen, Chats */
+function KnowledgeGroup() {
+  const chats = useChats((c) => c.list.length);
+  return (
+    <Group label={t('know.title')}>
+      <Row label={t('know.export')} desc={t('know.exportDesc')}>
+        <button className="btn" onClick={exportKnowledge} data-testid="know-export">
+          <IconDownload size={15} />
+          {t('know.exportBtn')}
+        </button>
+      </Row>
+      <Row label={t('know.import')} desc={t('know.importDesc')}>
+        <button className="btn" onClick={importKnowledge} data-testid="know-import">
+          <IconUpload size={15} />
+          {t('know.importBtn')}
+        </button>
+      </Row>
+      <Row label={t('chat.saved')} desc={t('chat.savedDesc', { n: chats })}>
+        <button
+          className="btn"
+          disabled={!chats}
+          onClick={async () => {
+            const r = await window.api.confirm({ message: t('chat.deleteAllAsk', { n: chats }), buttons: [t('chat.deleteAll'), t('common.cancel')], type: 'warning' });
+            if (r === 0) deleteAllChats();
+          }}
+        >
+          {t('chat.deleteAll')}
+        </button>
       </Row>
     </Group>
   );

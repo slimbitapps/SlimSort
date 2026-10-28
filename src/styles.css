@@ -2952,6 +2952,7 @@ h3 {
 
 /* Chat-Leiste */
 .chat {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -3340,4 +3341,221 @@ h3 {
   .ai-tiers {
     grid-template-columns: 1fr;
   }
+}
+
+/* ---------------------------------------------------------------- Gesichter im Foto */
+.face-layer {
+  position: absolute;
+  pointer-events: none;
+}
+.face-box {
+  position: absolute;
+  pointer-events: auto;
+  padding: 0;
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+/* bekannte Gesichter: nur das Namensschild, Rahmen erst beim Zeigen mit der Maus */
+.face-box.known {
+  border-color: transparent;
+  box-shadow: none;
+}
+.single:hover .face-box.known {
+  border-color: rgba(255, 255, 255, 0.45);
+}
+.face-box.unknown {
+  border-style: dashed;
+}
+.face-box:hover {
+  border-color: var(--accent);
+  opacity: 1;
+}
+.face-tag {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 5px);
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(10, 12, 18, 0.72);
+  backdrop-filter: blur(6px);
+}
+.face-box.known .face-tag {
+  background: color-mix(in srgb, var(--accent) 85%, black);
+}
+.face-box.maybe .face-tag {
+  background: rgba(10, 12, 18, 0.72);
+  font-style: italic;
+}
+.face-pop {
+  position: fixed;
+  z-index: 300;
+  width: 290px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg, 0 12px 40px rgba(0, 0, 0, 0.35));
+}
+.face-pop-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.face-pop .input {
+  flex: 1;
+  min-width: 0;
+}
+.face-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.chip.primary {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Gesichter in Chat und Personen-Liste */
+.msg-faces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.msg-face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  font-size: 11.5px;
+  max-width: 72px;
+  text-align: center;
+}
+.face-img {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--surface-2, rgba(127, 127, 127, 0.15));
+  flex: none;
+}
+.face-img.lg {
+  width: 72px;
+  height: 72px;
+}
+.face-initial {
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.people-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 10px;
+}
+.person-card {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.person-card .grow {
+  min-width: 0;
+}
+.person-card .input {
+  width: 100%;
+}
+.person-card .meta {
+  font-size: 12px;
+  color: var(--text-2, var(--muted));
+  margin: 4px 0 6px;
+}
+.person-card .acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.person-card select.input {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.cluster-faces {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.cluster-faces .face-img {
+  width: 44px;
+  height: 44px;
+}
+
+/* Chat: Verlauf und Vorschläge */
+.chat-history {
+  position: absolute;
+  inset: 56px 0 0 0;
+  z-index: 5;
+  overflow: auto;
+  padding: 10px;
+  background: var(--bg-elev);
+  border-top: 1px solid var(--line);
+}
+.chat-history-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.chat-history-item:hover,
+.chat-history-item.on {
+  background: var(--accent-soft);
+}
+.chat-history-item .grow {
+  min-width: 0;
+}
+.chat-history-item .ttl {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+.chat-history-item .when {
+  font-size: 11.5px;
+  color: var(--text-2, var(--muted));
+}
+.chat-suggest {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 6px 12px 0;
+  scrollbar-width: none;
+}
+.chat-suggest .chip {
+  flex: none;
+  height: 26px;
+  font-size: 12.5px;
 }

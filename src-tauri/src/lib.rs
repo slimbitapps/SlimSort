@@ -134,6 +134,114 @@ async fn ai_face_matches(st: State<'_, AppState>, groups: Vec<Vec<Vec<f32>>>, id
     blocking(move || a.face_matches(&groups, &ids, min.unwrap_or(0.42))).await
 }
 
+/// Gesichter auf Fotos und wer es ist (`people`: je gemerkter Person einige Beispiele)
+#[tauri::command]
+async fn ai_people_on(st: State<'_, AppState>, ids: Vec<u64>, people: Vec<Vec<Vec<f32>>>, min: Option<f32>, emb: Option<bool>) -> Res<Vec<ai::PhotoFaces>> {
+    let a = st.ai.clone();
+    blocking(move || a.people_on(&ids, &people, min.unwrap_or(ai::FACE_SAME), emb.unwrap_or(false))).await
+}
+
+/// Unbekannte Personen, die öfter vorkommen ("Wer ist das?")
+#[tauri::command]
+async fn ai_face_clusters(st: State<'_, AppState>, ids: Vec<u64>, people: Vec<Vec<Vec<f32>>>, min_size: Option<usize>) -> Res<Vec<ai::FaceCluster>> {
+    let a = st.ai.clone();
+    blocking(move || a.face_clusters(&ids, &people, min_size.unwrap_or(2))).await
+}
+
+/// Gesicht als kleines Bild (data:-Adresse)
+#[tauri::command]
+async fn ai_face_crop(st: State<'_, AppState>, path: String, bbox: [f32; 4], size: Option<u32>) -> Res<Option<String>> {
+    let a = st.ai.clone();
+    blocking(move || a.face_crop(Path::new(&path), bbox, size.unwrap_or(96))).await
+}
+
+/// KI-Wissen in eine Datei sichern (Gedächtnis, Personen, Chats + gelernte Beispiele)
+#[tauri::command]
+async fn ai_export_file(app: AppHandle, st: State<'_, AppState>, data: Value, name: String) -> Res<Option<String>> {
+    let path = if let (true, Ok(p)) = (is_test(), std::env::var("FOTOSORT_SAVE")) {
+        Some(PathBuf::from(p))
+    } else {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let mut d = app.dialog().file().set_file_name(&name).add_filter("SlimSort KI", &["slimsort-ki"]);
+        if let Some(w) = app.get_webview_window("main") {
+            d = d.set_parent(&w);
+        }
+        if let Some(home) = dirs::document_dir().or_else(dirs::home_dir) {
+            d = d.set_directory(home);
+        }
+        d.save_file(move |r| {
+            let _ = tx.send(r.and_then(|p| p.into_path().ok()));
+        });
+        rx.await.unwrap_or(None)
+    };
+    let Some(path) = path else { return Ok(None) };
+    let a = st.ai.clone();
+    let mut data = data;
+    let learned = blocking(move || a.export_learned()).await?;
+    data["learned"] = learned;
+    let text = serde_json::to_string(&data).map_err(|e| e.to_string())?;
+    fs::write(&path, text).map_err(|e| e.to_string())?;
+    Ok(Some(path.to_string_lossy().into_owned()))
+}
+
+/// KI-Wissen aus einer Datei lesen (Übernehmen macht die Oberfläche)
+#[tauri::command]
+async fn ai_import_file(app: AppHandle) -> Res<Option<Value>> {
+    let path = if let (true, Ok(p)) = (is_test(), std::env::var("FOTOSORT_OPEN")) {
+        Some(PathBuf::from(p))
+    } else {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let mut d = app.dialog().file().add_filter("SlimSort KI", &["slimsort-ki", "json"]);
+        if let Some(w) = app.get_webview_window("main") {
+            d = d.set_parent(&w);
+        }
+        d.pick_file(move |r| {
+            let _ = tx.send(r.and_then(|p| p.into_path().ok()));
+        });
+        rx.await.unwrap_or(None)
+    };
+    let Some(path) = path else { return Ok(None) };
+    let text = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let v: Value = serde_json::from_str(&text).map_err(|_| "Keine gültige SlimSort-KI-Datei".to_string())?;
+    if v.get("slimsortKi").is_none() {
+        return Err("Keine gültige SlimSort-KI-Datei".into());
+    }
+    Ok(Some(v))
+}
+
+/// Gelernte Beispiele aus einer gesicherten Datei übernehmen
+#[tauri::command]
+async fn ai_import_learned(st: State<'_, AppState>, data: Value, remap: std::collections::HashMap<String, String>) -> Res<usize> {
+    let a = st.ai.clone();
+    blocking(move || a.import_learned(&data, &remap)).await
+}
+
+/// Kleine Datenablagen neben den Einstellungen (z. B. gespeicherte Chats)
+fn store_file(st: &AppState, name: &str) -> Res<PathBuf> {
+    match name {
+        "chats" => Ok(st.user_data.join("chats.json")),
+        _ => Err("unbekannte Ablage".into()),
+    }
+}
+
+#[tauri::command]
+fn store_get(st: State<AppState>, name: String) -> Res<Value> {
+    let p = store_file(&st, &name)?;
+    Ok(fs::read_to_string(p).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null))
+}
+
+#[tauri::command]
+async fn store_set(st: State<'_, AppState>, name: String, data: Value) -> Res<()> {
+    let p = store_file(&st, &name)?;
+    blocking(move || {
+        let tmp = p.with_extension("json.tmp");
+        if fs::write(&tmp, data.to_string()).is_ok() {
+            let _ = fs::rename(&tmp, &p);
+        }
+    })
+    .await
+}
+
 /// Sprachmodell antworten lassen (Wörter kommen nebenbei als "llm:token")
 #[tauri::command]
 async fn ai_chat(st: State<'_, AppState>, id: u64, req: Value) -> Res<Value> {
@@ -812,6 +920,14 @@ pub fn run() {
             ai_face_embs,
             ai_face_count,
             ai_face_matches,
+            ai_people_on,
+            ai_face_clusters,
+            ai_face_crop,
+            ai_export_file,
+            ai_import_file,
+            ai_import_learned,
+            store_get,
+            store_set,
             ai_tags,
             ai_chat_warm,
             ai_download,

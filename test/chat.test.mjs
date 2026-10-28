@@ -98,3 +98,33 @@ test('Einstellungen und Ordner per Chat', async () => {
   assert.deepEqual(parse('Lege einen Ordner namens Urlaub 2025 an'), { kind: 'mkfolder', name: 'Urlaub 2025' });
   assert.equal(parse('verschiebe sie nach Urlaub').kind, 'move');
 });
+
+test('Personen benennen: Positionen und Namen', async () => {
+  const { parseNaming, resolveNaming } = await import('../src/chat.ts');
+  // genau der Satz aus der Praxis (ohne Komma zwischen den ersten beiden Teilen)
+  const a = parse('merke dir diese Personen, ich bin ganz links mein Bruder ist daneben und meine Mutter ist ganz rechts');
+  assert.equal(a.kind, 'name');
+  assert.deepEqual(resolveNaming(a.items, 3), ['ich', 'mein Bruder', 'meine Mutter']);
+  assert.deepEqual(resolveNaming(a.items, 4), ['ich', 'mein Bruder', null, 'meine Mutter']);
+  assert.deepEqual(resolveNaming(parseNaming('Ich bin links, in der Mitte ist mein Bruder und rechts meine Mutter'), 3), ['Ich', 'mein Bruder', 'meine Mutter']);
+  assert.deepEqual(resolveNaming(parseNaming('von links nach rechts: Lisa, Tom und Max'), 3), ['Lisa', 'Tom', 'Max']);
+  assert.deepEqual(resolveNaming(parseNaming('ganz rechts steht mein Opa, links daneben meine Oma'), 2), ['meine Oma', 'mein Opa']);
+  assert.deepEqual(resolveNaming(parseNaming('die zweite von links ist Anna'), 3), [null, 'Anna', null]);
+  assert.deepEqual(resolveNaming(parseNaming('Das bin ich'), 1), ['ich']);
+  assert.equal(resolveNaming(parseNaming('Das bin ich'), 2), null, 'bei zwei Gesichtern unklar');
+  assert.equal(resolveNaming(parseNaming('Links ist Mama und rechts bin ich'), 1), null, 'zwei Namen, ein Gesicht');
+  assert.equal(parse('Das ist schön').kind, 'search');
+  assert.equal(parse('Das ist ein Hund').kind, 'search');
+  assert.notEqual(parse('Lösche das Foto links').kind, 'name');
+  assert.equal(parse('Hund am Strand').kind, 'search');
+});
+
+test('Personen: wer ist das, unbekannte, verwalten', () => {
+  assert.equal(parse('Erkennst du die Personen wieder?').kind, 'whois');
+  assert.equal(parse('Wer ist auf diesem Foto?').kind, 'whois');
+  assert.equal(parse('Wer ist links?').kind, 'whois');
+  assert.equal(parse('Welche Personen kennst du?').kind, 'people');
+  assert.equal(parse('Wer sind die unbekannten Personen?').kind, 'unknownFaces');
+  const r = parse('Fotos mit meinem Bruder kommen in den Ordner Lukas');
+  assert.deepEqual([r.kind, r.concept, r.folder], ['remember', 'meinem Bruder', 'Lukas']);
+});

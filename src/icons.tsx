@@ -79,3 +79,10 @@ export const IconSend = base(<><path d="M5 12h13" /><path d="m13 6 6 6-6 6" /></
 /** Sprechblase mit Funkeln (KI-Assistent) */
 export const IconChat = base(<><path d="M20.5 11.5a8 8 0 0 1-11.3 7.3L4 20l1.3-4.4A8 8 0 1 1 20.5 11.5z" /><path d="M12.5 7.5l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9z" fill="currentColor" strokeWidth={1.2} /></>);
 export const IconStop = base(<rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor" />);
+export const IconUsers = base(<><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0" /><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.2a6.5 6.5 0 0 1 3.5 5.8" /></>);
+export const IconFace = base(<><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" /><circle cx="12" cy="11" r="3.2" /><path d="M7.5 18a5 5 0 0 1 9 0" /></>);
+export const IconHistory = base(<><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></>);
+export const IconPlusChat = base(<><path d="M20 12a8 8 0 0 1-11.8 7L4 20l1-4.2A8 8 0 1 1 20 12z" /><path d="M12 8.5v7M8.5 12h7" /></>);
+export const IconDownload = base(<><path d="M12 4v11M7 10l5 5 5-5" /><path d="M5 20h14" /></>);
+export const IconUpload = base(<><path d="M12 20V9M7 14l5-5 5 5" /><path d="M5 4h14" /></>);
+export const IconBrain = base(<><path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 3 3h0a2 2 0 0 0 3-1V5a2 2 0 0 0-3-1z" /><path d="M15 4a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-3 3h0a2 2 0 0 1-3-1" /></>);

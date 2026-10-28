@@ -11,6 +11,7 @@
 import { useStore, activeProfile, updatePrefs, updateSettings, prefs } from './store';
 import { t, type TKey } from './i18n';
 import type { AiMemory, Prefs } from './types';
+import { people, facesOn, displayName, groupMembers } from './people';
 
 const api = () => window.api;
 
@@ -60,6 +61,10 @@ export function targetName(m: AiMemory): string | undefined {
 export function describeMemory(m: AiMemory): string {
   const folder = targetName(m);
   if (m.kind === 'concept') return t('mem.concept', { what: m.concept || m.text, folder: folder || '?' });
+  if (m.kind === 'people') {
+    const who = m.group || (m.personIds || []).map((id) => people().find((p) => p.id === id)).filter(Boolean).map((p) => displayName(p!)).join(', ');
+    return t('mem.people', { who: who || '?', folder: folder || '?' });
+  }
   if (m.kind === 'faces')
     return folder ? t('mem.facesFolder', { label: m.label || '?', n: m.faces?.length || 0, folder }) : t('mem.faces', { label: m.label || '?', n: m.faces?.length || 0 });
   return m.text;
@@ -85,6 +90,20 @@ export async function ruleTargets(ids: number[]): Promise<Map<number, { path: st
   if (concepts.length) {
     const hits = await api().ai.rules(concepts.map((m) => m.query || m.concept || m.text), ids, 0.5).catch(() => []);
     for (const h of hits) out.set(h.id, { path: concepts[h.rule].targetPath!, conf: Math.min(0.99, 0.85 + h.p * 0.14), memory: concepts[h.rule] });
+  }
+  const personRules = memories().filter((m) => m.kind === 'people' && m.targetPath && targets.has(m.targetPath));
+  if (personRules.length && prefs().aiFaces) {
+    const faces = await facesOn(ids).catch(() => new Map());
+    for (const [id, f] of faces) {
+      const on = new Set(f.map((x: { person?: { id: string } }) => x.person?.id).filter(Boolean));
+      for (const m of personRules) {
+        const want = m.group ? groupMembers(m.group).map((p) => p.id) : m.personIds || [];
+        if (want.some((p) => on.has(p))) {
+          out.set(id, { path: m.targetPath!, conf: 0.97, memory: m });
+          break;
+        }
+      }
+    }
   }
   if (groups.length && prefs().aiFaces) {
     const hits = await api().ai.faceMatches(groups.map((m) => m.faces!), ids, 0.42).catch(() => []);

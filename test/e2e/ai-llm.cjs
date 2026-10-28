@@ -108,6 +108,20 @@ async function waitFor(fn, ms, label) {
   assert.ok(a4.length > 10);
   await shot('02-chat');
 
+  // Werkzeuge: das Sprachmodell entscheidet selbst, dass es sich etwas merken soll
+  const saved = () => JSON.parse(fs.readFileSync(path.join(userData, 'einstellungen.json'), 'utf8'));
+  await ask('Kannst du dir bitte merken, dass Fotos mit Katzen immer in den Ordner Tiere kommen?');
+  await waitFor(() => (saved().aiMemory || []).some((m) => m.targetPath === path.join(base, 'Tiere')), 10000, 'Regel gemerkt (per Werkzeug)');
+  console.log('  Regel per Werkzeug gemerkt ✔', JSON.stringify(saved().aiMemory.map((m) => [m.kind, m.concept])));
+  // eine Frage darf nichts verändern
+  const n = (saved().aiMemory || []).length;
+  await ask('Hast du dir gemerkt, wohin Fotos mit Katzen kommen?');
+  await sleep(800);
+  assert.equal((saved().aiMemory || []).length, n, 'Frage hat nichts Neues gemerkt');
+  // gespeicherter Chat
+  await waitFor(() => fs.existsSync(path.join(userData, 'chats.json')), 5000, 'Chat gespeichert');
+  await shot('02b-werkzeuge');
+
   // Stufen-Auswahl in den Einstellungen
   await win.click('[data-testid="chat-close"]');
   await win.click('[data-testid="menu-btn"]');

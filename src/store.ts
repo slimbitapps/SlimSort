@@ -38,6 +38,7 @@ export type Dialog =
   | { type: 'trash' }
   | { type: 'lost' }
   | { type: 'profiles' }
+  | { type: 'people' }
   | { type: 'keyCapture'; targetId: string }
   | { type: 'prompt'; title: string; value: string; onOk: (v: string) => void };
 
@@ -183,6 +184,7 @@ export const defaultPrefs: Prefs = {
   autoCompare: true,
   preselectBest: true,
   showInfo: false,
+  showFaces: true,
   renameMode: 'keep',
   accent: 'blue',
   viewerBg: 'theme',
