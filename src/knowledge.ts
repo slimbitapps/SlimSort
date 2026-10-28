@@ -17,6 +17,7 @@ export async function exportKnowledge(): Promise<void> {
     exported: new Date().toISOString(),
     memories: st.aiMemory || [],
     people: st.people || [],
+    things: st.things || [],
     chats: allChats(),
     // Zielordner (Name + Pfad), damit Regeln auf dem neuen Computer dem richtigen Ordner zugeordnet werden
     targets: activeProfile().targets.map((x) => ({ name: x.name, path: x.path })),
@@ -89,7 +90,17 @@ export async function importKnowledge(): Promise<void> {
     memList.push({ ...m, targetPath: m.targetPath ? remap[m.targetPath] || m.targetPath : undefined });
     addedRules++;
   }
-  updateSettings((s) => ({ ...s, people: list, aiMemory: memList }));
+  // Dinge: gleicher Name → Beispiele zusammenlegen
+  const thingList = (cur.things || []).map((x) => ({ ...x }));
+  for (const th of Array.isArray(data.things) ? data.things : []) {
+    if (!th?.name || !Array.isArray(th.examples)) continue;
+    const same = thingList.find((x) => norm(x.name) === norm(th.name));
+    if (same) {
+      same.examples = [...same.examples, ...th.examples].slice(-30);
+      for (const [k, v] of Object.entries(th.embs || {})) same.embs = { ...same.embs, [k]: [...(same.embs[k] || []), ...(v as number[][])].slice(-30) };
+    } else thingList.push(th);
+  }
+  updateSettings((s) => ({ ...s, people: list, aiMemory: memList, things: thingList }));
   const addedChats = importChats(chats);
   let addedLearned = 0;
   if (data.learned) addedLearned = await api().ai.importLearned(data.learned, remap).catch(() => 0);

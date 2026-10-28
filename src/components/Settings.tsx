@@ -818,7 +818,15 @@ function FacesGroup({ set }: { set: (x: Partial<Prefs>) => Promise<void> }) {
       if (!s.installed && !s.downloading) startDownload();
     }
   };
-  const desc = p.aiFaces && st?.facesReady ? `${t('faces.desc')} ${t('faces.status', { n: st.faceTotal ?? 0 })}.` : t('faces.desc');
+  const desc = !p.aiFaces
+    ? t('faces.desc')
+    : st?.helperOld || (st?.downloading && !st?.facesReady)
+      ? t('faces.updating')
+      : st?.faceError
+        ? t('faces.error', { error: st.faceError })
+        : st?.facesReady
+          ? `${t('faces.desc')} ${t('faces.status', { n: st.faceTotal ?? 0 })}${st.facesPending ? ` · ${t('faces.pending', { n: st.facesPending })}` : ''}.`
+          : t('faces.desc');
   const n = useStore((s) => (s.settings.people || []).length);
   return (
     <Group>

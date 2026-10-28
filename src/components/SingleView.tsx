@@ -7,8 +7,9 @@ import { EmptyView } from './ui';
 import { beginDrag } from '../dnd';
 import { InfoPanel } from './InfoPanel';
 import { FaceOverlay } from './FaceOverlay';
+import { ThingTags, MarkLayer } from './ThingLayer';
 import { browserCanShow, displayUrl, fullUrl, mediaUrl, fmtBytes, fmtDate, fmtNum, itemTime, clamp, previewSize } from '../util';
-import { IconChevronLeft, IconChevronRight, IconFolderOut, IconLive, IconMaximize, IconLayers } from '../icons';
+import { IconChevronLeft, IconChevronRight, IconFolderOut, IconLive, IconMaximize, IconLayers, IconTag } from '../icons';
 import { tip } from './Tooltip';
 import { heicUrl, isHeic } from '../heic';
 
@@ -35,6 +36,14 @@ export function SingleView({ s }: { s: SessionState }) {
   const [fitMode, setFitMode] = useState(true);
   const [error, setError] = useState(false);
   const [livePlaying, setLivePlaying] = useState(false);
+  // Bereich markieren ("das ist mein Auto")
+  const [marking, setMarking] = useState(false);
+  const aiOn = useStore((st) => st.settings.prefs.aiEnabled);
+  useEffect(() => {
+    const on = () => setMarking(true);
+    window.addEventListener('fs-mark', on);
+    return () => window.removeEventListener('fs-mark', on);
+  }, []);
   const [panning, setPanning] = useState(false);
   const [hiRes, setHiRes] = useState(false);
   // Ein Ladeweg (Vorschau oder Original) ist schon gescheitert → nicht endlos hin- und herwechseln
@@ -89,6 +98,7 @@ export function SingleView({ s }: { s: SessionState }) {
     setOneFailed(false);
     setFadeHold(true);
     setHeicSrc(null);
+    setMarking(false);
   }, [it?.id, it?.path]);
 
   // Altes Bild noch kurz zeigen, bis das neue eingeblendet ist
@@ -325,7 +335,8 @@ export function SingleView({ s }: { s: SessionState }) {
               else setError(true);
             }}
           />
-          {nat && !fadeHold && !error && !livePlaying && <FaceOverlay it={it} style={rect} />}
+          {nat && !fadeHold && !error && !livePlaying && !marking && <FaceOverlay it={it} style={rect} />}
+          {nat && !error && marking && <MarkLayer it={it} style={rect} onDone={() => setMarking(false)} />}
           {livePlaying && it.live && nat && (
             <video
               className="media"
@@ -368,7 +379,14 @@ export function SingleView({ s }: { s: SessionState }) {
         {s.skipped.has(it.id) && <span className="tile-badge skip">{t('ses.skipped')}</span>}
       </div>
 
+      {aiOn && it.kind === 'image' && !marking && <ThingTags it={it} />}
+
       <div className="overlay-tools">
+        {aiOn && it.kind === 'image' && (
+          <button className={`overlay-btn ${marking ? 'on' : ''}`} onClick={() => setMarking(!marking)} data-testid="mark-btn" {...tip(t('things.mark'), t('things.markTip'))}>
+            <IconTag size={15} />
+          </button>
+        )}
         {it.live && (
           <button className="overlay-btn" onClick={() => setLivePlaying(true)} {...tip(t('ses.playLive'), t('tip.live'))}>
             <IconLive size={15} />

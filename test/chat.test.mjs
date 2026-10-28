@@ -104,15 +104,28 @@ test('Personen benennen: Positionen und Namen', async () => {
   // genau der Satz aus der Praxis (ohne Komma zwischen den ersten beiden Teilen)
   const a = parse('merke dir diese Personen, ich bin ganz links mein Bruder ist daneben und meine Mutter ist ganz rechts');
   assert.equal(a.kind, 'name');
-  assert.deepEqual(resolveNaming(a.items, 3), ['ich', 'mein Bruder', 'meine Mutter']);
-  assert.deepEqual(resolveNaming(a.items, 4), ['ich', 'mein Bruder', null, 'meine Mutter']);
-  assert.deepEqual(resolveNaming(parseNaming('Ich bin links, in der Mitte ist mein Bruder und rechts meine Mutter'), 3), ['Ich', 'mein Bruder', 'meine Mutter']);
+  assert.deepEqual(resolveNaming(a.items, 3), ['ich', 'Bruder', 'Mutter']);
+  assert.deepEqual(resolveNaming(a.items, 4), ['ich', 'Bruder', null, 'Mutter']);
+  assert.deepEqual(resolveNaming(parseNaming('Ich bin links, in der Mitte ist mein Bruder und rechts meine Mutter'), 3), ['ich', 'Bruder', 'Mutter']);
   assert.deepEqual(resolveNaming(parseNaming('von links nach rechts: Lisa, Tom und Max'), 3), ['Lisa', 'Tom', 'Max']);
-  assert.deepEqual(resolveNaming(parseNaming('ganz rechts steht mein Opa, links daneben meine Oma'), 2), ['meine Oma', 'mein Opa']);
+  assert.deepEqual(resolveNaming(parseNaming('ganz rechts steht mein Opa, links daneben meine Oma'), 2), ['Oma', 'Opa']);
   assert.deepEqual(resolveNaming(parseNaming('die zweite von links ist Anna'), 3), [null, 'Anna', null]);
   assert.deepEqual(resolveNaming(parseNaming('Das bin ich'), 1), ['ich']);
   assert.equal(resolveNaming(parseNaming('Das bin ich'), 2), null, 'bei zwei Gesichtern unklar');
   assert.equal(resolveNaming(parseNaming('Links ist Mama und rechts bin ich'), 1), null, 'zwei Namen, ein Gesicht');
+  // echter Satz mit Rollen und vollen Namen, ohne Kommas
+  const f = parse('Siehst du die vier Personen auf dem Bild das sind meine Familie. Ganz links ist meine Mutter Anna Weiß rechts daneben bin ich Max Keller wieder rechts. Neben mir ist mein Bruder Tim Keller und ganz rechts ist mein Vater Peter Keller');
+  assert.equal(f.kind, 'name');
+  assert.equal(f.group, 'Familie');
+  const { resolveNamingItems } = await import('../src/chat.ts');
+  const r = resolveNamingItems(f.items, 4);
+  assert.deepEqual(r.map((x) => [x.name, x.role, !!x.me, x.real]), [
+    ['Anna Weiß', 'Mutter', false, 'Anna Weiß'],
+    ['ich', undefined, true, 'Max Keller'],
+    ['Tim Keller', 'Bruder', false, 'Tim Keller'],
+    ['Peter Keller', 'Vater', false, 'Peter Keller'],
+  ]);
+  assert.deepEqual(resolveNaming(parseNaming('Mama links, Papa rechts'), 2), ['Mama', 'Papa']);
   assert.equal(parse('Das ist schön').kind, 'search');
   assert.equal(parse('Das ist ein Hund').kind, 'search');
   assert.notEqual(parse('Lösche das Foto links').kind, 'name');
@@ -136,4 +149,16 @@ test('Merken auch als Frage formuliert', () => {
   assert.equal(b.kind, 'name');
   assert.equal(b.items.length, 3);
   assert.equal(parse('Ich möchte, dass du dir merkst: mein Hund heißt Bello').kind, 'remember');
+});
+
+test('Dinge merken', async () => {
+  const { parseThing } = await import('../src/chat.ts');
+  assert.deepEqual(parse('Das ist mein Auto'), { kind: 'thing', name: 'mein Auto', not: false, ref: 'current' });
+  assert.equal(parse('Merke dir: das ist unser Haus').kind, 'thing');
+  assert.equal(parse('Das ist nicht mein Auto').not, true);
+  assert.equal(parse('Das ist mein Hund Bello').name, 'mein Hund Bello');
+  // Personen bleiben Personen
+  assert.equal(parse('Das ist meine Mutter').kind, 'name');
+  assert.equal(parse('Das ist mein Bruder Lukas').kind, 'name');
+  assert.equal(parseThing('Das ist schön'), null);
 });

@@ -86,3 +86,4 @@ export const IconPlusChat = base(<><path d="M20 12a8 8 0 0 1-11.8 7L4 20l1-4.2A8
 export const IconDownload = base(<><path d="M12 4v11M7 10l5 5 5-5" /><path d="M5 20h14" /></>);
 export const IconUpload = base(<><path d="M12 20V9M7 14l5-5 5 5" /><path d="M5 4h14" /></>);
 export const IconBrain = base(<><path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 3 3h0a2 2 0 0 0 3-1V5a2 2 0 0 0-3-1z" /><path d="M15 4a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-3 3h0a2 2 0 0 1-3-1" /></>);
+export const IconTag = base(<><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9z" /><circle cx="7.5" cy="7.5" r="1.5" /></>);

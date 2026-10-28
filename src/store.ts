@@ -38,7 +38,7 @@ export type Dialog =
   | { type: 'trash' }
   | { type: 'lost' }
   | { type: 'profiles' }
-  | { type: 'people' }
+  | { type: 'people'; tab?: 'people' | 'things' }
   | { type: 'keyCapture'; targetId: string }
   | { type: 'prompt'; title: string; value: string; onOk: (v: string) => void };
 

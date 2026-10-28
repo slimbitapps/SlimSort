@@ -152,7 +152,7 @@ export interface Prefs {
 export interface AiMemory {
   id: string;
   /** concept: "Fotos mit Autos → Ordner"; people: Personen/Gruppe → Ordner; faces: alte Gruppenform; note: freie Notiz */
-  kind: 'concept' | 'people' | 'faces' | 'note';
+  kind: 'concept' | 'people' | 'thing' | 'faces' | 'note';
   /** so wie der Nutzer es gesagt hat */
   text: string;
   /** concept: wonach gesucht wird (z. B. "Autos") */
@@ -167,14 +167,18 @@ export interface AiMemory {
   /** people: diese Personen (ids) oder alle einer Gruppe ("Familie") */
   personIds?: string[];
   group?: string;
+  /** thing: diese gemerkten Dinge */
+  thingIds?: string[];
   created: number;
 }
 
 /** Eine Person, deren Gesicht die KI kennt */
 export interface Person {
   id: string;
-  /** "Mama", "Lukas", "Ich" */
+  /** "Anna Weiß", "Lukas", "Ich" */
   name: string;
+  /** Rolle ("Mutter", "Bruder") – findet die Person auch über "Mama", "meine Mutter" */
+  role?: string;
   /** das bin ich (für "ich", "mir", "mich") */
   me?: boolean;
   /** Gruppen ("Familie", "Freunde") */
@@ -184,6 +188,21 @@ export interface Person {
   /** Gesichter, die ausdrücklich NICHT diese Person sind (Korrekturen) */
   not?: number[][];
   /** kleines Bild des Gesichts (data:-Adresse) */
+  crop?: string;
+  created: number;
+  updated: number;
+}
+
+/** Ein Ding, das sich die KI merkt (Auto, Haus, Haustier …) – gelernt aus Beispielen */
+export interface Thing {
+  id: string;
+  name: string;
+  /** Beispiele: Foto und ggf. markierter Bereich (zum Neuberechnen bei anderer KI-Stufe) */
+  examples: { path: string; box?: [number, number, number, number] }[];
+  /** Fingerabdrücke der Beispiele je KI-Stufe */
+  embs: Record<string, number[][]>;
+  /** Gegenbeispiele ("das ist nicht mein Auto") je KI-Stufe */
+  not?: Record<string, number[][]>;
   crop?: string;
   created: number;
   updated: number;
@@ -214,6 +233,8 @@ export interface SettingsData {
   aiMemory?: AiMemory[];
   /** KI: Personen, deren Gesichter sie kennt */
   people?: Person[];
+  /** KI: gemerkte Dinge */
+  things?: Thing[];
 }
 
 export interface OpResult {
@@ -326,6 +347,8 @@ export interface Api {
     peopleOn(ids: number[], people: number[][][], min?: number, emb?: boolean): Promise<PhotoFaces[]>;
     faceClusters(ids: number[], people: number[][][], minSize?: number): Promise<FaceCluster[]>;
     faceCrop(path: string, box: [number, number, number, number], size?: number): Promise<string | null>;
+    embedRegion(path: string, box: [number, number, number, number] | null): Promise<number[]>;
+    thingScores(ids: number[], things: { pos: number[][]; neg: number[][] }[]): Promise<{ id: number; s: number[] }[]>;
     exportFile(data: unknown, name: string): Promise<string | null>;
     importFile(): Promise<any | null>;
     importLearned(data: unknown, remap: Record<string, string>): Promise<number>;
@@ -391,6 +414,12 @@ export interface AiStatus {
   facesReady: boolean;
   /** Gefundene Gesichter insgesamt */
   faceTotal: number;
+  /** Fotos, deren Gesichter noch gesucht werden */
+  facesPending: number;
+  /** letzter Fehler der Gesichtserkennung */
+  faceError: string | null;
+  /** Helfer-Programm ist veraltet und wird neu geladen */
+  helperOld: boolean;
   hw: AiHardware;
   downloading: boolean;
   received: number;

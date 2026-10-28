@@ -65,6 +65,8 @@ export function ChatPanel() {
                 ? t('ai.stateNoModel')
                 : indexing
                   ? t('ai.stateIndexing', { done: status!.indexed, total: status!.total })
+                  : status!.facesPending > 0 && status!.facesReady
+                    ? t('faces.pending', { n: status!.facesPending })
                   : llmOn()
                     ? t(currentTier() === 'max' ? 'ai.stateReadyMax' : 'ai.stateReadyLlm')
                     : t('ai.stateReady')}

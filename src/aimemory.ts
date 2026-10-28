@@ -12,6 +12,7 @@ import { useStore, activeProfile, updatePrefs, updateSettings, prefs } from './s
 import { t, type TKey } from './i18n';
 import type { AiMemory, Prefs } from './types';
 import { people, facesOn, displayName, groupMembers } from './people';
+import { things, thingsOn } from './things';
 
 const api = () => window.api;
 
@@ -61,6 +62,10 @@ export function targetName(m: AiMemory): string | undefined {
 export function describeMemory(m: AiMemory): string {
   const folder = targetName(m);
   if (m.kind === 'concept') return t('mem.concept', { what: m.concept || m.text, folder: folder || '?' });
+  if (m.kind === 'thing') {
+    const what = (m.thingIds || []).map((id) => things().find((x) => x.id === id)?.name).filter(Boolean).join(', ');
+    return t('mem.people', { who: what || m.label || '?', folder: folder || '?' });
+  }
   if (m.kind === 'people') {
     const who = m.group || (m.personIds || []).map((id) => people().find((p) => p.id === id)).filter(Boolean).map((p) => displayName(p!)).join(', ');
     return t('mem.people', { who: who || '?', folder: folder || '?' });
@@ -90,6 +95,16 @@ export async function ruleTargets(ids: number[]): Promise<Map<number, { path: st
   if (concepts.length) {
     const hits = await api().ai.rules(concepts.map((m) => m.query || m.concept || m.text), ids, 0.5).catch(() => []);
     for (const h of hits) out.set(h.id, { path: concepts[h.rule].targetPath!, conf: Math.min(0.99, 0.85 + h.p * 0.14), memory: concepts[h.rule] });
+  }
+  const thingRules = memories().filter((m) => m.kind === 'thing' && m.targetPath && targets.has(m.targetPath));
+  if (thingRules.length) {
+    const s = useStore.getState().session;
+    const pool = s ? s.items.filter((x) => x.kind === 'image').map((x) => x.id) : ids;
+    const hits = await thingsOn(ids, pool).catch(() => new Map());
+    for (const [id, h] of hits) {
+      const on = new Set(h.map((x: { thing: { id: string } }) => x.thing.id));
+      for (const m of thingRules) if ((m.thingIds || []).some((x) => on.has(x))) out.set(id, { path: m.targetPath!, conf: 0.93, memory: m });
+    }
   }
   const personRules = memories().filter((m) => m.kind === 'people' && m.targetPath && targets.has(m.targetPath));
   if (personRules.length && prefs().aiFaces) {

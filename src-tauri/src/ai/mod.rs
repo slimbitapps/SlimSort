@@ -73,6 +73,11 @@ const UNLOAD_AFTER: Duration = Duration::from_secs(120);
 
 type Key = [u8; 20];
 
+/// Ins Protokoll der App schreiben (app.log liegt neben dem KI-Ordner)
+fn log_ai(dir: &Path, msg: &str) {
+    crate::log_to(dir.parent().unwrap_or(dir), &format!("ki {msg}"));
+}
+
 fn key_of(path: &Path) -> Option<Key> {
     let hex = thumbs::Cache::key(path, "ai")?;
     let mut k = [0u8; 20];
@@ -250,6 +255,10 @@ struct Inner {
     /// Gesichter erkennen (eigener Schalter)
     faces_on: bool,
     fstore: Option<faces::FaceStore>,
+    /// letzter Fehler der Gesichtserkennung (wird angezeigt)
+    face_error: Option<String>,
+    /// Fotos, bei denen die Gesichtserkennung gescheitert ist (nicht endlos wiederholen)
+    face_failed: HashSet<Key>,
 }
 
 impl Default for Inner {
@@ -274,6 +283,8 @@ impl Default for Inner {
             texts: HashMap::new(),
             faces_on: false,
             fstore: None,
+            face_error: None,
+            face_failed: HashSet::new(),
         }
     }
 }
@@ -292,6 +303,8 @@ pub struct Ai {
     labels_busy: AtomicBool,
     pub llm: Arc<llm::Llm>,
     fproc: faces::FaceProc,
+    /// Kann das Helfer-Programm Gesichter? (je Dateistand einmal geprüft)
+    helper_probe: Mutex<Option<((u64, Option<std::time::SystemTime>), bool)>>,
 }
 
 #[derive(Serialize)]
@@ -310,6 +323,11 @@ pub struct Status {
     pub faces: bool,
     pub faces_ready: bool,
     pub face_total: usize,
+    /// Fotos, deren Gesichter noch gesucht werden
+    pub faces_pending: usize,
+    pub face_error: Option<String>,
+    /// Helfer-Programm muss neu geladen werden
+    pub helper_old: bool,
     pub downloading: bool,
     pub received: u64,
     pub size: u64,
@@ -387,6 +405,20 @@ pub fn unb64(s: &str) -> Option<Vec<u8>> {
     Some(out)
 }
 
+#[derive(Deserialize)]
+pub struct ThingEx {
+    pub pos: Vec<Vec<f32>>,
+    #[serde(default)]
+    pub neg: Vec<Vec<f32>>,
+}
+
+#[derive(Serialize)]
+pub struct ThingScores {
+    pub id: u64,
+    /// je Ding die Ähnlichkeit (−1 = Gegenbeispiel passt besser)
+    pub s: Vec<f32>,
+}
+
 #[derive(Serialize)]
 pub struct RuleHit {
     pub id: u64,
@@ -455,6 +487,7 @@ impl Ai {
             labels_busy: AtomicBool::new(false),
             llm: llm::Llm::new(),
             fproc: faces::FaceProc::new(),
+            helper_probe: Mutex::new(None),
         })
     }
 
@@ -487,7 +520,32 @@ impl Ai {
     }
 
     fn faces_installed(&self) -> bool {
-        self.helper_path().is_file() && self.dir.join(faces::DETECT).is_file() && self.dir.join(faces::EMBED).is_file()
+        self.helper_path().is_file() && self.dir.join(faces::DETECT).is_file() && self.dir.join(faces::EMBED).is_file() && self.helper_knows_faces()
+    }
+
+    /// Ältere Helfer-Programme (vor der Gesichtserkennung) kennen `--faces` nicht → neu laden
+    fn helper_knows_faces(&self) -> bool {
+        let p = self.helper_path();
+        let Ok(meta) = fs::metadata(&p) else { return false };
+        let stamp = (meta.len(), meta.modified().ok());
+        if let Some((st, ok)) = *self.helper_probe.lock().unwrap() {
+            if st == stamp {
+                return ok;
+            }
+        }
+        let ok = faces::probe(&p, &self.dir);
+        *self.helper_probe.lock().unwrap() = Some((stamp, ok));
+        ok
+    }
+
+    /// Prüfsumme des geladenen Helfer-Programms (fehlt bei Installationen älterer Fassungen)
+    fn helper_sum_path(&self) -> PathBuf {
+        self.dir.join(format!("{}.sha256", helper_name()))
+    }
+
+    /// Helfer-Programm vorhanden, aber veraltet (ältere Fassung oder ohne Gesichtserkennung)
+    fn helper_old(&self, faces_on: bool) -> bool {
+        self.helper_path().is_file() && (!self.helper_sum_path().is_file() || (faces_on && !self.helper_knows_faces()))
     }
 
     fn chat_installed(&self, t: &TierDef) -> bool {
@@ -523,6 +581,10 @@ impl Ai {
     }
 
     pub fn status(&self) -> Status {
+        let faces_on = self.inner.lock().unwrap().faces_on;
+        // Prüfen des Helfers kann kurz dauern → nicht unter der Sperre
+        let faces_ready = faces_on && self.faces_installed();
+        let helper_old = self.helper_old(faces_on);
         let g = self.inner.lock().unwrap();
         let indexed = match &g.store {
             Some(s) => g.ids.values().filter(|k| s.map.contains_key(*k) || g.failed.contains(*k)).count(),
@@ -534,13 +596,19 @@ impl Ai {
         Status {
             enabled: g.enabled,
             tier: t.id.to_string(),
-            installed: vision && (t.llm.is_none() || chat) && (!g.faces_on || self.faces_installed()),
+            installed: vision && (t.llm.is_none() || chat) && (!g.faces_on || faces_ready),
             vision,
             chat,
             chat_running: self.llm.running(),
             faces: g.faces_on,
-            faces_ready: self.faces_installed(),
+            faces_ready,
             face_total: g.fstore.as_ref().map_or(0, |f| f.map.values().map(Vec::len).sum()),
+            faces_pending: match &g.fstore {
+                Some(f) if g.faces_on => g.ids.values().filter(|k| !f.map.contains_key(*k) && !g.face_failed.contains(*k) && !g.failed.contains(*k)).count(),
+                _ => 0,
+            },
+            face_error: g.face_error.clone(),
+            helper_old,
             downloading: g.downloading,
             received: self.dl_got.load(Ordering::Relaxed),
             size: self.dl_total.load(Ordering::Relaxed),
@@ -696,15 +764,27 @@ impl Ai {
                 let g = self.inner.lock().unwrap();
                 let has = g.store.as_ref().is_some_and(|s| s.map.contains_key(&job.key));
                 let fdone = g.fstore.as_ref().map_or(true, |f| f.map.contains_key(&job.key));
-                (!has, g.faces_on && !fdone && self.faces_installed())
+                (!has, g.faces_on && !fdone && !g.face_failed.contains(&job.key))
             };
+            let need_faces = need_faces && self.faces_installed();
             let res = if need_emb { self.model().and_then(|m| self.embed_file(&m, &mut sc, &job.path).ok_or_else(String::new)).map(Some) } else { Ok(None) };
-            let found = if need_faces && res.is_ok() { self.faces_of_file(&job.path) } else { None };
+            let found = if need_faces && res.is_ok() { Some(self.faces_of_file(&job.path)) } else { None };
             let mut g = self.inner.lock().unwrap();
             g.busy -= 1;
             g.last_use = Some(Instant::now());
-            if let (Some(fs_), Some(f)) = (g.fstore.as_mut(), found) {
-                fs_.put(job.key, f);
+            match found {
+                Some(Ok(f)) => {
+                    g.face_error = None;
+                    if let Some(fs_) = g.fstore.as_mut() {
+                        fs_.put(job.key, f);
+                    }
+                }
+                Some(Err(e)) => {
+                    log_ai(&self.dir, &format!("Gesichter: {e}"));
+                    g.face_error = Some(e);
+                    g.face_failed.insert(job.key);
+                }
+                None => {}
             }
             match res {
                 Ok(e) => {
@@ -740,22 +820,27 @@ impl Ai {
     }
 
     /// Gesichter eines Fotos (größere Vorschau, damit auch kleine Gesichter gefunden werden)
-    fn faces_of_file(&self, path: &Path) -> Option<Vec<faces::FaceRec>> {
+    fn faces_of_file(&self, path: &Path) -> Result<Vec<faces::FaceRec>, String> {
         let ext = path.extension().map(|e| format!(".{}", e.to_string_lossy().to_lowercase())).unwrap_or_default();
-        let jpg = thumbs::render(path, &ext, 1280, 88)?;
-        let (w, h) = image::ImageReader::new(std::io::Cursor::new(&jpg)).with_guessed_format().ok()?.into_dimensions().ok()?;
+        // nicht lesbar (z. B. kaputte Datei) → keine Gesichter, kein Fehler der Erkennung
+        let Some(jpg) = thumbs::render(path, &ext, 1280, 88) else { return Ok(vec![]) };
+        let (w, h) = image::ImageReader::new(std::io::Cursor::new(&jpg))
+            .with_guessed_format()
+            .ok()
+            .and_then(|r| r.into_dimensions().ok())
+            .ok_or("Bildgröße unbekannt")?;
         let tmp = self.dir.join(format!("gesicht-{:?}.jpg", std::thread::current().id()).replace(['(', ')', ' '], ""));
-        fs::write(&tmp, jpg).ok()?;
+        fs::write(&tmp, jpg).map_err(|e| e.to_string())?;
         let r = self.fproc.detect(&self.helper_path(), &self.dir, &tmp);
         let _ = fs::remove_file(&tmp);
         // Kästen relativ zur Bildgröße (passt so auf jede Anzeigegröße), von links nach rechts
         let (w, h) = (w.max(1) as f32, h.max(1) as f32);
-        let mut faces = r.ok()?;
+        let mut faces = r?;
         for f in &mut faces {
             f.bbox = [f.bbox[0] / w, f.bbox[1] / h, f.bbox[2] / w, f.bbox[3] / h];
         }
         faces.sort_by(|a, b| a.bbox[0].total_cmp(&b.bbox[0]));
-        Some(faces)
+        Ok(faces)
     }
 
     /// Alle Gesichter (je 128 Zahlen) auf diesen Fotos – zum Merken ("das ist meine Familie")
@@ -847,6 +932,58 @@ impl Ai {
             }
         };
         Some(format!("data:image/jpeg;base64,{}", b64(&jpg)))
+    }
+
+    /// Fingerabdruck eines Bildausschnitts (oder des ganzen Fotos) – Beispiel für ein gemerktes Ding
+    pub fn embed_region(&self, path: &Path, bbox: Option<[f32; 4]>) -> Result<Vec<f32>, String> {
+        let m = self.model()?;
+        let ext = path.extension().map(|e| format!(".{}", e.to_string_lossy().to_lowercase())).unwrap_or_default();
+        let jpg = thumbs::render(path, &ext, 768, 90).ok_or("Foto lässt sich nicht lesen")?;
+        let mut img = image::load_from_memory(&jpg).map_err(|e| e.to_string())?;
+        if let Some(b) = bbox {
+            let (w, h) = (img.width() as f32, img.height() as f32);
+            // etwas Rand dazu, damit das Ding ganz drauf ist
+            let pad = 0.06;
+            let x0 = ((b[0] - pad * b[2]).max(0.0) * w) as u32;
+            let y0 = ((b[1] - pad * b[3]).max(0.0) * h) as u32;
+            let x1 = (((b[0] + b[2] * (1.0 + pad)).min(1.0)) * w) as u32;
+            let y1 = (((b[1] + b[3] * (1.0 + pad)).min(1.0)) * h) as u32;
+            if x1 > x0 + 8 && y1 > y0 + 8 {
+                img = img.crop_imm(x0, y0, x1 - x0, y1 - y0);
+            }
+        }
+        let mut sc = net::Scratch::default();
+        let mut v = m.image(&mut sc, &m.prepare(&img));
+        let n = v.iter().map(|x| x * x).sum::<f32>().sqrt().max(1e-9);
+        v.iter_mut().for_each(|x| *x /= n);
+        Ok(v)
+    }
+
+    /// Wie ähnlich ist jedes Foto jedem gemerkten Ding? Je Ding: beste Ähnlichkeit zu den Beispielen;
+    /// ist ein Gegenbeispiel ("das ist nicht mein Auto") ähnlicher, zählt das Foto nicht (−1).
+    pub fn thing_scores(&self, ids: &[u64], things: &[ThingEx]) -> Vec<ThingScores> {
+        let g = self.inner.lock().unwrap();
+        let Some(store) = &g.store else { return vec![] };
+        let unit = |v: &Vec<f32>| {
+            let n = v.iter().map(|x| x * x).sum::<f32>().sqrt().max(1e-9);
+            v.iter().map(|x| x / n).collect::<Vec<f32>>()
+        };
+        let things: Vec<(Vec<Vec<f32>>, Vec<Vec<f32>>)> = things.iter().map(|t| (t.pos.iter().map(unit).collect(), t.neg.iter().map(unit).collect())).collect();
+        ids.iter()
+            .filter_map(|&id| {
+                let e = store.map.get(g.ids.get(&id)?)?;
+                let norm = e.q.iter().map(|&x| (x as f32 * e.s).powi(2)).sum::<f32>().sqrt().max(1e-9);
+                let s = things
+                    .iter()
+                    .map(|(pos, neg)| {
+                        let best = |l: &Vec<Vec<f32>>| l.iter().filter(|x| x.len() == e.q.len()).map(|x| e.dot(x) / norm).fold(-1.0f32, f32::max);
+                        let p = best(pos);
+                        if !neg.is_empty() && best(neg) > p { -1.0 } else { p }
+                    })
+                    .collect();
+                Some(ThingScores { id, s })
+            })
+            .collect()
     }
 
     /// Gelernte Beispiele zum Mitnehmen auf einen anderen Computer (mit ihren Fingerabdrücken)
@@ -1305,6 +1442,7 @@ impl Ai {
             let r = me.download_inner();
             me.inner.lock().unwrap().downloading = false;
             if let Err(e) = &r {
+                log_ai(&me.dir, &format!("Download fehlgeschlagen: {e}"));
                 me.inner.lock().unwrap().load_error = Some(e.clone());
             }
             me.send("ai:download", json!({ "ok": r.is_ok(), "error": r.err() }));
@@ -1565,9 +1703,25 @@ impl Ai {
                     jobs.push((vec![(u, size)], self.dir.join(n), d));
                 }
             }
-            if !self.helper_path().is_file() && t.llm.is_none() {
-                let (u, size, d) = a.get(&helper_name()).cloned().ok_or("Helfer-Programm für dieses System fehlt")?;
+        }
+        // Helfer-Programm: fehlt, ist veraltet oder es gibt eine neue Fassung → (neu) laden
+        let faces_on = self.inner.lock().unwrap().faces_on;
+        if faces_on || t.llm.is_some() {
+            let a = Self::release_assets(&agent, LLM_TAG)?;
+            let (u, size, d) = a.get(&helper_name()).cloned().ok_or("Helfer-Programm für dieses System fehlt")?;
+            let have = fs::read_to_string(self.helper_sum_path()).ok();
+            let stale = !self.helper_path().is_file()
+                || (d.is_some() && have.as_deref().map(str::trim) != d.as_deref())
+                || (faces_on && !self.helper_knows_faces());
+            if stale {
+                if t.llm.is_some() && !hw::detect().chat_ok && !faces_on {
+                    return Err("Dein Prozessor ist zu alt für das Sprachmodell. Wähle die Stufe „Sparsam“.".into());
+                }
+                // laufende Helfer beenden, sonst lässt sich die Datei (Windows) nicht ersetzen
+                self.llm.stop();
+                self.fproc.stop();
                 jobs.push((vec![(u, size)], self.helper_path(), d));
+                // Windows: C++-Laufzeit gehört neben das Programm
                 #[cfg(windows)]
                 for dll in ["msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll"] {
                     if let Some((u, size, d)) = a.get(&format!("slimsort-llm-windows-{dll}")).cloned() {
@@ -1578,8 +1732,7 @@ impl Ai {
         }
         if let Some(id) = t.llm {
             let gguf = self.llm_path(id);
-            let helper = self.helper_path();
-            if !gguf.is_file() || !helper.is_file() {
+            if !gguf.is_file() {
                 if !hw::detect().chat_ok {
                     return Err("Dein Prozessor ist zu alt für das Sprachmodell. Wähle die Stufe „Sparsam“.".into());
                 }
@@ -1602,17 +1755,6 @@ impl Ai {
                     }
                     jobs.push((urls, gguf, info["sha256"].as_str().map(str::to_string)));
                 }
-                if !helper.is_file() {
-                    let (u, size, d) = a.get(&helper_name()).cloned().ok_or("Helfer-Programm für dieses System fehlt")?;
-                    jobs.push((vec![(u, size)], helper, d));
-                    // Windows: C++-Laufzeit gehört neben das Programm
-                    #[cfg(windows)]
-                    for dll in ["msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll"] {
-                        if let Some((u, size, d)) = a.get(&format!("slimsort-llm-windows-{dll}")).cloned() {
-                            jobs.push((vec![(u, size)], self.dir.join(dll), d));
-                        }
-                    }
-                }
             }
         }
         let total: u64 = jobs.iter().flat_map(|j| j.0.iter().map(|u| u.1)).sum();
@@ -1626,10 +1768,19 @@ impl Ai {
                     return Err(e);
                 }
             }
-            #[cfg(unix)]
             if dest.file_name().is_some_and(|n| n.to_string_lossy() == helper_name()) {
-                use std::os::unix::fs::PermissionsExt;
-                let _ = fs::set_permissions(dest, fs::Permissions::from_mode(0o755));
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    let _ = fs::set_permissions(dest, fs::Permissions::from_mode(0o755));
+                }
+                // Prüfsumme merken → spätere neue Fassungen werden erkannt
+                let _ = fs::write(self.helper_sum_path(), sha.clone().unwrap_or_default());
+                *self.helper_probe.lock().unwrap() = None;
+                // Gesichter, die mit dem alten Helfer scheiterten, neu versuchen
+                let mut g = self.inner.lock().unwrap();
+                g.face_failed.clear();
+                g.face_error = None;
             }
         }
         Ok(())

@@ -59,7 +59,7 @@ fn platform() -> &'static str {
 }
 
 /// Einfaches Fehlerprotokoll (bleibt lokal) – hilft bei der Fehlersuche.
-fn log_to(dir: &Path, msg: &str) {
+pub(crate) fn log_to(dir: &Path, msg: &str) {
     if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(dir.join("app.log")) {
         let _ = writeln!(f, "[{}] {msg}", chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true));
     }
@@ -153,6 +153,20 @@ async fn ai_face_clusters(st: State<'_, AppState>, ids: Vec<u64>, people: Vec<Ve
 async fn ai_face_crop(st: State<'_, AppState>, path: String, bbox: [f32; 4], size: Option<u32>) -> Res<Option<String>> {
     let a = st.ai.clone();
     blocking(move || a.face_crop(Path::new(&path), bbox, size.unwrap_or(96))).await
+}
+
+/// Fingerabdruck eines Bildausschnitts (Beispiel für ein gemerktes Ding)
+#[tauri::command]
+async fn ai_embed_region(st: State<'_, AppState>, path: String, bbox: Option<[f32; 4]>) -> Res<Vec<f32>> {
+    let a = st.ai.clone();
+    blocking(move || a.embed_region(Path::new(&path), bbox)).await?
+}
+
+/// Ähnlichkeit der Fotos zu gemerkten Dingen
+#[tauri::command]
+async fn ai_thing_scores(st: State<'_, AppState>, ids: Vec<u64>, things: Vec<ai::ThingEx>) -> Res<Vec<ai::ThingScores>> {
+    let a = st.ai.clone();
+    blocking(move || a.thing_scores(&ids, &things)).await
 }
 
 /// KI-Wissen in eine Datei sichern (Gedächtnis, Personen, Chats + gelernte Beispiele)
@@ -921,6 +935,8 @@ pub fn run() {
             ai_face_count,
             ai_face_matches,
             ai_people_on,
+            ai_embed_region,
+            ai_thing_scores,
             ai_face_clusters,
             ai_face_crop,
             ai_export_file,

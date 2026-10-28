@@ -38,6 +38,8 @@ async function waitFor(fn, ms, label) {
   fs.mkdirSync(src);
   for (const f of fs.readdirSync(PICS)) fs.copyFileSync(path.join(PICS, f), path.join(src, f));
   for (const f of fs.readdirSync(AI)) fs.symlinkSync(path.join(AI, f), path.join(userData, 'ki', f));
+  // Helfer gilt als aktuelle Fassung (sonst lädt die App ihn neu)
+  for (const f of fs.readdirSync(AI)) if (/^slimsort-llm-(linux|macos|windows)/.test(f)) fs.writeFileSync(path.join(userData, 'ki', f + '.sha256'), 'test');
   for (const d of ['Tiere', 'Weltall']) fs.mkdirSync(path.join(base, d));
   fs.writeFileSync(
     path.join(userData, 'einstellungen.json'),

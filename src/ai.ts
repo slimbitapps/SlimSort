@@ -10,7 +10,7 @@ import {
 import { t } from './i18n';
 import type { AiStatus, AiTier, Target, FaceCluster } from './types';
 import { itemTime } from './util';
-import { parse, parseNaming, findTarget, matchesDate, resolveNaming, type Intent, type Ref, type DateFilter } from './chat';
+import { parse, parseNaming, findTarget, matchesDate, resolveNamingItems, type Intent, type Ref, type DateFilter } from './chat';
 import { chatPrompt, toolContinue, parseToolCall, warmPrompt, situation, describeItem, wantsPhotos, cleanAnswer, type Turn } from './assistant';
 import { getLang } from './i18n';
 import {
@@ -19,9 +19,10 @@ import {
 } from './aimemory';
 import { createTargetFolder } from './store';
 import { loadChats, saveCurrent, newChat, restore, useChats } from './chats';
+import { things, addThingExample, addThingNegative, findThing, thingsOn, thingsInQuery, thingsForPrompt, thingName, saveThings } from './things';
 import {
   people, facesOn, addSample, savePeople, findPerson, groupMembers, allGroups, displayName, describeFaces, cleanName, positionWord, peopleEmbs,
-  facesForPrompt, peopleForPrompt,
+  facesForPrompt, peopleForPrompt, fullName,
   type FaceHit,
 } from './people';
 
@@ -108,6 +109,9 @@ export function initAi() {
     const before = ui().status;
     setUi({ status: s });
     if (before && before.indexed !== s.indexed) refreshSoon();
+    checkHelper(s);
+    // Gesichtserkennung ist (wieder) bereit → fehlende Gesichter der Sortierung suchen
+    if (before && ((!before.facesReady && s.facesReady) || (!before.installed && s.installed))) syncSession();
   });
   a.on('ai:idle', () => {
     refreshSoon();
@@ -177,6 +181,25 @@ export async function applyAiPrefs() {
 export function startDownload() {
   api().ai.download();
   setUi({ status: { ...(ui().status as AiStatus), downloading: true, received: 0 } });
+}
+
+/** Veraltetes Helfer-Programm (z. B. ohne Gesichtserkennung) → einmal von selbst neu laden */
+let helperUpdateTried = false;
+function checkHelper(s: AiStatus | null) {
+  if (!s || !s.helperOld || s.downloading || helperUpdateTried || !prefs().aiEnabled) return;
+  helperUpdateTried = true;
+  api().log('ki: Helfer-Programm veraltet → wird neu geladen');
+  startDownload();
+}
+
+/** Warum gibt es (noch) keine Gesichter für ein Foto? */
+function whyNoFaces(): string {
+  const st = ui().status;
+  if (st?.helperOld && st.error && !st.downloading) return t('faces.error', { error: st.error });
+  if (st?.helperOld || st?.downloading) return t('faces.updating');
+  if (st?.faceError) return t('faces.error', { error: st.faceError });
+  if (st && st.facesPending > 0) return t('people.notYetN', { n: st.facesPending });
+  return t('faces.notPossible');
 }
 
 /** Geöffnete Sortierung an die KI geben (Fotos analysieren, aus Zielordnern lernen) */
@@ -457,6 +480,7 @@ export async function send(text: string, forced?: Intent) {
     // Klare Befehle direkt ausführen; Fragen, Gespräch und Suchen übernimmt das Sprachmodell
     // "Fotos mit Mama" → Gesichtserkennung (sicher), nicht das Sprachmodell
     if (intent.kind === 'search' && intent.query && session() && (await findPeoplePhotos(session()!, intent.query))) return;
+    if (intent.kind === 'search' && intent.query && session() && (await findThingPhotos(session()!, intent.query))) return;
     if (llmOn() && (intent.kind === 'search' || intent.kind === 'greet' || intent.kind === 'thanks' || intent.kind === 'describe')) {
       try {
         await llmTurn(text, intent);
@@ -517,7 +541,9 @@ async function llmTurn(text: string, intent: Intent) {
     const f = (await facesOn([s.currentId])).get(s.currentId);
     if (f) facesText = facesForPrompt(f);
   }
-  const lage = situation(s, await tagsOf(s?.currentId), { faces: facesText, people: peopleForPrompt(), memory: memoryForPrompt() });
+  let thingsText = thingsForPrompt();
+  if (s && s.currentId !== null && things().length) thingsText = thingsForPrompt((await thingsOn([s.currentId], imagePool(s))).get(s.currentId) || []);
+  const lage = situation(s, await tagsOf(s?.currentId), { faces: facesText, people: [peopleForPrompt(), thingsText].filter(Boolean).join('\n'), memory: memoryForPrompt() });
   let prompt = chatPrompt(ui().hist.slice(-4), text, lage, think);
 
   const mid = ++msgId;
@@ -538,6 +564,7 @@ async function llmTurn(text: string, intent: Intent) {
 
   let answer = '';
   let byTool = false;
+  let toolsUsed = !!extra.ids;
   try {
     for (let round = 0; round < 3; round++) {
       const id = ++llmSeq;
@@ -556,6 +583,7 @@ async function llmTurn(text: string, intent: Intent) {
       setUi({ busyText: t('ai.working') });
       api().log(`llm-tool ${call.name} ${JSON.stringify(call.args).slice(0, 200)}`);
       const out = await runTool(call.name, call.args, text);
+      if (!out.text.startsWith('Nicht ausgeführt')) toolsUsed = true;
       if (out.done) {
         // Das Werkzeug hat selbst geantwortet (z. B. „Gemerkt: …“) – keine zweite Antwort nötig
         byTool = true;
@@ -575,11 +603,23 @@ async function llmTurn(text: string, intent: Intent) {
       setUi({ msgs: ui().msgs.filter((m) => m.id !== mid) });
     } else {
       answer = answer || cleanAnswer(ui().msgs.find((m) => m.id === mid)?.text || '').trim() || fallback;
+      // Behauptet das Modell eine Handlung, die kein Werkzeug ausgeführt hat? → ehrlich sagen
+      if (!toolsUsed && CLAIM.test(answer) && REQUEST.test(text) && !/^(hast|hat|weißt|kennst|was|wer|wie|wo|warum)\b/i.test(text.trim())) {
+        api().log(`llm: Behauptung ohne Aktion: ${answer.slice(0, 120)}`);
+        answer += '\n\n' + t('ai.claimWarning');
+        extra.actions = [...(extra.actions || []), { label: t('people.manage'), run: () => openDialog({ type: 'people' }) }, { label: t('mem.title'), run: () => openDialog({ type: 'settings', tab: 'ai' }) }];
+      }
       update({ text: answer, streaming: false, llmId: undefined, ...extra });
     }
     setUi({ hist: [...ui().hist, { user: text, assistant: answer || t('ai.ok') }].slice(-8), busyText: '' });
   }
 }
+
+/** Sätze, mit denen das Modell behauptet, etwas getan zu haben */
+const CLAIM = /\b(gespeichert|gemerkt|zugeordnet|abgespeichert|benannt|verschoben|gelöscht|angelegt|geändert|eingestellt|verknüpft|saved|remembered|moved|deleted)\b/i;
+
+/** Der Nutzer wollte, dass etwas passiert (nicht nur eine Frage) */
+const REQUEST = /\b(merk\w*|speicher\w*|notier\w*|ist (mein|meine|unser|unsere)|bin ich|ich bin|sind (meine|unsere)|verschieb\w*|lösch\w*|benenn\w*|zuordn\w*|anlegen|stell\w*|schalt\w*)\b/i;
 
 interface ToolOut {
   /** Ergebnis für das Sprachmodell */
@@ -621,7 +661,7 @@ async function runTool(name: string, a: Record<string, any>, userText = ''): Pro
     }
     case 'fotos_mit_personen': {
       const names: string[] = Array.isArray(a.namen) ? a.namen.map(String) : [str(a.namen)].filter(Boolean);
-      const r = await peoplePhotos(s!, names.join(' und '));
+      const r = (await peoplePhotos(s!, names.join(' und '))) || (await thingPhotos(s!, names.join(' und ')));
       if (!r) return { text: `Diese Personen kenne ich nicht: ${names.join(', ')}. Bekannt: ${people().map((p) => p.name).join(', ') || 'noch niemand'}.` };
       setUi({ lastIds: r.ids });
       return r.ids.length
@@ -632,7 +672,7 @@ async function runTool(name: string, a: Record<string, any>, userText = ''): Pro
       if (!prefs().aiFaces || !ui().status?.facesReady) return { text: 'Die Gesichtserkennung ist ausgeschaltet. Sie lässt sich unter Einstellungen → KI einschalten.' };
       if (s!.currentId === null) return { text: 'Kein Foto ausgewählt.' };
       const f = await facesAt(s!.currentId);
-      if (!f) return { text: 'Das Foto wird noch untersucht.' };
+      if (!f) return { text: whyNoFaces() };
       return { text: facesForPrompt(f) + (people().length ? '' : ' Es sind noch keine Personen bekannt.'), faces: await crops(s!, s!.currentId, f, (x, i) => (x.person ? displayName(x.person) : positionWord(i, f.length) || '?')) };
     }
     case 'personen_benennen': {
@@ -803,6 +843,8 @@ async function handle(it: Intent) {
       return say(t('people.opened', { n: people().length }));
     case 'unknownFaces':
       return askUnknown();
+    case 'thing':
+      return learnThing(it);
     case 'setting':
       return changeSetting(it.text);
     case 'mkfolder':
@@ -810,6 +852,7 @@ async function handle(it: Intent) {
     case 'search': {
       if (!it.query && !it.date && !it.video) return say(t('ai.notUnderstood'));
       if (it.query && (await findPeoplePhotos(s!, it.query))) return;
+      if (it.query && (await findThingPhotos(s!, it.query))) return;
       const r = await find(s!, it);
       if (typeof r === 'string')
         return say(r, { actions: [{ label: t('ai.actEnable'), run: () => openDialog({ type: 'settings', tab: 'ai' }), primary: true }] });
@@ -870,9 +913,12 @@ function facesReady(): boolean {
 /** Gesichter eines Fotos (wartet kurz, falls es gerade erst untersucht wird) */
 async function facesAt(id: number): Promise<FaceHit[] | null> {
   api().ai.prioritize([id]);
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 40; i++) {
     const f = (await facesOn([id], true)).get(id);
     if (f) return f;
+    const st = ui().status;
+    // nichts mehr in Arbeit (Fehler, veraltet, nicht lesbar) → nicht weiter warten
+    if (i > 2 && st && (st.faceError || st.helperOld || st.facesPending === 0)) return null;
     if (i === 0) setUi({ busyText: t('people.looking') });
     await new Promise((r) => setTimeout(r, 500));
   }
@@ -898,7 +944,7 @@ async function nameFaces(it: Extract<Intent, { kind: 'name' }>) {
     for (const [pid, f] of all) {
       if (f.length !== 1 || !f[0].emb) continue;
       const crop = n === 0 ? await api().ai.faceCrop(s.byId.get(pid)!.path, f[0].box).catch(() => null) : null;
-      addSample(it.items[0].name, f[0].emb, crop, it.group);
+      addSample(it.items[0].name, f[0].emb, crop, it.group, { role: it.items[0].role, real: it.items[0].real, me: it.items[0].me });
       n++;
     }
     refreshRules();
@@ -906,9 +952,9 @@ async function nameFaces(it: Extract<Intent, { kind: 'name' }>) {
     return say(t('people.namedMany', { n, name: cleanName(it.items[0].name) }), { actions: [undoPeople(before)] });
   }
   const faces = await facesAt(id);
-  if (!faces) return say(t('people.notYet'));
+  if (!faces) return say(whyNoFaces());
   if (!faces.length) return say(t('faces.noneFound'));
-  const names = resolveNaming(it.items, faces.length);
+  const names = resolveNamingItems(it.items, faces.length);
   if (!names) {
     // Positionen passen nicht zur Anzahl → zeigen, welche Gesichter es gibt
     return say(t('people.unclear', { n: faces.length }), {
@@ -919,16 +965,16 @@ async function nameFaces(it: Extract<Intent, { kind: 'name' }>) {
   const before = people();
   const done: { f: FaceHit; name: string }[] = [];
   for (let i = 0; i < faces.length; i++) {
-    const name = names[i];
+    const item = names[i];
     const f = faces[i];
-    if (!name || !f.emb) continue;
+    if (!item || !f.emb) continue;
     const crop = await api().ai.faceCrop(s.byId.get(id)!.path, f.box).catch(() => null);
-    addSample(name, f.emb, crop, it.group);
-    done.push({ f, name });
+    addSample(item.name, f.emb, crop, it.group, { role: item.role, real: item.real, me: item.me });
+    done.push({ f, name: item.name });
   }
   refreshRules();
   const after = await facesAt(id);
-  const list = (after || faces).map((f, i) => (f.person ? `${positionWord(i, faces.length) || ''} ${displayName(f.person)}`.trim() : null)).filter(Boolean);
+  const list = (after || faces).map((f, i) => (f.person ? `${positionWord(i, faces.length) || ''} ${fullName(f.person)}`.trim() : null)).filter(Boolean);
   return say(t('people.named', { list: list.join(', ') }), {
     faces: await crops(s, id, after || faces, (f) => (f.person ? displayName(f.person) : '?')),
     actions: [undoPeople(before), { label: t('people.manage'), run: () => openDialog({ type: 'people' }) }],
@@ -946,7 +992,7 @@ async function whoIs(ref: Ref) {
   const id = ref === 'selection' ? [...s.selection][0] ?? s.currentId : s.currentId;
   if (id === null || id === undefined) return say(t('ai.noCurrent'));
   const faces = await facesAt(id);
-  if (!faces) return say(t('people.notYet'));
+  if (!faces) return say(whyNoFaces());
   if (!faces.length) return say(t('faces.noneFound'));
   const known = faces.filter((f) => f.person).length;
   const maybe = faces.find((f) => !f.person && f.maybe);
@@ -1079,6 +1125,65 @@ async function findPeoplePhotos(s: SessionState, query: string): Promise<boolean
   return true;
 }
 
+// ---------------------------------------------------------------- Dinge
+
+/** Alle Fotos der Sortierung (zum Einschätzen, wie ähnlich "ähnlich genug" ist) */
+function imagePool(s: SessionState): number[] {
+  return s.items.filter((x) => x.kind === 'image').map((x) => x.id);
+}
+
+/** "Das ist mein Auto" → aktuelles (oder markierte) Foto als Beispiel */
+async function learnThing(it: Extract<Intent, { kind: 'thing' }>) {
+  if (!on()) return say(t('ai.needAi'), { actions: [{ label: t('ai.actEnable'), run: () => openDialog({ type: 'settings', tab: 'ai' }), primary: true }] });
+  const s = session()!;
+  const ids = it.ref === 'selection' && s.selection.size ? [...s.selection] : s.currentId !== null ? [s.currentId] : [];
+  if (!ids.length) return say(t('ai.noCurrent'));
+  if (it.not) {
+    const th = findThing(it.name);
+    if (!th) return say(t('things.unknown', { name: thingName(it.name) }));
+    for (const id of ids) await addThingNegative(th.id, s.byId.get(id)!.path);
+    refreshRules();
+    return say(t('things.notLearned', { name: th.name }));
+  }
+  const before = things();
+  setUi({ busyText: t('things.learning') });
+  let th;
+  for (const id of ids) th = await addThingExample(it.name, s.byId.get(id)!.path);
+  refreshRules();
+  const n = th!.examples.length;
+  return say(t(n < 3 ? 'things.learnedFew' : 'things.learned', { name: th!.name, n }), {
+    actions: [
+      { label: t('ai.undo'), run: () => (saveThings(before), refreshRules(), say(t('ai.undone'))) },
+      { label: t('things.findMore'), run: () => findThingPhotos(session()!, th!.name) },
+      { label: t('things.mark'), run: () => (setView('single'), window.dispatchEvent(new Event('fs-mark'))) },
+    ],
+  });
+}
+
+async function thingPhotos(s: SessionState, query: string): Promise<{ ids: number[]; names: string } | null> {
+  const list = thingsInQuery(query);
+  if (!list || !list.length) return null;
+  const pool = imagePool(s).filter((id) => !s.done.has(id));
+  const hits = await thingsOn(pool, imagePool(s));
+  const want = new Set(list.map((x) => x.id));
+  const ids = pool
+    .filter((id) => {
+      const on = new Set((hits.get(id) || []).map((h) => h.thing.id));
+      return [...want].every((x) => on.has(x));
+    })
+    .sort((a, b) => (hits.get(b)?.[0]?.p || 0) - (hits.get(a)?.[0]?.p || 0));
+  return { ids, names: list.map((x) => x.name).join(` ${t('people.and')} `) };
+}
+
+async function findThingPhotos(s: SessionState, query: string): Promise<boolean> {
+  const r = await thingPhotos(s, query);
+  if (!r) return false;
+  setUi({ lastIds: r.ids });
+  if (!r.ids.length) say(t('people.foundNone', { names: r.names }));
+  else say(t('things.found', { n: r.ids.length, names: r.names }), { ids: r.ids.slice(0, 24), actions: resultActions(r.ids) });
+  return true;
+}
+
 /** Vorschaubild im Chat angeklickt → Foto groß zeigen */
 export function openResult(id: number) {
   const s = session();
@@ -1164,6 +1269,19 @@ t ::= [^"\\\n]{0,40}`
       concept = r.was;
       folder = r.ordner;
       query = `a photo of ${r.was}`;
+    }
+  }
+  // "Fotos mit meinem Auto → Ordner": gemerktes Ding statt Bildbeschreibung
+  if (concept && folder) {
+    const tm = thingsInQuery(concept);
+    if (tm && tm.length) {
+      const tg = findTarget(targets, folder);
+      if (!tg) return say(t('mem.noFolder', { name: folder }), { actions: targets.slice(0, 6).map((x) => ({ label: x.name, run: () => remember({ ...it, concept, folder: x.name }) })) });
+      const who = tm.map((x) => x.name).join(', ');
+      const m = addMemory({ kind: 'thing', text: it.text, label: who, thingIds: tm.map((x) => x.id), targetPath: tg.path });
+      lastMemId = m.id;
+      refreshRules();
+      return say(t('mem.rememberedPeople', { who, folder: tg.name }), { actions: [{ label: t('ai.undo'), run: () => (removeMemory(m.id), refreshRules(), say(t('ai.undone'))) }] });
     }
   }
   // "Fotos mit meinem Bruder / meiner Familie → Ordner": Personen statt Bildbeschreibung

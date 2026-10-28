@@ -6,10 +6,12 @@ import { IconUsers, IconTrash, IconImage, IconFolder } from '../icons';
 import { addSample, removePerson, renamePerson, setGroups, mergePeople, peopleEmbs, facesOn, displayName, people as getPeople } from '../people';
 import { addMemory, memories, removeMemory } from '../aimemory';
 import { refreshRules } from '../ai';
-import type { FaceCluster, Person } from '../types';
+import type { FaceCluster, Person, Thing } from '../types';
+import { thingsOn, renameThing, removeThing } from '../things';
 
 /** Personen verwalten: Namen, Gruppen, Ordner – und unbekannte Gesichter benennen ("Wer ist das?") */
-export function PeopleDialog() {
+export function PeopleDialog({ tab: initial = 'people' }: { tab?: 'people' | 'things' }) {
+  const [tab, setTab] = useState<'people' | 'things'>(initial);
   const list = useStore((s) => s.settings.people) || [];
   const session = useStore((s) => s.session);
   const facesOn_ = useStore((s) => s.settings.prefs.aiFaces);
@@ -52,8 +54,21 @@ export function PeopleDialog() {
     });
   }, [session?.items, list.map((p) => p.embs.length).join(), facesOn_]); // eslint-disable-line
 
+  const nThings = (useStore((s) => s.settings.things) || []).length;
   return (
-    <Dialog title={t('people.title')} icon={<IconUsers size={20} />} size="xwide" testId="people-dialog">
+    <Dialog title={t('people.dialogTitle')} icon={<IconUsers size={20} />} size="xwide" testId="people-dialog">
+      <div className="seg people-tabs" role="tablist">
+        <button className={tab === 'people' ? 'on' : ''} onClick={() => setTab('people')} data-testid="tab-people">
+          {t('people.title')} ({list.length})
+        </button>
+        <button className={tab === 'things' ? 'on' : ''} onClick={() => setTab('things')} data-testid="tab-things">
+          {t('things.title')} ({nThings})
+        </button>
+      </div>
+      {tab === 'things' ? (
+        <ThingsTab />
+      ) : (
+        <>
       {!facesOn_ && (
         <div className="row" style={{ padding: 12, borderRadius: 12, background: 'var(--accent-soft)', marginBottom: 14 }}>
           <span className="grow">{t('faces.needOn')}</span>
@@ -106,6 +121,8 @@ export function PeopleDialog() {
             <PersonCard key={p.id} p={p} others={list.filter((x) => x.id !== p.id)} count={counts ? counts.get(p.id) || 0 : null} />
           ))}
         </div>
+      )}
+        </>
       )}
     </Dialog>
   );
@@ -250,6 +267,112 @@ function PersonCard({ p, others, count }: { p: Person; others: Person[]; count: 
               const r = await window.api.confirm({ message: t('people.removeAsk', { name: displayName(p) }), buttons: [t('people.remove'), t('common.cancel')], type: 'warning' });
               if (r !== 0) return;
               removePerson(p.id);
+              refreshRules();
+            }}
+          >
+            <IconTrash size={14} />
+            {t('people.remove')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Gemerkte Dinge (Auto, Haus, Haustier …) – wie Personen verwalten */
+function ThingsTab() {
+  const list = useStore((s) => s.settings.things) || [];
+  const session = useStore((s) => s.session);
+  const [counts, setCounts] = useState<Map<string, number> | null>(null);
+  useEffect(() => {
+    if (!session || !list.length) return;
+    const ids = session.items.filter((x) => x.kind === 'image').map((x) => x.id);
+    thingsOn(ids, ids).then((m) => {
+      const c = new Map<string, number>();
+      for (const h of m.values()) for (const x of h) c.set(x.thing.id, (c.get(x.thing.id) || 0) + 1);
+      setCounts(c);
+    });
+  }, [session?.items, list.map((x) => x.updated).join()]); // eslint-disable-line
+  return (
+    <>
+      <p className="muted" style={{ marginTop: 0 }}>
+        {t('things.intro')}
+      </p>
+      {!list.length ? (
+        <p className="muted small">{t('things.noneYet')}</p>
+      ) : (
+        <div className="people-grid">
+          {list.map((x) => (
+            <ThingCard key={x.id} th={x} count={counts ? counts.get(x.id) || 0 : null} />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function ThingCard({ th, count }: { th: Thing; count: number | null }) {
+  const session = useStore((s) => s.session);
+  const targets = activeProfile().targets;
+  const rule = memories().find((m) => m.kind === 'thing' && m.thingIds?.length === 1 && m.thingIds[0] === th.id);
+  const [name, setName] = useState(th.name);
+  const showPhotos = async () => {
+    if (!session) return;
+    const ids = session.items.filter((x) => x.kind === 'image').map((x) => x.id);
+    const m = await thingsOn(ids, ids);
+    setOnly(ids.filter((id) => m.get(id)?.some((h) => h.thing.id === th.id)), { grid: true });
+    setView('grid');
+    closeDialog();
+  };
+  return (
+    <div className="person-card" data-testid="thing-card" data-name={th.name}>
+      <FaceImg src={th.crop} name={th.name} lg />
+      <div className="grow">
+        <input
+          className="input"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={() => name.trim() && name !== th.name && renameThing(th.id, name)}
+          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+          aria-label={t('people.name')}
+        />
+        <div className="meta">
+          {t('things.examples', { n: th.examples.length })}
+          {count !== null && ` · ${t('people.onPhotos', { n: count })}`}
+        </div>
+        <div className="row" style={{ gap: 6, marginBottom: 6 }}>
+          <IconFolder size={14} style={{ flex: 'none', opacity: 0.7 }} />
+          <select
+            className="input"
+            value={rule?.targetPath || ''}
+            onChange={(e) => {
+              if (rule) removeMemory(rule.id);
+              if (e.target.value) addMemory({ kind: 'thing', text: `${th.name} → ${targets.find((x) => x.path === e.target.value)?.name}`, label: th.name, thingIds: [th.id], targetPath: e.target.value });
+              refreshRules();
+            }}
+            aria-label={t('people.folder')}
+          >
+            <option value="">{t('people.noFolder')}</option>
+            {targets.map((x) => (
+              <option key={x.id} value={x.path}>
+                {x.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="acts">
+          {session && (
+            <button className="btn ghost sm" onClick={showPhotos}>
+              <IconImage size={14} />
+              {t('people.showPhotos')}
+            </button>
+          )}
+          <button
+            className="btn ghost sm danger"
+            onClick={async () => {
+              const r = await window.api.confirm({ message: t('things.removeAsk', { name: th.name }), buttons: [t('people.remove'), t('common.cancel')], type: 'warning' });
+              if (r !== 0) return;
+              removeThing(th.id);
               refreshRules();
             }}
           >

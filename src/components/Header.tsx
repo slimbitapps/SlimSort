@@ -283,10 +283,10 @@ function SessionHeader() {
             <span className="k">{s.dupes.size}</span>
           </button>
         )}
-        {prefs.aiEnabled && prefs.aiFaces && (
+        {prefs.aiEnabled && (
           <button className="mi" onClick={() => openDialog({ type: 'people' })} data-testid="menu-people">
             <IconUsers size={16} />
-            {t('people.title')}
+            {t('people.dialogTitle')}
           </button>
         )}
         <button className="mi" onClick={() => openDialog({ type: 'trash' })}>

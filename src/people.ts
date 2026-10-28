@@ -81,7 +81,14 @@ export function findPerson(raw: string, list = people()): Person | undefined {
   const n = cleanName(raw);
   if (n === 'Ich') return list.find((p) => p.me);
   const k = wordKey(n);
-  return list.find((p) => wordKey(p.name) === k) || list.find((p) => p.name.toLowerCase().startsWith(n.toLowerCase()) && n.length >= 3);
+  const low = n.toLowerCase();
+  return (
+    list.find((p) => wordKey(p.name) === k) ||
+    list.find((p) => p.role && wordKey(p.role) === k) ||
+    // Vorname reicht ("Anna" → "Anna Weiß")
+    list.find((p) => low.length >= 3 && p.name.toLowerCase().split(' ')[0] === low) ||
+    list.find((p) => p.name.toLowerCase().startsWith(low) && low.length >= 3)
+  );
 }
 
 /** Personen einer Gruppe ("Familie") */
@@ -94,9 +101,15 @@ export function allGroups(list = people()): string[] {
   return [...new Set(list.flatMap((p) => p.groups || []))];
 }
 
-/** Anzeige: "Du" für einen selbst */
+/** Anzeige: "du" für einen selbst */
 export function displayName(p: Person): string {
   return p.me ? t('people.me') : p.name;
+}
+
+/** Ausführlich: "Anna Weiß (Mutter)", "du (Max Keller)" */
+export function fullName(p: Person): string {
+  if (p.me) return p.name && p.name !== 'Ich' && p.name !== t('people.meName') ? `${t('people.me')} (${p.name})` : t('people.me');
+  return p.role && p.role !== p.name ? `${p.name} (${p.role})` : p.name;
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -105,14 +118,18 @@ const uid = () => Math.random().toString(36).slice(2, 10);
  * Gesicht einer Person zuordnen (legt die Person an, wenn es sie noch nicht gibt).
  * Ähnliche Beispiele derselben Person bei anderen Personen werden entfernt (Korrektur).
  */
-export function addSample(name: string, emb: number[], crop?: string | null, group?: string): Person {
+export function addSample(name: string, emb: number[], crop?: string | null, group?: string, extra: { role?: string; real?: string; me?: boolean } = {}): Person {
   const list = people().map((p) => ({ ...p }));
-  const clean = cleanName(name);
-  let person = findPerson(clean, list);
+  const clean = extra.me ? 'Ich' : cleanName(name);
+  // erst über den richtigen Namen, dann über die Rolle suchen ("Anna Weiß" bzw. "Mutter")
+  let person = (extra.real && findPerson(extra.real, list)) || findPerson(clean, list) || (extra.role ? findPerson(extra.role, list) : undefined);
   if (!person) {
-    person = { id: uid(), name: clean === 'Ich' ? t('people.meName') : clean, me: clean === 'Ich' || undefined, embs: [], created: Date.now(), updated: Date.now() };
+    person = { id: uid(), name: clean === 'Ich' ? extra.real || t('people.meName') : clean, me: clean === 'Ich' || undefined, embs: [], created: Date.now(), updated: Date.now() };
     list.push(person);
   }
+  // genauere Angaben übernehmen ("Mutter" → "Anna Weiß, Rolle Mutter"; "Ich" → "Max Keller")
+  if (extra.role && !person.role) person.role = extra.role;
+  if (extra.real && (person.name === person.role || person.name === t('people.meName') || person.name === 'Ich' || person.name === cleanName(extra.role || ''))) person.name = extra.real;
   // Korrektur: dieses Gesicht war fälschlich bei jemand anderem gelernt
   for (const p of list) {
     if (p === person) continue;
@@ -242,7 +259,7 @@ export function facesForPrompt(faces: FaceHit[]): string {
   if (!faces.length) return 'Auf dem aktuellen Foto wurden keine Gesichter gefunden.';
   const parts = faces.map((f, i) => {
     const who = f.person
-      ? `${f.person.me ? 'du (dein Gegenüber selbst)' : f.person.name} (sicher ${Math.round(f.p * 100)} %)`
+      ? `${f.person.me ? `du (dein Gegenüber selbst${f.person.name ? ', ' + f.person.name : ''})` : f.person.name + (f.person.role ? `, ${f.person.role}` : '')} (sicher ${Math.round(f.p * 100)} %)`
       : f.maybe
         ? `unbekannt, vielleicht ${f.maybe.me ? 'du (dein Gegenüber selbst)' : f.maybe.name} (nur ${Math.round(f.p * 100)} %)`
         : 'unbekannt';
@@ -255,5 +272,5 @@ export function facesForPrompt(faces: FaceHit[]): string {
 export function peopleForPrompt(): string {
   const list = people();
   if (!list.length) return '';
-  return 'Personen, deren Gesichter du kennst: ' + list.map((p) => (p.me ? `${p.name} (dein Gegenüber selbst)` : p.name) + (p.groups?.length ? ` [${p.groups.join(', ')}]` : '')).join(', ') + '.';
+  return 'Personen, deren Gesichter du kennst: ' + list.map((p) => (p.me ? `${p.name} (dein Gegenüber selbst)` : p.name + (p.role ? ` (${p.role})` : '')) + (p.groups?.length ? ` [${p.groups.join(', ')}]` : '')).join(', ') + '.';
 }

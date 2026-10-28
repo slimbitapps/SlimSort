@@ -54,6 +54,7 @@ async function waitFor(fn, ms = 8000, label = '') {
   const helper = path.join(ki, `slimsort-llm-linux-${process.arch === 'x64' ? 'x86_64' : 'aarch64'}`);
   fs.copyFileSync(HELPER, helper);
   fs.chmodSync(helper, 0o755);
+  fs.writeFileSync(helper + '.sha256', 'test'); // gilt als aktuelle Fassung (sonst lädt die App den Helfer neu)
 
   fs.writeFileSync(
     path.join(userData, 'einstellungen.json'),
@@ -126,46 +127,49 @@ async function waitFor(fn, ms = 8000, label = '') {
   console.log('Wer ist das? ✔');
 
   // ---------------------------------------------------------------- Personen mit Position benennen (g1: A, B, C)
-  await say('Merke dir diese Personen, ich bin ganz links mein Bruder ist daneben und meine Mutter ist ganz rechts');
-  await chatHas(/Gemerkt: links du, in der Mitte Bruder, rechts Mutter/);
+  // so wie man es wirklich sagt: ohne Kommas, mit Rollen und richtigen Namen
+  await say('Siehst du die drei Personen auf dem Bild das sind meine Familie. Ganz links bin ich Max rechts daneben ist mein Bruder Tim und ganz rechts ist meine Mutter Anna Weiß');
+  await chatHas(/Gemerkt: links du \(Max\), in der Mitte Tim \(Bruder\), rechts Anna Weiß \(Mutter\)/);
   await waitFor(() => (saved().people || []).length === 3, 5000, 'drei Personen gespeichert');
   const ppl = saved().people;
-  assert.ok(ppl.some((p) => p.me), 'ich');
-  assert.ok(ppl.some((p) => p.name === 'Bruder') && ppl.some((p) => p.name === 'Mutter'));
-  await waitFor(async () => (await tags()).join('|') === 'du|Bruder|Mutter', 10000, 'Namen im Foto g1');
+  assert.ok(ppl.some((p) => p.me && p.name === 'Max'), 'ich = Max');
+  assert.ok(ppl.some((p) => p.name === 'Tim' && p.role === 'Bruder'), 'Bruder Tim (vorher als „Bruder“ benannt)');
+  assert.ok(ppl.some((p) => p.name === 'Anna Weiß' && p.role === 'Mutter'), 'Mutter Anna Weiß');
+  assert.ok(ppl.every((p) => (p.groups || []).includes('Familie')), 'alle in der Gruppe Familie');
+  await waitFor(async () => (await tags()).join('|') === 'du|Tim|Anna Weiß', 10000, 'Namen im Foto g1');
   await shot('02-named');
   console.log('Benannt ✔', (await tags()).join(', '));
 
   // ---------------------------------------------------------------- g2: andere Reihenfolge (C, A, B) → Gesichter zählen, nicht Positionen
   await next();
-  await waitFor(async () => (await tags()).join('|') === 'Mutter|du|Bruder', 15000, 'Namen im Foto g2').catch(async (e) => {
+  await waitFor(async () => (await tags()).join('|') === 'Anna Weiß|du|Tim', 15000, 'Namen im Foto g2').catch(async (e) => {
     console.log('Namen g2:', await tags());
     throw e;
   });
   await say('Wer ist auf diesem Foto?');
-  await chatHas(/Auf dem Foto erkenne ich: links: Mutter, in der Mitte: du, rechts: Bruder/);
+  await chatHas(/Auf dem Foto erkenne ich: links: Anna Weiß, in der Mitte: du, rechts: Tim/);
   await shot('03-other-order');
   console.log('Andere Reihenfolge richtig erkannt ✔');
 
   // ---------------------------------------------------------------- Fotos mit einer Person
   await say('Zeige Fotos mit meinem Bruder');
-  await chatHas(/3 Fotos mit Bruder gefunden/);
-  await say('Fotos mit meiner Mutter');
-  await chatHas(/2 Fotos mit Mutter gefunden/);
+  await chatHas(/3 Fotos mit Tim gefunden/);
+  await say('Fotos mit Anna');
+  await chatHas(/2 Fotos mit Anna Weiß gefunden/);
   console.log('Fotos mit Person ✔');
 
   // ---------------------------------------------------------------- Regel: Person → Ordner (Vorschlag im Dock)
   await say('Fotos mit meiner Mutter sollen immer in den Ordner Familie');
-  await chatHas(/Fotos mit Mutter schlage ich ab jetzt für „Familie“ vor/);
+  await chatHas(/Fotos mit Anna Weiß schlage ich ab jetzt für „Familie“ vor/);
   await win.waitForFunction(() => {
     const el = document.querySelector('[data-testid="target"][data-name="Familie"] .sugg');
-    return el && /Gemerkt: Mutter/.test(el.textContent || '');
+    return el && /Gemerkt: Anna Weiß/.test(el.textContent || '');
   }, null, { timeout: 20000 });
   console.log('Personen-Regel → Vorschlag ✔');
 
-  // ---------------------------------------------------------------- Gesicht benennen per Klick (solo = Bruder → "Lukas")
+  // ---------------------------------------------------------------- Gesicht benennen per Klick (solo = Tim → "Lukas")
   await next();
-  await waitFor(async () => (await tags()).join('|') === 'Bruder', 15000, 'Bruder auf solo');
+  await waitFor(async () => (await tags()).join('|') === 'Tim', 15000, 'Tim auf solo');
   await win.evaluate(() => document.querySelector('[data-testid="face-box"]').click());
   await win.waitForSelector('[data-testid="face-name-input"]');
   await win.fill('[data-testid="face-name-input"]', 'Lukas');
@@ -205,7 +209,7 @@ async function waitFor(fn, ms = 8000, label = '') {
   await win.waitForSelector('[data-testid="chat-history-item"]');
   await shot('05-history');
   await win.evaluate(() => document.querySelector('[data-testid="chat-history-item"] button').click());
-  await chatHas(/Fotos mit Mutter schlage ich ab jetzt/);
+  await chatHas(/Fotos mit Anna Weiß schlage ich ab jetzt/);
   await waitFor(() => fs.existsSync(path.join(userData, 'chats.json')), 5000, 'chats.json');
   console.log('Chat-Verlauf ✔');
 

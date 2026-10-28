@@ -31,7 +31,7 @@ export function Dialogs() {
     case 'keyCapture':
       return <KeyCaptureDialog targetId={d.targetId} />;
     case 'people':
-      return <PeopleDialog />;
+      return <PeopleDialog tab={d.tab} />;
     case 'prompt':
       return <PromptDialog title={d.title} value={d.value} onOk={d.onOk} />;
     default:

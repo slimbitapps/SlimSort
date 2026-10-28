@@ -163,6 +163,33 @@ impl Drop for FaceProc {
     }
 }
 
+/// Kennt dieses Helfer-Programm den Gesichter-Modus? (ältere Fassungen nicht)
+/// Neue Fassungen antworten mit einer JSON-Zeile ("ready" oder "fatal"), alte beenden sich ohne Ausgabe.
+pub fn probe(helper: &Path, dir: &Path) -> bool {
+    let mut cmd = Command::new(helper);
+    cmd.arg("--faces").arg(dir.join(DETECT)).arg(dir.join(EMBED));
+    cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000);
+    }
+    let Ok(mut child) = cmd.spawn() else { return false };
+    let out = child.stdout.take();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let mut line = String::new();
+        if let Some(o) = out {
+            let _ = BufReader::new(o).read_line(&mut line);
+        }
+        let _ = tx.send(line);
+    });
+    let line = rx.recv_timeout(std::time::Duration::from_secs(20)).unwrap_or_default();
+    let _ = child.kill();
+    let _ = child.wait();
+    serde_json::from_str::<Value>(&line).is_ok_and(|v| v.get("ready").is_some() || v.get("fatal").is_some())
+}
+
 /// Größte Ähnlichkeit (cos) zwischen Gesichtern eines Fotos und einer gemerkten Gruppe
 pub fn best_match(faces: &[FaceRec], group: &[Vec<f32>]) -> f32 {
     let mut best = -1f32;
@@ -285,6 +312,26 @@ mod tests {
         assert_eq!(r[0].0, Some(0));
         assert_eq!(r[1].0, None); // B ist zu unähnlich (cos ~0.37)
         assert_eq!(r[2].0, None);
+    }
+
+    /// Alter Helfer (ohne Gesichter) wird erkannt, neuer nicht
+    #[cfg(unix)]
+    #[test]
+    fn probe_old_and_new_helper() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("slimsort-probe-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let old = dir.join("alt");
+        std::fs::write(&old, "#!/bin/sh\necho 'Aufruf: slimsort-llm --model datei.gguf' >&2\nexit 2\n").unwrap();
+        let new = dir.join("neu");
+        std::fs::write(&new, "#!/bin/sh\necho '{\"ready\":true}'\nsleep 5\n").unwrap();
+        for f in [&old, &new] {
+            std::fs::set_permissions(f, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        assert!(!probe(&old, &dir));
+        assert!(probe(&new, &dir));
+        assert!(!probe(&dir.join("fehlt"), &dir));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

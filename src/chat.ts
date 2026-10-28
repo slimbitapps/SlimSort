@@ -22,13 +22,22 @@ export interface NamePos {
 }
 export interface NameItem {
   pos: NamePos;
+  /** wie die Person heißen soll ("Anna Weiß", "Bruder", "ich") */
   name: string;
+  /** Rolle ("Mutter"), falls genannt */
+  role?: string;
+  /** das bin ich */
+  me?: boolean;
+  /** richtiger Name, falls genannt ("Max Keller") */
+  real?: string;
 }
 
 export type Intent =
   | { kind: 'help' }
   /** Gesichter benennen: "ich bin links, mein Bruder daneben, Mama rechts" */
   | { kind: 'name'; items: NameItem[]; ref: Ref; group?: string }
+  /** Ding merken: "Das ist mein Auto" (bzw. "nicht mein Auto") */
+  | { kind: 'thing'; name: string; not?: boolean; ref: Ref }
   /** "Wer ist auf dem Foto?", "Erkennst du die Personen?" */
   | { kind: 'whois'; ref: Ref }
   /** "Welche Personen kennst du?", "Personen verwalten" */
@@ -187,77 +196,136 @@ const POS_RE = [
   { re: /\b(?:ganz\s+)?links\b|\b(?:far\s+)?left\b|\bà gauche\b|\ba (?:la )?izquierda\b|\ba sinistra\b/, pos: (): NamePos => ({ from: 'left', n: 0 }) },
   { re: /\b(?:ganz\s+)?rechts\b|\b(?:far\s+)?right\b|\bà droite\b|\ba (?:la )?derecha\b|\ba destra\b/, pos: (): NamePos => ({ from: 'right', n: 0 }) },
 ];
-const NAME_FILLER =
-  /\b(?:merke?\s+dir|merk\s+dir|bitte|diese[nr]?\s+(?:personen|leute|menschen)|die\s+personen|die\s+leute|auf\s+(?:dem|diesem)\s+(?:foto|bild)|auf\s+den\s+(?:fotos|bildern)|hier|da|dort|steht|stehe|stehen|sitzt|sitze|sitzen|ist|bin|sind|is|am|are|das|der|die|person|mann|frau|junge|mädchen|gesicht|und|also|nämlich|zu sehen|foto|fotos|bild|bilder|photo|picture)\b/gi;
-
-/** Name aus einem Satzteil ("mein Bruder ist" → "mein Bruder"); leer, wenn keiner da ist */
-function nameOf(part: string): string {
-  const n = part.replace(NAME_FILLER, ' ').replace(/[:,.!?]/g, ' ').replace(/\s+/g, ' ').trim();
-  if (!n || n.split(' ').length > 3) return '';
-  if (/^(ganz|von|nach|links|rechts|mitte|daneben|neben|sie|er|es|wir|ihr|they|he|she|it)$/i.test(n)) return '';
-  return n;
-}
-
 /**
  * Wer ist wo auf dem Foto? "ich bin ganz links, mein Bruder ist daneben und meine Mutter ganz rechts",
  * "von links nach rechts: Lisa, Tom und Max", "das bin ich", "das ist meine Mutter".
  */
 export function parseNaming(text: string): NameItem[] | null {
   const s = text.trim().replace(/[.!]+$/, '');
+  if (/^(?:bitte\s+)?(?:lösch|verschieb|kopier|zeig|such|find|sortier|öffne|schalt|stell|mach|leg|gib|hol|wähl|markier|delete|move|show|find|open)\w*\b/i.test(s)) return null;
   // Reihenfolge: "von links nach rechts: A, B und C"
   const seq = /\bvon\s+(links|rechts)(?:\s+nach\s+(?:rechts|links))?\s*[:,]?\s*(?:sind\s+(?:das\s+)?|das\s+sind\s+)?(.+)$/i.exec(s) || /\bfrom\s+(left|right)(?:\s+to\s+(?:right|left))?\s*[:,]?\s*(.+)$/i.exec(s);
   if (seq) {
-    const names = seq[2].split(/\s*(?:,|;|\bund\b|\band\b|\bet\b|\by\b|\be\b)\s*/i).map(nameOf).filter(Boolean);
-    if (names.length >= 2) return names.map((name, i) => ({ pos: { from: /links|left/i.test(seq[1]) ? 'left' : 'right', n: i }, name }));
+    const names = seq[2].split(/\s*(?:,|;|\bund\b|\band\b|\bet\b|\by\b|\be\b)\s*/i).map((x) => namePhrase(x.trim(), 'lead')).filter((x): x is Omit<NameItem, 'pos'> => !!x);
+    if (names.length >= 2) return names.map((x, i) => ({ ...x, pos: { from: /links|left/i.test(seq[1]) ? 'left' : 'right', n: i } }));
   }
-  if (/^(?:bitte\s+)?(?:lösch|verschieb|kopier|zeig|such|find|sortier|öffne|schalt|stell|mach|leg|gib|hol|wähl|markier|delete|move|show|find|open)\w*\b/i.test(s)) return null;
-  const parts: string[] = [];
-  for (const part of s.split(/\s*(?:,|;|\.|:|\?|!|\bund\b|\bsowie\b|\band\b)\s*/i).filter(Boolean)) {
-    // ohne Komma: "ich bin ganz links mein Bruder ist daneben" → nach der ersten Position trennen
-    const all = POS_RE.flatMap((p) => [...part.toLowerCase().matchAll(new RegExp(p.re.source, 'g'))].map((m) => ({ i: m.index!, end: m.index! + m[0].length })));
-    all.sort((a, b) => a.i - b.i);
-    const first = all[0];
-    const second = all.find((m) => first && m.i >= first.end);
-    if (first && second && nameOf(part.slice(0, first.i))) {
-      parts.push(part.slice(0, first.end), part.slice(first.end));
-    } else parts.push(part);
+  // alle Positionsangaben im Satz (spezifische vor allgemeinen, ohne Überschneidung)
+  const low = s.toLowerCase();
+  const found: { i: number; end: number; pri: number; pos: NamePos }[] = [];
+  POS_RE.forEach((p, pri) => {
+    for (const m of low.matchAll(new RegExp(p.re.source, 'g'))) found.push({ i: m.index!, end: m.index! + m[0].length, pri, pos: p.pos(m as RegExpExecArray) });
+  });
+  found.sort((a, b) => a.i - b.i || a.pri - b.pri);
+  const marks: typeof found = [];
+  for (const f of found) {
+    const last = marks[marks.length - 1];
+    if (last && f.i < last.end) {
+      if (f.pri < last.pri) marks[marks.length - 1] = f;
+      continue;
+    }
+    marks.push(f);
   }
   const items: NameItem[] = [];
-  for (const part of parts) {
-    const pl = part.toLowerCase();
-    let pos: NamePos | null = null;
-    let rest = part;
-    for (const p of POS_RE) {
-      const m = p.re.exec(pl);
-      if (m) {
-        pos = p.pos(m);
-        rest = part.slice(0, m.index) + ' ' + part.slice(m.index + m[0].length);
-        break;
-      }
-    }
-    const name = nameOf(rest);
-    if (pos && name) items.push({ pos, name });
-    else if (!pos && name && items.length && /^(?:mein|meine|ich|mir)\b/i.test(name)) items.push({ pos: { from: 'next', n: 0 }, name });
-  }
-  if (items.length && items.some((x) => x.pos.from !== 'next')) return items;
+  const used = new Set<number>();
+  // Satzzeichen trennen Satzteile; ein Name gehört zur Position davor oder danach
+  const before = (k: number) => {
+    const from = k > 0 ? marks[k - 1].end : 0;
+    const t = s.slice(from, marks[k].i);
+    const cut = Math.max(t.lastIndexOf(','), t.lastIndexOf('.'), t.lastIndexOf(';'), t.lastIndexOf('?'), t.lastIndexOf('!'), t.lastIndexOf(':'));
+    return t.slice(cut + 1);
+  };
+  const after = (k: number) => {
+    const t = s.slice(marks[k].end, k + 1 < marks.length ? marks[k + 1].i : s.length);
+    const m = /[,.;?!:]/.exec(t);
+    return m ? t.slice(0, m.index) : t;
+  };
+  const VERB = '(?:ist|bin|sind|steht|stehe|stehen|sitzt|sitze|sitzen|befindet sich|kommt|is|am|are|stands?)';
+  marks.forEach((m, k) => {
+    const b = before(k);
+    const a = after(k);
+    // "ich bin ganz links" / "mein Bruder ist daneben" → Name davor
+    const bm = new RegExp(`^(.*?)\\s*${VERB}\\s*(?:ganz|hier|da)?\\s*$`, 'i').exec(b);
+    const am = new RegExp(`^\\s*${VERB}\\s+(.*)$`, 'i').exec(a);
+    let x: Omit<NameItem, 'pos'> | null = null;
+    if (bm && !used.has(k - 0.5) && (x = namePhrase(bm[1], 'tail'))) used.add(k - 0.5);
+    else if (am && !used.has(k + 0.5) && (x = namePhrase(am[1], 'lead'))) used.add(k + 0.5);
+    else if (!used.has(k + 0.5) && (x = namePhrase(a, 'lead'))) used.add(k + 0.5);
+    else if (!used.has(k - 0.5) && (x = namePhrase(b, 'tail'))) used.add(k - 0.5);
+    if (x) items.push({ ...x, pos: m.pos });
+  });
+  if (items.length && items.some((x) => x.pos.from !== 'next' && x.pos.from !== 'prev')) return items;
   // ohne Position: "das bin ich", "das ist meine Mutter", "das ist Lukas"
   const one = /^(?:und\s+)?(?:das|dies|hier|that|this|c'est|questo|esto)\s+(?:bin|ist|is|es|è|sono)\s+(.+)$/i.exec(s);
   if (one) {
     const n = one[1].trim();
-    // "ich", "meine Mutter", oder ein Name (groß geschrieben, höchstens zwei Wörter)
-    if (/^(ich|me|moi|yo|io)$/i.test(n) || /^(mein|meine|my|ma|mon|mi|mia|mio)\s+[\wäöüß-]+$/i.test(n) || /^[A-ZÄÖÜ][\wäöüß-]+(\s+[A-ZÄÖÜ][\wäöüß-]+)?$/.test(n))
-      return [{ pos: { from: 'any', n: 0 }, name: n }];
+    if (/^(ich|me|moi|yo|io)$/i.test(n) || /^(mein|meine|my|ma|mon|mi|mia|mio)\s+[\wäöüß-]+(\s+[A-ZÄÖÜ][\wäöüß-]+){0,2}$/i.test(n) || /^[A-ZÄÖÜ][\wäöüß-]+(\s+[A-ZÄÖÜ][\wäöüß-]+)?$/.test(n)) {
+      const x = namePhrase(n, 'lead');
+      if (x) return [{ ...x, pos: { from: 'any', n: 0 } }];
+    }
   }
   return null;
+}
+
+/**
+ * "Das ist mein Auto", "Merk dir: das ist unser Haus", "Das ist nicht mein Auto" → Ding (keine Person).
+ * Personen-Rollen ("meine Mutter") gehören nicht hierher.
+ */
+export function parseThing(text: string): Extract<Intent, { kind: 'thing' }> | null {
+  const m = /^(?:bitte\s+)?(?:merke?\s+dir[,:]?\s*(?:dass\s+)?)?(?:das|dies|hier)\s+(?:ist|sind)\s+(nicht\s+)?((?:mein|meine|unser|unsere|dein|deine)\s+.+?)\s*[.!]?$/i.exec(text.trim());
+  if (!m) return null;
+  const words = m[2].split(/\s+/).slice(1);
+  const noun = words.find((w) => /^[A-ZÄÖÜ]/.test(w)) || words[0] || '';
+  if (!noun || ROLE.test(noun) || words.length > 5) return null;
+  const ref: Ref = /markiert|ausgewählt/i.test(text) ? 'selection' : 'current';
+  return { kind: 'thing', name: m[2].replace(/\s+(auf|in)\s+(dem|diesem|den)\s+(foto|bild|fotos|bildern)\b.*$/i, ''), not: !!m[1], ref };
+}
+
+/** "das sind meine Familie", "meine Freunde" → Gruppe */
+export function groupOf(text: string): string | undefined {
+  const m = /\b(?:sind|ist|als)\s+(?:meine|unsere|my|our)\s+(familie|freunde|freundinnen|kollegen|klasse|geschwister|eltern|großeltern|cousins|family|friends)\b/i.exec(text) || /\b(?:meine|unsere)\s+(familie|freunde|eltern|geschwister)\b/i.exec(text);
+  return m ? m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase() : undefined;
+}
+
+/** Rollen in der Familie und im Umfeld (für "meine Mutter Anna") */
+const ROLE = /^(mutter|mama|mami|vater|papa|papi|bruder|schwester|oma|omi|opa|opi|großmutter|großvater|onkel|tante|cousin|cousine|sohn|tochter|freund|freundin|frau|mann|ehefrau|ehemann|partner|partnerin|kind|baby|enkel|enkelin|nichte|neffe|schwager|schwägerin|stiefvater|stiefmutter|lehrer|lehrerin|chef|chefin|kollege|kollegin|nachbar|nachbarin|patenonkel|patentante|mom|mum|mother|dad|father|brother|sister|grandma|grandpa|friend|wife|husband|son|daughter)$/i;
+const POSS = /^(mein|meine|meinen|meinem|meiner|unser|unsere|unseren|unserem|unserer|dein|deine|my|our)$/i;
+const NOT_NAME = /^(foto|fotos|bild|bilder|familie|person|personen|leute|gesicht|gesichter|ganz|links|rechts|mitte|daneben|neben|und|wieder|auch|dann|hier|da|das|der|die|siehst|sieh|schau|guck|merke|merk|bitte|ja|nein|okay|ok|photo|picture)$/i;
+
+/**
+ * Name aus einem Satzteil: "meine Mutter Anna Weiß" → Anna Weiß (Rolle Mutter), "ich Max Keller" → ich (Max Keller),
+ * "mein Bruder" → Bruder. `lead`: Name steht am Anfang, `tail`: am Ende.
+ */
+function namePhrase(part: string, where: 'lead' | 'tail'): Omit<NameItem, 'pos'> | null {
+  let w = part.replace(/[„“"»«()]/g, ' ').trim().split(/\s+/).filter(Boolean);
+  if (where === 'tail') {
+    // vom Ende her: Namen, Rolle, "mein", "ich"
+    let k = w.length;
+    while (k > 0 && (/^[A-ZÄÖÜ]/.test(w[k - 1]) || /^(ich|mir|mich)$/i.test(w[k - 1]) || POSS.test(w[k - 1]) || ROLE.test(w[k - 1])) && !NOT_NAME.test(w[k - 1])) k--;
+    w = w.slice(k);
+  } else {
+    let k = 0;
+    while (k < w.length && (/^[A-ZÄÖÜ]/.test(w[k]) || /^(ich|mir|mich)$/i.test(w[k]) || POSS.test(w[k]) || ROLE.test(w[k])) && !NOT_NAME.test(w[k])) k++;
+    w = w.slice(0, k);
+  }
+  while (w.length && POSS.test(w[0])) w.shift();
+  if (!w.length || w.length > 4) return null;
+  const me = /^(ich|mir|mich)$/i.test(w[0]);
+  if (me) w.shift();
+  let role: string | undefined;
+  if (w.length && ROLE.test(w[0])) role = w.shift()!.replace(/^./, (c) => c.toUpperCase());
+  const real = w.join(' ');
+  if (me) return { name: 'ich', me: true, real: real || undefined };
+  if (!real && !role) return null;
+  return { name: real || role!, role, real: real || undefined };
 }
 
 /**
  * Positionen auf eine Anzahl Gesichter (von links nach rechts) abbilden.
  * Liefert je Gesicht den Namen; null, wenn es nicht eindeutig passt.
  */
-export function resolveNaming(items: NameItem[], count: number): (string | null)[] | null {
+export function resolveNamingItems(items: NameItem[], count: number): (NameItem | null)[] | null {
   if (!count) return null;
-  const out: (string | null)[] = Array(count).fill(null);
+  const out: (NameItem | null)[] = Array(count).fill(null);
   let prev = -1;
   for (const it of items) {
     let i: number;
@@ -286,21 +354,29 @@ export function resolveNaming(items: NameItem[], count: number): (string | null)
       }
     }
     if (i < 0 || i >= count || out[i] !== null) return null;
-    out[i] = it.name;
+    out[i] = it;
     prev = i;
   }
   return out;
+}
+
+/** Wie resolveNamingItems, aber nur die Namen */
+export function resolveNaming(items: NameItem[], count: number): (string | null)[] | null {
+  const r = resolveNamingItems(items, count);
+  return r && r.map((x) => (x ? x.name : null));
 }
 
 /** "Merke dir …" in Regel/Personen/Notiz zerlegen */
 export function parseRemember(raw: string): Intent {
   const text = raw.trim().replace(/[.!]+$/, '');
   const s = text.toLowerCase();
+  const th = parseThing(text);
+  if (th) return th;
   // Einzelne Personen mit Position: "diese Personen: ich bin links, mein Bruder daneben, Mama rechts"
   const naming = parseNaming(text);
   if (naming && (naming.length > 1 || naming[0].pos.from !== 'any' || /^(das|dies)\s+(bin|ist)/i.test(text))) {
     const ref: Ref = /markiert|ausgewählt/.test(s) ? 'selection' : 'current';
-    return { kind: 'name', items: naming, ref };
+    return { kind: 'name', items: naming, ref, group: groupOf(text) };
   }
   // Personen: "die (vier) Personen auf diesem Foto sind meine Familie (und sollen in den Ordner X)"
   const fm = /\b(?:personen|person|leute|menschen|gesichter|kinder|die beiden|die zwei|die drei|die vier|der|die|das)\b.*?\b(?:auf|in)\s+(?:diesem|dem|den|diesen|den markierten|den ausgewählten)\s+(?:fotos|foto|bildern|bilder|bild)\b\s*(?:(?:ist|sind|zeigt|zeigen)\s+)?(?:(?:meine|meinen|meiner|mein|unsere|unser|my|our)\s+)?([\wäöüß-]+)/i.exec(text);
@@ -348,6 +424,9 @@ export function parse(input: string): Intent {
     const r = parseRemember(text);
     if (r.kind === 'remember' && r.concept) return r;
   }
+  // Dinge ("das ist mein Auto")
+  const thing = parseThing(text);
+  if (thing) return thing;
   // Personen
   if (/^(wer|who)\s+(steht|stehen|sitzt|sitzen|ist|sind|is|are)\s+(da\s+|hier\s+)?(ganz\s+)?(links|rechts|in der mitte|vorne|hinten|daneben|neben)\b/.test(s)) return { kind: 'whois', ref: 'current' };
   if (/\b(wer|who|qui|quién|chi)\b.*\b(ist|sind|is|are|est|es|è)\b.*\b(das|da|drauf|darauf|auf (dem|diesem) (foto|bild)|zu sehen|this|that|on (this|the) (photo|picture)|links|rechts|in der mitte)\b|\berkennst du\b|\bweißt du,? wer\b|\bkennst du (die|diese|den|ihn|sie)\b(?! .*(ordner|einstellung))|\bwho('s| is) (this|that|in)\b|\brecogni[sz]e\b|\bwen siehst du\b|\bwelche personen\b.*\b(foto|bild|drauf)\b/.test(s))
@@ -355,7 +434,8 @@ export function parse(input: string): Intent {
   if (/\b(welche|wie viele) (personen|leute|menschen|gesichter) (kennst du|weißt du|hast du gelernt)|\bpersonen (verwalten|anzeigen|bearbeiten|übersicht)|^(zeig|öffne)\w*\s+(mir\s+)?(die\s+)?personen\b|\bwho do you know\b|\bmanage people\b/.test(s)) return { kind: 'people' };
   if (/\b(unbekannte|neue|fremde) (personen|gesichter|leute)\b|\bwer (sind|ist) (die|der|das) (unbekannte\w*|andere\w*)\b|\bgesichter benennen\b|\bpersonen benennen\b|\bname (the )?(faces|people)\b/.test(s)) return { kind: 'unknownFaces' };
   const naming = parseNaming(text);
-  if (naming && (naming.length > 1 || naming[0].pos.from !== 'any' || /^(das|dies|hier|this|that)\s+(bin|ist|is)\b/i.test(text))) return { kind: 'name', items: naming, ref: /markiert|ausgewählt/.test(s) ? 'selection' : 'current' };
+  if (naming && (naming.length > 1 || naming[0].pos.from !== 'any' || /^(das|dies|hier|this|that)\s+(bin|ist|is)\b/i.test(text)))
+    return { kind: 'name', items: naming, ref: /markiert|ausgewählt/.test(s) ? 'selection' : 'current', group: groupOf(text) };
   // Ordner anlegen
   const mk = /^(?:bitte\s+)?(?:leg|erstell|mach|erzeug|create|make)\w*\s+(?:mir\s+)?(?:einen\s+|einen neuen\s+|neuen\s+|a\s+|a new\s+)?(?:ziel)?(?:ordner|folder)\s+(?:an\s+)?(?:namens\s+|mit dem namen\s+|called\s+|named\s+)?["„»]?([^"“«]+?)["“«]?(?:\s+an)?[.!]?$/i.exec(text);
   if (mk) return { kind: 'mkfolder', name: mk[1].trim() };
