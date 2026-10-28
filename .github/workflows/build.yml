@@ -134,7 +134,7 @@ jobs:
           if-no-files-found: error
 
   mac:
-    runs-on: macos-latest
+    runs-on: macos-15-intel # baut beide Mac-Versionen (Apple-Chip + Intel)
     env:
       HAS_APPLE: ${{ secrets.APPLE_ID != '' }}
     steps:
