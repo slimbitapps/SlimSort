@@ -315,6 +315,8 @@ async function waitFor(fn, ms = 6000, label = '') {
   assert.equal(real.length, 0, 'keine Fehler in der Oberfläche');
   await app.close();
   console.log('\nE2E: alle Prüfungen bestanden ✔  Screenshots:', SHOTS);
+  // wie die anderen Tests: selbst beenden (WebKitWebDriver schließt die App nicht immer mit)
+  process.exit(0);
 })().catch(async (e) => {
   console.error('E2E FEHLER:', e);
   if (globalThis.__app) {
