@@ -116,7 +116,8 @@ pub struct EmptyResult {
 
 enum Job {
     Transfer(TransferOp),
-    Undo(u64),
+    /// Rückgängig: ganzer Auftrag oder nur diese Einträge
+    Undo(u64, Option<Vec<u64>>),
     EmptyTrash(bool, mpsc::Sender<Result<EmptyResult, FsError>>),
 }
 
@@ -222,7 +223,12 @@ impl Session {
     }
 
     pub fn undo(&self, op_id: u64) {
-        self.enqueue(Job::Undo(op_id), 0);
+        self.enqueue(Job::Undo(op_id, None), 0);
+    }
+
+    /// Nur einzelne Fotos eines Auftrags zurücknehmen (KI-Verlauf)
+    pub fn undo_items(&self, op_id: u64, ids: Vec<u64>) {
+        self.enqueue(Job::Undo(op_id, Some(ids)), 0);
     }
 
     pub fn empty_trash(&self, to_system_trash: bool) -> Result<EmptyResult, FsError> {
@@ -282,7 +288,7 @@ impl Worker {
     fn run(&self, job: Job) {
         match job {
             Job::Transfer(op) => self.transfer(op),
-            Job::Undo(id) => self.undo(id),
+            Job::Undo(id, only) => self.undo(id, only),
             Job::EmptyTrash(sys, reply) => {
                 let _ = reply.send(self.empty_trash(sys));
             }
@@ -417,7 +423,7 @@ impl Worker {
         self.send("op:done", json!({ "opId": op.op_id, "kind": "transfer", "results": results, "destDir": last_target }));
     }
 
-    fn undo(&self, op_id: u64) {
+    fn undo(&self, op_id: u64, only: Option<Vec<u64>>) {
         let h = self.inner.lock().unwrap().history.get(&op_id).cloned();
         let Some(h) = h else {
             self.send("op:done", json!({ "opId": op_id, "kind": "undo", "results": [], "missing": true }));
@@ -425,7 +431,12 @@ impl Worker {
         };
         let mut results = Vec::new();
         let mut failed = Vec::new();
-        for entry in h.entries.iter().rev() {
+        // nur einzelne Fotos: die übrigen bleiben im Verlauf (später noch rückgängig zu machen)
+        let keep: Vec<_> = match &only {
+            Some(ids) => h.entries.iter().filter(|e| !ids.contains(&e.item_id)).cloned().collect(),
+            None => vec![],
+        };
+        for entry in h.entries.iter().rev().filter(|e| only.as_ref().is_none_or(|ids| ids.contains(&e.item_id))) {
             let r = (|| -> Result<(), FsError> {
                 for g in entry.groups.iter().rev() {
                     let restored = revert_moves(&g.moves, g.mode)?;
@@ -455,10 +466,11 @@ impl Worker {
         }
         {
             let mut g = self.inner.lock().unwrap();
-            if failed.is_empty() {
+            let rest: Vec<_> = keep.into_iter().chain(failed).collect();
+            if rest.is_empty() {
                 g.history.remove(&op_id);
             } else {
-                g.history.insert(op_id, Hist { entries: failed });
+                g.history.insert(op_id, Hist { entries: rest });
             }
         }
         self.send("op:done", json!({ "opId": op_id, "kind": "undo", "results": results }));
@@ -624,6 +636,27 @@ mod tests {
         let evs: Vec<String> = log.lock().unwrap().iter().map(|(e, _)| e.clone()).collect();
         assert!(evs.contains(&"op:done".to_string()));
         assert!(evs.contains(&"op:idle".to_string()));
+    }
+
+    #[test]
+    fn partial_undo_keeps_rest() {
+        let (src, dst) = setup("part");
+        let counters = Arc::new(Counters::default());
+        let (emit, _log) = collect();
+        let mut s = Session::new(None, counters.clone(), emit);
+        let items = s.open(&[src.clone()], false, None, |_| {}).unwrap();
+        let id = |n: &str| items.iter().find(|x| x.name == n).unwrap().id;
+        let all = vec![id("a.jpg"), id("b.jpg"), id("c.jpg")];
+        s.transfer(TransferOp { op_id: 3, item_ids: all, dest_dir: Some(dst.to_string_lossy().into()), action: "move".into(), live_video: "move".into(), subdirs: HashMap::new(), names: HashMap::new() });
+        wait_idle(&counters);
+        s.undo_items(3, vec![id("b.jpg")]);
+        wait_idle(&counters);
+        assert!(src.join("b.jpg").exists());
+        assert!(dst.join("a.jpg").exists() && dst.join("c.jpg").exists());
+        // der Rest des Auftrags lässt sich danach noch zurücknehmen
+        s.undo(3);
+        wait_idle(&counters);
+        assert!(src.join("a.jpg").exists() && src.join("c.jpg").exists());
     }
 
     #[test]

@@ -247,6 +247,8 @@ struct Inner {
     failed: HashSet<Key>,
     total: usize,
     busy: usize,
+    /// gerade bearbeitete Lern-Aufträge (freigegebene Ordner/Zielordner)
+    folder_busy: usize,
     downloading: bool,
     /// Fingerabdrücke der Begriffe (für Stichwörter), je Modell einmal berechnet
     labels: Option<Arc<Vec<Vec<f32>>>>,
@@ -278,6 +280,7 @@ impl Default for Inner {
             failed: HashSet::new(),
             total: 0,
             busy: 0,
+            folder_busy: 0,
             downloading: false,
             labels: None,
             texts: HashMap::new(),
@@ -323,6 +326,8 @@ pub struct Status {
     pub faces: bool,
     pub faces_ready: bool,
     pub face_total: usize,
+    /// Fotos aus Ordnern, die noch gelernt werden
+    pub learning: usize,
     /// Fotos, deren Gesichter noch gesucht werden
     pub faces_pending: usize,
     pub face_error: Option<String>,
@@ -443,6 +448,12 @@ pub struct IndexItem {
 pub struct FolderTarget {
     pub target: String,
     pub dir: String,
+    /// freigegebener Ordner: alle Fotos (bis MAX_EXAMPLES) direkt in diesem Ordner lernen, nicht nur Stichproben
+    #[serde(default)]
+    pub all: bool,
+    /// schon gelernt → trotzdem neu lernen (neue Fotos dazugekommen)
+    #[serde(default)]
+    pub again: bool,
 }
 
 fn lower_priority() {
@@ -603,6 +614,7 @@ impl Ai {
             faces: g.faces_on,
             faces_ready,
             face_total: g.fstore.as_ref().map_or(0, |f| f.map.values().map(Vec::len).sum()),
+            learning: g.queue.iter().filter(|j| matches!(j.kind, JobKind::Folder(_))).count() + g.folder_busy,
             faces_pending: match &g.fstore {
                 Some(f) if g.faces_on => g.ids.values().filter(|k| !f.map.contains_key(*k) && !g.face_failed.contains(*k) && !g.failed.contains(*k)).count(),
                 _ => 0,
@@ -750,6 +762,9 @@ impl Ai {
                     if self.installed(g.tier) && g.load_error.is_none() {
                         if let Some(j) = g.queue.pop_front() {
                             g.busy += 1;
+                            if matches!(j.kind, JobKind::Folder(_)) {
+                                g.folder_busy += 1;
+                            }
                             break j;
                         }
                     }
@@ -771,6 +786,9 @@ impl Ai {
             let found = if need_faces && res.is_ok() { Some(self.faces_of_file(&job.path)) } else { None };
             let mut g = self.inner.lock().unwrap();
             g.busy -= 1;
+            if matches!(job.kind, JobKind::Folder(_)) {
+                g.folder_busy -= 1;
+            }
             g.last_use = Some(Instant::now());
             match found {
                 Some(Ok(f)) => {
@@ -1133,10 +1151,10 @@ impl Ai {
             lower_priority();
             for t in targets {
                 let fkey = format!("{}|{}", me.cur_tier().id, t.dir);
-                if me.inner.lock().unwrap().learned.folders.contains(&fkey) {
+                if me.inner.lock().unwrap().learned.folders.contains(&fkey) && !t.again {
                     continue;
                 }
-                let files = sample_images(Path::new(&t.dir), FOLDER_SAMPLES);
+                let files = if t.all { direct_images(Path::new(&t.dir), MAX_EXAMPLES) } else { sample_images(Path::new(&t.dir), FOLDER_SAMPLES) };
                 let mut g = me.inner.lock().unwrap();
                 if !g.enabled {
                     return;
@@ -1144,8 +1162,12 @@ impl Ai {
                 g.learned.folders.insert(fkey);
                 for p in files {
                     let Some(k) = key_of(&p) else { continue };
+                    let hk = hex::encode(k);
+                    if g.learned.examples.iter().any(|e| e.t == t.target && e.k == hk) {
+                        continue;
+                    }
                     if g.store.as_ref().is_some_and(|s| s.map.contains_key(&k)) {
-                        g.learned.examples.push(Example { t: t.target.clone(), k: hex::encode(k), f: true });
+                        g.learned.examples.push(Example { t: t.target.clone(), k: hk, f: true });
                     } else {
                         g.queue.push_front(Job { kind: JobKind::Folder(t.target.clone()), path: p, key: k });
                     }
@@ -1829,6 +1851,73 @@ fn write_at(f: &File, mut buf: &[u8], mut pos: u64) -> std::io::Result<()> {
 }
 
 /// Bis zu `n` Bilder gleichmäßig verteilt aus einem Ordner (und seinen direkten Unterordnern)
+/// Alle Fotos direkt in diesem Ordner (ohne Unterordner – die sind eigene Ziele), höchstens n
+fn direct_images(dir: &Path, n: usize) -> Vec<PathBuf> {
+    let Ok(rd) = fs::read_dir(dir) else { return vec![] };
+    let mut files: Vec<PathBuf> = rd
+        .flatten()
+        .filter(|e| e.file_type().is_ok_and(|t| t.is_file()))
+        .filter(|e| {
+            let name = e.file_name().to_string_lossy().to_string();
+            !name.starts_with('.') && crate::scanner::IMAGE_EXT.contains(&crate::scanner::ext_of(&name).as_str())
+        })
+        .map(|e| e.path())
+        .collect();
+    files.sort();
+    if files.len() > n {
+        // gleichmäßig verteilt statt nur die ersten
+        let step = files.len() as f64 / n as f64;
+        files = (0..n).map(|i| files[(i as f64 * step) as usize].clone()).collect();
+    }
+    files
+}
+
+#[derive(Serialize)]
+pub struct FolderInfo {
+    pub path: String,
+    /// Pfad relativ zum freigegebenen Ordner ("Urlaub/2023/Italien")
+    pub rel: String,
+    /// Fotos direkt darin
+    pub count: usize,
+}
+
+/// Alle Unterordner freigegebener Ordner (mit Anzahl Fotos) – mögliche Ziele für die KI
+pub fn scan_folders(roots: &[String]) -> Vec<FolderInfo> {
+    let mut out = Vec::new();
+    let t0 = Instant::now();
+    for root in roots {
+        let rootp = Path::new(root);
+        let mut stack = vec![rootp.to_path_buf()];
+        while let Some(d) = stack.pop() {
+            if out.len() >= 20000 || t0.elapsed() > Duration::from_secs(30) {
+                break;
+            }
+            let Ok(rd) = fs::read_dir(&d) else { continue };
+            let mut count = 0;
+            for e in rd.flatten() {
+                let name = e.file_name().to_string_lossy().to_string();
+                if name.starts_with('.') {
+                    continue;
+                }
+                let Ok(ft) = e.file_type() else { continue };
+                if ft.is_dir() {
+                    let low = name.to_lowercase();
+                    if !crate::scanner::is_skip_dir(&low) && low != "_gelöscht" {
+                        stack.push(e.path());
+                    }
+                } else if crate::scanner::IMAGE_EXT.contains(&crate::scanner::ext_of(&name).as_str()) {
+                    count += 1;
+                }
+            }
+            let rel = d.strip_prefix(rootp).map(|r| r.to_string_lossy().replace('\\', "/")).unwrap_or_default();
+            let base = rootp.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+            out.push(FolderInfo { path: d.to_string_lossy().to_string(), rel: if rel.is_empty() { base } else { format!("{base}/{rel}") }, count });
+        }
+    }
+    out.sort_by(|a, b| a.rel.to_lowercase().cmp(&b.rel.to_lowercase()));
+    out
+}
+
 fn sample_images(dir: &Path, n: usize) -> Vec<PathBuf> {
     let mut files = Vec::new();
     let mut dirs = vec![(dir.to_path_buf(), 0)];

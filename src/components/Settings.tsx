@@ -6,7 +6,7 @@ import {
 } from '../store';
 import { tip } from './Tooltip';
 import slimbitMark from '../assets/slimbit-mark.png';
-import type { AppInfo, Prefs, Profile } from '../types';
+import type { AppInfo, Prefs, Profile, AiMemory } from '../types';
 import { Help, KeyCap, Logo, Switch, MenuPopup, useMenu } from './ui';
 import {
   IconGlobe, IconSliders, IconTrash, IconImage, IconLayers, IconSettings, IconHelp, IconInfo, IconClose, IconCheck,
@@ -15,8 +15,9 @@ import {
 } from '../icons';
 import { useAi, applyAiPrefs, startDownload, currentTier, refreshRules } from '../ai';
 import { exportKnowledge, importKnowledge } from '../knowledge';
+import { useLibrary, addLibraryRoot, removeLibraryRoot, learnLibrary } from '../library';
 import { useChats, deleteAllChats } from '../chats';
-import { grant, PERMISSION_TEXT, describeMemory, removeMemory, clearMemories, type Permission } from '../aimemory';
+import { grant, PERMISSION_TEXT, describeMemory, removeMemory, clearMemories, addMemory, updateMemory, type Permission } from '../aimemory';
 import type { AiTier } from '../types';
 import { actionKeyOf, keyLabel, modKey, uid } from '../util';
 import type { ActionKeys, DateFolders, Item } from '../types';
@@ -703,6 +704,11 @@ function AiTab() {
             <Row label={t('ai.suggest')} desc={t('ai.suggestDesc')}>
               <Switch on={p.aiSuggest} onChange={(v) => set({ aiSuggest: v })} />
             </Row>
+            <Row label={t('ai.searchText')} desc={t('ai.searchTextDesc')}>
+              <span data-testid="ai-search-text">
+                <Switch on={p.aiSearchText !== false} onChange={(v) => set({ aiSearchText: v })} />
+              </span>
+            </Row>
             <Row label={t('ai.learnFolders')} desc={t('ai.learnFoldersDesc')}>
               <Switch on={p.aiLearnFolders} onChange={(v) => set({ aiLearnFolders: v })} />
             </Row>
@@ -722,6 +728,7 @@ function AiTab() {
               </div>
             </Row>
           </Group>
+          <LibraryGroup />
           <PermGroup />
           <FacesGroup set={set} />
           <MemoryGroup />
@@ -799,6 +806,77 @@ function PermGroup() {
           <Switch on={!!p.aiNoConfirm} onChange={(v) => grant('aiNoConfirm', v)} />
         </span>
       </Row>
+      <Row label={t('fs.scope')} desc={t(p.aiFsScope === 'all' ? 'fs.scopeAllDesc' : p.aiFsScope === 'off' ? 'fs.scopeOffDesc' : 'fs.scopeSharedDesc')}>
+        <span data-testid="fs-scope">
+          <Seg
+            value={p.aiFsScope || 'shared'}
+            options={[
+              ['off', t('fs.scopeOff')],
+              ['shared', t('fs.scopeShared')],
+              ['all', t('fs.scopeAll')],
+            ]}
+            onChange={async (v) => {
+              if (v === 'all') {
+                const r = await window.api.confirm({ message: t('fs.allAsk'), detail: t('fs.allRisks'), buttons: [t('perm.understood'), t('common.cancel')], type: 'warning' });
+                if (r !== 0) return;
+              }
+              updatePrefs({ aiFsScope: v as Prefs['aiFsScope'] });
+            }}
+          />
+        </span>
+      </Row>
+    </Group>
+  );
+}
+
+/** Freigegebene Ordner: die KI lernt aus allen Fotos darin und sortiert in die Unterordner */
+function LibraryGroup() {
+  const roots = useStore((s) => s.settings.prefs.aiLibrary) || [];
+  const folders = useLibrary((l) => l.folders);
+  const scanning = useLibrary((l) => l.scanning);
+  const st = useAi((a) => a.status);
+  const [busy, setBusy] = useState(false);
+  const under = (root: string) => folders.filter((f) => f.path === root || f.path.startsWith(root.replace(/[\\/]+$/, '') + (root.includes('\\') ? '\\' : '/')));
+  return (
+    <Group label={t('lib.title')}>
+      <Row label={t('lib.add')} desc={t('lib.desc')}>
+        <button
+          className="btn primary"
+          disabled={busy}
+          data-testid="lib-add"
+          onClick={async () => {
+            setBusy(true);
+            await addLibraryRoot().finally(() => setBusy(false));
+          }}
+        >
+          <IconPlus size={15} />
+          {t('lib.addBtn')}
+        </button>
+      </Row>
+      {roots.map((r) => {
+        const f = under(r);
+        const photos = f.reduce((a, x) => a + x.count, 0);
+        return (
+          <Row key={r} label={r.split(/[\\/]/).filter(Boolean).pop() || r} desc={<span className="mono">{r}</span>}>
+            <div className="row" style={{ gap: 8 }}>
+              <span className="muted small" data-testid="lib-stats">
+                {scanning ? '…' : t('lib.stats', { folders: f.length, photos })}
+              </span>
+              <button className="btn sm" onClick={() => learnLibrary(true)} data-tip={t('lib.relearnTip')}>
+                {t('lib.relearn')}
+              </button>
+              <button className="btn sm ghost danger" onClick={() => removeLibraryRoot(r)} aria-label={t('people.remove')} data-tip={t('lib.remove')}>
+                <IconTrash size={14} />
+              </button>
+            </div>
+          </Row>
+        );
+      })}
+      {roots.length > 0 && st && st.learning > 0 && (
+        <p className="muted small" style={{ padding: '0 18px 12px' }} data-testid="lib-learning">
+          {t('lib.learning', { n: st.learning })}
+        </p>
+      )}
     </Group>
   );
 }
@@ -854,15 +932,29 @@ function FacesGroup({ set }: { set: (x: Partial<Prefs>) => Promise<void> }) {
 /** Was sich die KI gemerkt hat – einzeln oder alles vergessen */
 function MemoryGroup() {
   const list = useStore((s) => s.settings.aiMemory) || [];
+  const [note, setNote] = useState('');
   return (
     <Group label={t('mem.title')}>
       {list.map((m) => (
-        <Row key={m.id} label={m.kind === 'note' ? t('mem.note', { text: m.text }) : describeMemory(m)} desc={m.kind === 'note' ? undefined : m.text}>
-          <button className="btn sm" data-testid="mem-remove" onClick={() => (removeMemory(m.id), refreshRules())}>
-            {t('mem.remove')}
-          </button>
-        </Row>
+        <MemoryRow key={m.id} m={m} />
       ))}
+      <Row label={t('mem.addNote')} desc={t('mem.addNoteDesc')}>
+        <form
+          className="row"
+          style={{ gap: 6, minWidth: 260 }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!note.trim()) return;
+            addMemory({ kind: 'note', text: note.trim() });
+            setNote('');
+          }}
+        >
+          <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('mem.notePlaceholder')} data-testid="mem-note-input" />
+          <button className="btn sm" type="submit" disabled={!note.trim()} data-testid="mem-note-add">
+            <IconPlus size={14} />
+          </button>
+        </form>
+      </Row>
       <Row label={list.length ? t('mem.count', { n: list.length }) : t('mem.none')} desc={t('mem.hint')}>
         {list.length > 0 && (
           <button
@@ -879,6 +971,61 @@ function MemoryGroup() {
         )}
       </Row>
     </Group>
+  );
+}
+
+/** Ein gemerkter Eintrag – Notizen und Begriffe von Hand änderbar, Ordner wählbar */
+function MemoryRow({ m }: { m: AiMemory }) {
+  const targets = activeProfile().targets;
+  const [text, setText] = useState(m.kind === 'concept' ? m.concept || m.text : m.text);
+  const save = () => {
+    const v = text.trim();
+    if (!v || v === (m.kind === 'concept' ? m.concept || m.text : m.text)) return;
+    if (m.kind === 'concept') updateMemory(m.id, { concept: v, query: (getLocale().startsWith('de') ? 'ein Foto von ' : 'a photo of ') + v });
+    else updateMemory(m.id, { text: v });
+    refreshRules();
+  };
+  const editable = m.kind === 'note' || m.kind === 'concept';
+  return (
+    <div className="setting-row mem-row" data-testid="mem-row">
+      <div className="lbl">
+        {editable ? (
+          <input
+            className="input"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onBlur={save}
+            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+            aria-label={t('mem.edit')}
+            data-testid="mem-edit"
+          />
+        ) : (
+          <div className="t">{describeMemory(m)}</div>
+        )}
+        <div className="d">{m.kind === 'concept' ? t('mem.conceptHint') : m.kind === 'note' ? t('mem.noteHint') : m.text}</div>
+      </div>
+      <div className="row" style={{ gap: 6 }}>
+        {m.kind !== 'note' && (
+          <select
+            className="input"
+            value={m.targetPath || ''}
+            onChange={(e) => (updateMemory(m.id, { targetPath: e.target.value || undefined }), refreshRules())}
+            aria-label={t('people.folder')}
+            style={{ maxWidth: 160 }}
+          >
+            <option value="">{t('people.noFolder')}</option>
+            {targets.map((x) => (
+              <option key={x.id} value={x.path}>
+                {x.name}
+              </option>
+            ))}
+          </select>
+        )}
+        <button className="btn sm" data-testid="mem-remove" onClick={() => (removeMemory(m.id), refreshRules())}>
+          {t('mem.remove')}
+        </button>
+      </div>
+    </div>
   );
 }
 

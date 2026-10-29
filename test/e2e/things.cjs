@@ -176,6 +176,14 @@ im.save(sys.argv[2], quality=88)
   await win.click('[data-testid="tab-things"]');
   await waitFor(() => win.evaluate(() => document.querySelectorAll('[data-testid="thing-card"]').length === 2), 5000, 'zwei Ding-Karten');
   await shot('04-things');
+  // Beispielfotos sichtbar, Überschrift automatisch vorgeschlagen und von Hand änderbar
+  const card = '[data-testid="thing-card"][data-name="Meine Rakete"]';
+  assert.ok((await win.evaluate((c) => document.querySelectorAll(c + ' [data-testid="thing-examples"] img').length, card)) >= 1, 'Beispielfoto sichtbar');
+  const cat = await win.evaluate((c) => document.querySelector(c + ' [data-testid="thing-category"]').value, card);
+  console.log('Überschrift (automatisch):', cat || '(keine)');
+  await win.fill(card + ' [data-testid="thing-category"]', 'Saturn V');
+  await win.keyboard.press('Tab');
+  await waitFor(() => (saved().things || []).some((x) => x.name === 'Meine Rakete' && x.category === 'Saturn V'), 5000, 'Überschrift gespeichert');
   await win.keyboard.press('Escape');
   console.log('Verwaltung ✔');
 

@@ -67,7 +67,7 @@ export type Intent =
   | { kind: 'memories' }
   /** Einstellung ändern (der Satz wird später zugeordnet) */
   | { kind: 'setting'; text: string }
-  | { kind: 'mkfolder'; name: string };
+  | { kind: 'mkfolder'; name: string; parent?: string };
 
 const MONTHS: [RegExp, number][] = [
   [/\b(januar|jänner|january|jan)\b/, 0],
@@ -437,8 +437,16 @@ export function parse(input: string): Intent {
   if (naming && (naming.length > 1 || naming[0].pos.from !== 'any' || /^(das|dies|hier|this|that)\s+(bin|ist|is)\b/i.test(text)))
     return { kind: 'name', items: naming, ref: /markiert|ausgewählt/.test(s) ? 'selection' : 'current', group: groupOf(text) };
   // Ordner anlegen
-  const mk = /^(?:bitte\s+)?(?:leg|erstell|mach|erzeug|create|make)\w*\s+(?:mir\s+)?(?:einen\s+|einen neuen\s+|neuen\s+|a\s+|a new\s+)?(?:ziel)?(?:ordner|folder)\s+(?:an\s+)?(?:namens\s+|mit dem namen\s+|called\s+|named\s+)?["„»]?([^"“«]+?)["“«]?(?:\s+an)?[.!]?$/i.exec(text);
-  if (mk) return { kind: 'mkfolder', name: mk[1].trim() };
+  const mk = /^(?:bitte\s+)?(?:leg|erstell|mach|erzeug|create|make)\w*\s+(?:mir\s+)?(?:einen\s+|einen neuen\s+|neuen\s+|den\s+|den neuen\s+|a\s+|a new\s+)?(?:ziel)?(?:ordner|folder)\s+(?:an\s+)?(?:namens\s+|mit dem namen\s+|called\s+|named\s+)?["„»]?([^"“«]+?)["“«]?(?:\s+an)?[.!]?$/i.exec(text);
+  // "lege in Urlaub einen Ordner Italien an"
+  const mk2 = /^(?:bitte\s+)?(?:leg|erstell|mach|erzeug|create|make)\w*\s+(?:mir\s+)?(?:in|im|unter)\s+(?:dem\s+|den\s+)?(?:ordner\s+)?["„»]?(.+?)["“«]?\s+(?:einen\s+|einen neuen\s+|neuen\s+)?(?:unter)?(?:ordner|folder)\s+(?:namens\s+|mit dem namen\s+)?["„»]?([^"“«]+?)["“«]?(?:\s+an)?[.!]?$/i.exec(text);
+  if (mk2) return { kind: 'mkfolder', name: mk2[2].trim(), parent: mk2[1].trim() };
+  if (mk) {
+    // "lege den Ordner Italien in Urlaub an"
+    const m = /^(.+?)\s+(?:in|im|unter)\s+(?:dem\s+|den\s+)?(?:ordner\s+)?["„»]?(.+?)["“«]?$/i.exec(mk[1].trim());
+    if (m && !/^[a-zA-Z]:|^\//.test(mk[1].trim()) && !/namens|mit dem namen|called|named/i.test(text)) return { kind: 'mkfolder', name: m[1].trim(), parent: m[2].trim() };
+    return { kind: 'mkfolder', name: mk[1].trim() };
+  }
   // Einstellungen ("schalte den Autopiloten an", "stelle die Sprache auf Englisch")
   if (/^(?:bitte\s+)?(?:stell|schalt|aktivier|deaktivier|änder|setz|mach|turn|switch|enable|disable|set|change)\w*\b/.test(s) && (/\b(an|aus|ein|auf|on|off|to|aktivier\w*|deaktivier\w*)\b/.test(s) || SETTING_WORDS.test(s)) && (!/\b(foto|fotos|bild|bilder|photo|photos)\b/.test(s) || (SETTING_WORDS.test(s) && !/\b(nach|in den|into)\b/.test(s)))) return { kind: 'setting', text };
   if (/^(hilfe|help|\?|was kannst du|what can you do|wie geht das|befehle|commands)\b/.test(s)) return { kind: 'help' };

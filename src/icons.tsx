@@ -87,3 +87,4 @@ export const IconDownload = base(<><path d="M12 4v11M7 10l5 5 5-5" /><path d="M5
 export const IconUpload = base(<><path d="M12 20V9M7 14l5-5 5 5" /><path d="M5 4h14" /></>);
 export const IconBrain = base(<><path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 3 3h0a2 2 0 0 0 3-1V5a2 2 0 0 0-3-1z" /><path d="M15 4a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-3 3h0a2 2 0 0 1-3-1" /></>);
 export const IconTag = base(<><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9z" /><circle cx="7.5" cy="7.5" r="1.5" /></>);
+export const IconActivity = base(<><path d="M4 6h10M4 12h7M4 18h10" /><path d="m15 13 2 2 4-4" /></>);

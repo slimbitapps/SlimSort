@@ -4,9 +4,10 @@ import {
   useStore, init, closeDialog, setZen, clearSelection, openDialog, undo, selectAll, toggleFullscreen, toggleView,
   step, jumpEdge, skipCurrent, trashCurrent, otherFolder, findTargetByKey, sortToTarget, runQuickStart, toast,
   dismissToast, sortedRecents, coachNext, coachEnd, goHome, compareSkip, compareConfirm, compareKeepOnly, compareIdAt,
-  comparePage, updatePrefs,
+  comparePage, updatePrefs, suggestionFor, currentItem,
 } from './store';
-import { initAi, toggleChat } from './ai';
+import { initAi, toggleChat, acceptLibSuggestion } from './ai';
+import { LIB } from './library';
 import { TooltipLayer } from './components/Tooltip';
 import { WindowControls } from './components/WindowControls';
 import { DragGhost } from './components/DragGhost';
@@ -215,6 +216,16 @@ function onKeyDown(e: KeyboardEvent) {
     e.preventDefault();
     if (!e.repeat) trashCurrent();
     return;
+  }
+  // Umschalt+Enter: KI-Vorschlag in einen Unterordner eines freigegebenen Ordners annehmen
+  if (e.key === 'Enter' && e.shiftKey && !e.repeat) {
+    const ses = useStore.getState().session;
+    const sg = ses ? suggestionFor(ses, currentItem(ses)) : null;
+    if (ses && sg?.startsWith(LIB)) {
+      e.preventDefault();
+      acceptLibSuggestion(ses, sg.slice(LIB.length));
+      return;
+    }
   }
   if (ak && ak === K.other) {
     e.preventDefault();

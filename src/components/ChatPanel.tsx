@@ -8,7 +8,7 @@ import { thumbUrl } from '../util';
 import { getLang } from '../i18n';
 import { useChats, deleteChat, when } from '../chats';
 import { displayName } from '../people';
-import { IconClose, IconSend, IconSparkle, IconStop, IconHistory, IconPlusChat, IconTrash } from '../icons';
+import { IconClose, IconSend, IconSparkle, IconStop, IconHistory, IconPlusChat, IconTrash, IconActivity } from '../icons';
 
 const EXAMPLES = ['ai.ex1', 'ai.ex2', 'ai.ex3', 'ai.ex4'] as const;
 
@@ -72,6 +72,9 @@ export function ChatPanel() {
                     : t('ai.stateReady')}
           </span>
         </div>
+        <button className="btn icon ghost sm" onClick={() => openDialog({ type: 'ailog' })} data-tip={t('log.title')} aria-label={t('log.title')} data-testid="ailog-open">
+          <IconActivity size={15} />
+        </button>
         <button
           className={`btn icon ghost sm ${showHist ? 'on' : ''}`}
           onClick={() => setShowHist(!showHist)}

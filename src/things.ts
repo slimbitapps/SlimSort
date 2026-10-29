@@ -34,7 +34,12 @@ export function thingName(raw: string): string {
 export function findThing(raw: string, list = things()): Thing | undefined {
   const n = norm(raw);
   if (!n) return undefined;
-  return list.find((x) => norm(x.name) === n) || list.find((x) => norm(x.name).split(' ').pop() === n.split(' ').pop() && n.length >= 3);
+  return (
+    list.find((x) => norm(x.name) === n) ||
+    list.find((x) => norm(x.name).split(' ').pop() === n.split(' ').pop() && n.length >= 3) ||
+    // "Fotos mit dem Traktor" findet "Unser Haupttraktor" (erkannte Art)
+    list.find((x) => x.category && norm(x.category) === n.replace(/^(dem|den|der|die|das)\s+/, ''))
+  );
 }
 
 /** Beispiel hinzufügen (legt das Ding an, wenn es noch nicht da ist) */
@@ -63,6 +68,30 @@ export async function addThingNegative(id: string, path: string) {
   const emb = round(await api().ai.embedRegion(path, null));
   const tr = tier();
   saveThings(things().map((x) => (x.id === id ? { ...x, not: { ...(x.not || {}), [tr]: [...(x.not?.[tr] || []), emb].slice(-30) }, updated: Date.now() } : x)));
+}
+
+/** Ein Beispiel wieder entfernen (z. B. falsch markiert) */
+export function removeThingExample(id: string, index: number) {
+  saveThings(
+    things().map((x) => {
+      if (x.id !== id) return x;
+      const examples = x.examples.filter((_, i) => i !== index);
+      // Fingerabdrücke passen zur Reihenfolge der Beispiele → für alle Stufen neu berechnen lassen
+      return { ...x, examples, embs: {}, updated: Date.now() };
+    })
+  );
+}
+
+/** Überschrift automatisch: was die KI auf dem Beispielfoto erkennt ("Traktor") */
+export async function detectCategory(id: string, photoId: number) {
+  const tags = await api().ai.tags(photoId).catch(() => [] as [string, number][]);
+  if (!tags.length) return;
+  const cat = tags[0][0];
+  saveThings(things().map((x) => (x.id === id && !x.category ? { ...x, category: cat.charAt(0).toUpperCase() + cat.slice(1) } : x)));
+}
+
+export function setThingCategory(id: string, category: string) {
+  saveThings(things().map((x) => (x.id === id ? { ...x, category: category.trim() || undefined } : x)));
 }
 
 export function renameThing(id: string, name: string) {

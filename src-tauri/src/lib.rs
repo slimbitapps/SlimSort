@@ -169,6 +169,18 @@ async fn ai_thing_scores(st: State<'_, AppState>, ids: Vec<u64>, things: Vec<ai:
     blocking(move || a.thing_scores(&ids, &things)).await
 }
 
+/// Unterordner freigegebener Ordner (mögliche Ziele für die KI)
+#[tauri::command]
+async fn scan_folders(roots: Vec<String>) -> Res<Vec<ai::FolderInfo>> {
+    blocking(move || ai::scan_folders(&roots)).await
+}
+
+/// Leeren Ordner löschen (KI-Verlauf: angelegten Ordner zurücknehmen) – nur wenn wirklich leer
+#[tauri::command]
+fn remove_empty_dir(path: String) -> bool {
+    fs::remove_dir(&path).is_ok()
+}
+
 /// KI-Wissen in eine Datei sichern (Gedächtnis, Personen, Chats + gelernte Beispiele)
 #[tauri::command]
 async fn ai_export_file(app: AppHandle, st: State<'_, AppState>, data: Value, name: String) -> Res<Option<String>> {
@@ -628,6 +640,17 @@ fn session_undo(st: State<AppState>, op_id: u64) -> bool {
 }
 
 #[tauri::command]
+fn session_undo_items(st: State<AppState>, op_id: u64, ids: Vec<u64>) -> bool {
+    match st.session.lock().unwrap().as_ref() {
+        Some(s) => {
+            s.undo_items(op_id, ids);
+            true
+        }
+        None => false,
+    }
+}
+
+#[tauri::command]
 fn session_pending(st: State<AppState>) -> i64 {
     st.counters.pending.load(Ordering::SeqCst)
 }
@@ -910,6 +933,7 @@ pub fn run() {
             exif_start,
             session_transfer,
             session_undo,
+            session_undo_items,
             session_pending,
             trash_info,
             trash_empty,
@@ -935,6 +959,8 @@ pub fn run() {
             ai_face_count,
             ai_face_matches,
             ai_people_on,
+            scan_folders,
+            remove_empty_dir,
             ai_embed_region,
             ai_thing_scores,
             ai_face_clusters,

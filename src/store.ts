@@ -39,6 +39,7 @@ export type Dialog =
   | { type: 'lost' }
   | { type: 'profiles' }
   | { type: 'people'; tab?: 'people' | 'things' }
+  | { type: 'ailog' }
   | { type: 'keyCapture'; targetId: string }
   | { type: 'prompt'; title: string; value: string; onOk: (v: string) => void };
 
@@ -185,6 +186,9 @@ export const defaultPrefs: Prefs = {
   preselectBest: true,
   showInfo: false,
   showFaces: true,
+  aiLibrary: [],
+  aiFsScope: 'shared',
+  aiSearchText: true,
   renameMode: 'keep',
   accent: 'blue',
   viewerBg: 'theme',
@@ -1352,37 +1356,77 @@ export function closePhotoMenu() {
   set({ photoMenu: null });
 }
 
-/** Bestimmte Fotos (z. B. per Ziehen) in einen Zielordner. */
-export function sortIdsToTarget(ids: number[], targetId: string) {
+/** Bestimmte Fotos (z. B. per Ziehen) in einen Zielordner. Liefert den Auftrag (für den KI-Verlauf). */
+export function sortIdsToTarget(ids: number[], targetId: string, opts: { quiet?: boolean } = {}): { opId: number; ids: number[] } | null {
   const s = get().session;
-  if (!s) return;
+  if (!s) return null;
   const target = activeProfile().targets.find((x) => x.id === targetId);
   ids = ids.filter((id) => s.byId.has(id) && !s.done.has(id));
-  if (!target || !ids.length) return;
+  if (!target || !ids.length) return null;
   if (get().reach[target.path] === false) {
     toast('error', t('toast.unreachable', { path: target.path }));
     api().checkReach().then(onReach);
-    return;
+    return null;
   }
   if (s.compare) closeCompare(s, false);
   const op = startOp(s, ids, { targetId, destDir: target.path });
   s.undo.push({ kind: 'transfer', ops: [op], prevCurrent: s.currentId });
   s.selection = new Set();
-  if (ids.length > 1) toast('success', t('toast.movedN', { n: ids.length, name: target.name }));
+  if (ids.length > 1 && !opts.quiet) toast('success', t('toast.movedN', { n: ids.length, name: target.name }));
   recompute(s, {});
+  return { opId: op.opId, ids };
+}
+
+/** Fotos in einen beliebigen Ordner (z. B. Unterordner eines freigegebenen Ordners) */
+export function moveIdsToDir(ids: number[], dir: string): { opId: number; ids: number[] } | null {
+  const s = get().session;
+  if (!s) return null;
+  ids = ids.filter((id) => s.byId.has(id) && !s.done.has(id));
+  if (!ids.length) return null;
+  if (s.compare) closeCompare(s, false);
+  // ist der Ordner ein Zielordner, zählt er dort mit
+  const tg = activeProfile().targets.find((x) => x.path === dir);
+  const op = startOp(s, ids, tg ? { targetId: tg.id, destDir: dir } : { destDir: dir });
+  s.undo.push({ kind: 'transfer', ops: [op], prevCurrent: s.currentId });
+  s.selection = new Set();
+  recompute(s, {});
+  return { opId: op.opId, ids };
 }
 
 /** Bestimmte Fotos (z. B. per Ziehen) in den Löschordner. */
-export function trashIds(ids: number[]) {
+export function trashIds(ids: number[]): { opId: number; ids: number[] } | null {
   const s = get().session;
-  if (!s) return;
+  if (!s) return null;
   ids = ids.filter((id) => s.byId.has(id) && !s.done.has(id));
-  if (!ids.length) return;
+  if (!ids.length) return null;
   if (s.compare) closeCompare(s, false);
   const op = startOp(s, ids, { trash: true });
   s.undo.push({ kind: 'transfer', ops: [op], prevCurrent: s.currentId });
   s.selection = new Set();
   recompute(s, {});
+  return { opId: op.opId, ids };
+}
+
+/**
+ * Einen bestimmten Auftrag zurücknehmen – ganz oder nur einzelne Fotos (KI-Verlauf).
+ * Anders als Strg+Z nicht nur den letzten Schritt.
+ */
+export function undoOp(opId: number, only?: number[]): number[] {
+  const s = get().session;
+  if (!s) return [];
+  if (s.compare) closeCompare(s, false);
+  const ids = [...s.done].filter(([id, d]) => d.opId === opId && (!only || only.includes(id))).map(([id]) => id);
+  if (!ids.length) return [];
+  for (const id of ids) revertDone(s, id, opId);
+  // aus dem Rückgängig-Stapel austragen (sonst würde Strg+Z sie nochmal zurücknehmen)
+  for (const u of s.undo) for (const op of u.ops) if (op.opId === opId) op.ids = op.ids.filter((x) => !ids.includes(x));
+  s.undo = s.undo.filter((u) => u.kind === 'skip' || u.ops.some((op) => op.ids.length));
+  if (only) api().undoItems(opId, ids);
+  else api().undo(opId);
+  hooks.undone?.(ids);
+  s.summaryShown = false;
+  recompute(s, { preferId: ids[0] });
+  return ids;
 }
 
 export function skipCurrent() {

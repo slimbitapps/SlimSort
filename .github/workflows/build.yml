@@ -93,6 +93,7 @@ jobs:
           mkdir -p /tmp/ki-ausgewogen && for f in slimsort-ki-siglip2-b16.safetensors slimsort-llm-qwen3-1.7b.gguf slimsort-llm-linux-x86_64; do ln -sf $PWD/ki-2/$f /tmp/ki-ausgewogen/$f; done
           run ki-chat env FOTOSORT_AI_DIR=/tmp/ki-ausgewogen FOTOSORT_AI_PICS=/tmp/beispielfotos xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/ai-llm.cjs e2e-shots/ki-chat
           run dinge env FOTOSORT_AI_FILE=$PWD/ki-modell/slimsort-ki-1.safetensors FOTOSORT_AI_PICS=/tmp/beispielfotos xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/things.cjs e2e-shots/dinge
+          run bibliothek env FOTOSORT_AI_FILE=$PWD/ki-modell/slimsort-ki-1.safetensors FOTOSORT_AI_PICS=/tmp/beispielfotos xvfb-run -a -s "-screen 0 1600x1000x24" node test/e2e/library.cjs e2e-shots/bibliothek
           # Personen: Gesichtsmodelle + Testfotos (drei Personen in zwei Reihenfolgen)
           for f in slimsort-face-detect.onnx slimsort-face-embed.onnx; do [ -s ki-2/$f ] || curl -fsSL --retry 4 -o ki-2/$f "https://github.com/slimbitapps/SlimSort/releases/download/ki-2/$f"; done
           python3 scripts/ai/face_photos.py /tmp/gesichter

@@ -114,8 +114,12 @@ startet schneller und braucht weniger Arbeitsspeicher. Neu:
   - **KI sortieren:** zeigt, wohin sie die offenen Fotos tun würde – du bestätigst; auf Wunsch **Autopilot** für sehr sichere Fotos
   - **KI-Assistent (Chat, Strg/⌘ + K):** Fotos per Beschreibung finden („Baum links, Wiese und Berg“, „Strand im Sommer 2023“), ähnliche Fotos, verschieben/löschen per Satz, Doppelte finden, Statistik – ab Stufe „Ausgewogen“ mit Sprachmodell, das Fragen beantwortet und sich unterhält
   - **Personen (freiwillig, eigener Schalter):** erkennt Gesichter und merkt sich, wer wer ist – am Gesicht, nicht an der Position im Foto. Benennen per Klick aufs Gesicht, per Satz („ich bin links, mein Bruder daneben, Mama rechts“) oder für Unbekannte, die öfter vorkommen („Wer ist das?“). Namen im Foto, „Fotos mit Mama“, Regeln wie „Fotos mit Mama → Familie“, Personen-Übersicht (umbenennen, Gruppen, zusammenlegen). Fragt von selbst, wenn eine Person immer im selben Ordner landet
-  - **Dinge merken:** „Das ist mein Auto“ oder einen Bereich im Foto markieren – die KI erkennt es auf anderen Fotos wieder (Schild im Foto, ✓/✗ zum Bestätigen), „Fotos mit meinem Auto“, Regeln „… → Ordner“, Verwaltung im Fenster „Personen & Dinge“
-  - **Gedächtnis:** „Merke dir …“, „Was hast du dir gemerkt?“, „Das soll nicht mehr so sein“ – Regeln wirken auf Vorschläge, KI sortieren und Autopilot
+  - **Dinge merken:** „Das ist mein Auto“ oder einen Bereich im Foto markieren – die KI erkennt es auf anderen Fotos wieder (Schild im Foto, ✓/✗ zum Bestätigen), „Fotos mit meinem Auto“, Regeln „… → Ordner“, Verwaltung im Fenster „Personen & Dinge“ mit den Beispielfotos und einer Überschrift, die die KI aus dem Bild vorschlägt (änderbar, z. B. genaues Modell)
+  - **Gedächtnis:** „Merke dir …“, „Was hast du dir gemerkt?“, „Das soll nicht mehr so sein“ – Regeln wirken auf Vorschläge, KI sortieren und Autopilot; alles Gemerkte lässt sich in den Einstellungen von Hand bearbeiten oder neu schreiben
+  - **Freigegebene Ordner:** einen großen Ordner mit vielen Unterordnern (z. B. das Fotoarchiv) freigeben – die KI schaut sich jedes Foto darin an, lernt, was wohin gehört, und schlägt danach auch diese Unterordner vor (Umschalt+Enter), sortiert per Chat hinein und legt dort Ordner an, ohne dass sie unten als Zielordner stehen
+  - **KI-Verlauf:** alles, was die KI geändert hat, gebündelt („12 Fotos → Urlaub“), aufklappbar bis zum einzelnen Foto – ganz oder je Foto rückgängig
+  - **Dateisystem-Recht:** nur Zielordner, nur freigegebene Ordner oder der ganze Computer (Systemordner bleiben immer gesperrt)
+  - Sätze bei der Fotosuche abschaltbar – dann zeigt die KI nur die Treffer
   - **Rechte:** was die KI selbst darf (verschieben, löschen, Ordner anlegen, Einstellungen ändern, ohne Nachfrage) – mit Hinweis auf die Risiken
   - **Chats bleiben gespeichert** und lassen sich wieder öffnen; Vorschlags-Knöpfe passend zur Lage
   - **KI-Wissen sichern:** Personen, Gedächtnis, Chats und Gelerntes in eine Datei – für einen neuen Computer
@@ -167,6 +171,7 @@ Aufbau:
 - `src-llm/` – Helfer-Programm für das Sprachmodell (llama.cpp)
 - `src/ai.ts`, `src/chat.ts`, `src/assistant.ts` – KI in der Oberfläche, Verstehen der Chat-Eingaben, Anleitung und Werkzeuge für das Sprachmodell
 - `src/people.ts`, `src/things.ts`, `src/aimemory.ts`, `src/chats.ts`, `src/knowledge.ts` – Personen, Gedächtnis/Rechte, gespeicherte Chats, KI-Wissen sichern
+- `src/library.ts`, `src/ailog.ts` – freigegebene Ordner, KI-Verlauf mit Rückgängig
 - `src-tauri/src/lib.rs` – Fenster und Befehle für die Oberfläche
 - `src/` – Oberfläche (React); `src/bridge.ts` verbindet sie mit Rust; Texte in `src/locales/`
 - `test/` – automatische Tests

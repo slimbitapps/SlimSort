@@ -1,3 +1,5 @@
+import { LIB, libName } from '../library';
+import { acceptLibSuggestion } from '../ai';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { t } from '../i18n';
 import {
@@ -9,7 +11,7 @@ import { beginDrag, setDropHandler, useDrag } from '../dnd';
 import type { Group, Target } from '../types';
 import { COLORS, basename, fmtNum, keyLabel } from '../util';
 import {
-  IconPlus, IconTrash, IconWarning, IconFolder, IconKeyboard, IconChevronDown, IconChevronRight, IconSkip, IconFolderOut, IconCheck,
+  IconPlus, IconTrash, IconWarning, IconFolder, IconKeyboard, IconChevronDown, IconChevronRight, IconSkip, IconFolderOut, IconCheck, IconSparkle,
 } from '../icons';
 import { Floating, Help, KeyCap } from './ui';
 import { tip } from './Tooltip';
@@ -210,6 +212,19 @@ export function Dock({ s }: { s: SessionState }) {
         </button>
       </div>
       <div className="dock-sep" />
+      {/* KI-Vorschlag in einen Unterordner eines freigegebenen Ordners (steht nicht unten als Ziel) */}
+      {suggestion?.startsWith(LIB) && aiConf !== null && (
+        <button
+          className="lib-sugg"
+          data-testid="lib-sugg"
+          onClick={() => acceptLibSuggestion(s, suggestion.slice(LIB.length))}
+          {...tip(t('lib.suggTip', { name: libName(suggestion.slice(LIB.length)) }), undefined, 'Shift+Enter')}
+        >
+          <IconSparkle size={14} />
+          <span>{libName(suggestion.slice(LIB.length))}</span>
+          <small>{Math.round(aiConf * 100)} %</small>
+        </button>
+      )}
       <div className="targets-scroll" data-coach="targets" data-drop="end">
         {blocks.map((b) => (b.type === 't' ? renderTarget(b.target) : renderGroup(b.group, b.members)))}
         <button className="target add" onClick={pickAndAddTarget} data-testid="add-target" {...tip(t('ses.addTarget'), t('tip.addTarget'))}>

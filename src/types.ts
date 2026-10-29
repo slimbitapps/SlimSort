@@ -146,6 +146,12 @@ export interface Prefs {
   aiNoConfirm: boolean;
   /** KI erkennt Gesichter (eigener Schalter, Datenschutz) */
   aiFaces: boolean;
+  /** Freigegebene Ordner: die KI lernt aus allen Fotos darin und sortiert auch in ihre Unterordner */
+  aiLibrary: string[];
+  /** Wo die KI Ordner anlegen und hinverschieben darf: nur Zielordner, freigegebene Ordner oder überall */
+  aiFsScope: 'off' | 'shared' | 'all';
+  /** Bei der Fotosuche einen Satz vom Sprachmodell dazu schreiben */
+  aiSearchText: boolean;
 }
 
 /** Etwas, das sich die KI auf Wunsch merkt */
@@ -203,6 +209,8 @@ export interface Thing {
   embs: Record<string, number[][]>;
   /** Gegenbeispiele ("das ist nicht mein Auto") je KI-Stufe */
   not?: Record<string, number[][]>;
+  /** von der KI erkannte Art ("Traktor", "Auto") – automatische Überschrift */
+  category?: string;
   crop?: string;
   created: number;
   updated: number;
@@ -322,6 +330,9 @@ export interface Api {
   /** Aufnahmezeiten lesen – erst aufrufen, wenn die Sitzung in der Oberfläche steht */
   exifStart(): Promise<void>;
   undo(opId: number): Promise<boolean>;
+  undoItems(opId: number, ids: number[]): Promise<boolean>;
+  removeEmptyDir(path: string): Promise<boolean>;
+  scanFolders(roots: string[]): Promise<{ path: string; rel: string; count: number }[]>;
   pending(): Promise<number>;
   trashInfo(dir?: string): Promise<{ dir: string; dirs?: string[]; count: number; bytes: number }>;
   emptyTrash(systemTrash?: boolean): Promise<{ removed: number; pruned: number[]; kept: number }>;
@@ -362,7 +373,7 @@ export interface Api {
     index(items: { id: number; path: string }[]): Promise<void>;
     prioritize(ids: number[]): Promise<void>;
     learn(ids: number[], target: string | null): Promise<void>;
-    learnFolders(targets: { target: string; dir: string }[]): Promise<void>;
+    learnFolders(targets: { target: string; dir: string; all?: boolean; again?: boolean }[]): Promise<void>;
     forget(): Promise<void>;
     renameTarget(from: string, to: string | null): Promise<void>;
     search(text: string, among?: number[] | null, limit?: number): Promise<AiHit[]>;
@@ -416,6 +427,8 @@ export interface AiStatus {
   faceTotal: number;
   /** Fotos, deren Gesichter noch gesucht werden */
   facesPending: number;
+  /** Fotos aus Ordnern, die noch gelernt werden */
+  learning: number;
   /** letzter Fehler der Gesichtserkennung */
   faceError: string | null;
   /** Helfer-Programm ist veraltet und wird neu geladen */

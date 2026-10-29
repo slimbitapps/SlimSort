@@ -95,6 +95,10 @@ test('Einstellungen und Ordner per Chat', async () => {
   assert.equal(parse('stell die Sprache auf Englisch').kind, 'setting');
   assert.equal(parse('Mach das Design hell').kind, 'setting');
   assert.equal(parse('Mach ein Foto vom Hund').kind, 'search');
+  assert.deepEqual(parse('Lege in Urlaub einen Ordner Italien an'), { kind: 'mkfolder', name: 'Italien', parent: 'Urlaub' });
+  assert.deepEqual(parse('Erstelle den Ordner Italien in Urlaub'), { kind: 'mkfolder', name: 'Italien', parent: 'Urlaub' });
+  assert.deepEqual(parse('Lege einen Ordner namens Urlaub in Italien an'), { kind: 'mkfolder', name: 'Urlaub in Italien' });
+  assert.deepEqual(parse('Erstelle einen Ordner /home/anna/Bilder/Neu'), { kind: 'mkfolder', name: '/home/anna/Bilder/Neu' });
   assert.deepEqual(parse('Lege einen Ordner namens Urlaub 2025 an'), { kind: 'mkfolder', name: 'Urlaub 2025' });
   assert.equal(parse('verschiebe sie nach Urlaub').kind, 'move');
 });

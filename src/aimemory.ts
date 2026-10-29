@@ -32,6 +32,11 @@ export function addMemory(m: Omit<AiMemory, 'id' | 'created'>): AiMemory {
   return mem;
 }
 
+/** Gemerktes von Hand ändern (Text, Begriff, Ordner) */
+export function updateMemory(id: string, patch: Partial<AiMemory>) {
+  saveMemories(memories().map((m) => (m.id === id ? { ...m, ...patch } : m)));
+}
+
 export function removeMemory(id: string) {
   saveMemories(memories().filter((m) => m.id !== id));
 }

@@ -3638,3 +3638,142 @@ h3 {
   gap: 4px;
   margin-bottom: 14px;
 }
+
+/* ---------------------------------------------------------------- KI-Verlauf */
+.log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.log-entry {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.log-entry.undone {
+  opacity: 0.55;
+}
+.log-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+}
+.log-icon {
+  flex: none;
+  color: var(--accent);
+}
+.log-title {
+  font-weight: 600;
+}
+.log-meta {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.log-photos {
+  border-top: 1px solid var(--line);
+  padding: 6px 10px 8px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 320px;
+  overflow: auto;
+}
+.log-photo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.log-photo.undone {
+  opacity: 0.5;
+}
+.log-photo .grow {
+  min-width: 0;
+}
+.log-thumb {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--surface-2);
+}
+.log-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.lib-sugg {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 280px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px dashed var(--accent-line);
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  align-self: center;
+}
+.lib-sugg span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.thing-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.thing-ex {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.thing-ex img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  cursor: pointer;
+}
+.thing-ex-box {
+  position: absolute;
+  border: 1.5px solid var(--accent);
+  border-radius: 3px;
+  pointer-events: none;
+}
+.thing-ex-x {
+  position: absolute;
+  right: 2px;
+  top: 2px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  font-size: 13px;
+  line-height: 18px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+  opacity: 0;
+}
+.thing-ex:hover .thing-ex-x {
+  opacity: 1;
+}
+.mem-row .lbl .input {
+  width: 100%;
+  margin-bottom: 4px;
+}

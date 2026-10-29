@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
 import { useStore, toast } from '../store';
 import { refreshRules } from '../ai';
-import { things as getThings, thingsOn, addThingExample, addThingNegative, type ThingHit } from '../things';
+import { things as getThings, thingsOn, addThingExample, addThingNegative, detectCategory, type ThingHit } from '../things';
 import type { Item } from '../types';
 import { Floating } from './ui';
 import { IconCheck, IconClose } from '../icons';
@@ -86,6 +86,7 @@ export function MarkLayer({ it, style, onDone }: { it: Item; style: React.CSSPro
     if (!ask || !n.trim()) return;
     try {
       const th = await addThingExample(n, it.path, ask.box);
+      if (!th.category) detectCategory(th.id, it.id);
       refreshRules();
       toast('success', t('things.learnedToast', { name: th.name, n: th.examples.length }), { timeout: 5000 });
     } catch (e: any) {

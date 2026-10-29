@@ -11,7 +11,7 @@ import { tip } from './Tooltip';
 import {
   IconArrowLeft, IconGrid, IconImage, IconUndo, IconEye, IconMaximize, IconMinimize, IconSettings, IconHelp,
   IconMore, IconSliders, IconCheck, IconTrash, IconSearch, IconChart, IconKeyboard, IconInfo, IconFolderOut, IconLayers, IconCopy,
-  IconSparkle, IconChat, IconClose, IconUsers,
+  IconSparkle, IconChat, IconClose, IconUsers, IconActivity,
 } from '../icons';
 import { basename, fmtBytes, fmtDuration, fmtNum, modKey } from '../util';
 
@@ -284,6 +284,12 @@ function SessionHeader() {
           </button>
         )}
         {prefs.aiEnabled && (
+          <button className="mi" onClick={() => openDialog({ type: 'ailog' })} data-testid="menu-ailog">
+            <IconActivity size={16} />
+            {t('log.title')}
+          </button>
+        )}
+        {prefs.aiEnabled && (
           <button className="mi" onClick={() => openDialog({ type: 'people' })} data-testid="menu-people">
             <IconUsers size={16} />
             {t('people.dialogTitle')}
@@ -305,7 +311,7 @@ function SessionHeader() {
           {t('menu.help')}
           <span className="k">F1</span>
         </button>
-        <button className="mi" onClick={() => openDialog({ type: 'settings' })}>
+        <button className="mi" onClick={() => openDialog({ type: 'settings' })} data-testid="menu-settings">
           <IconSettings size={16} />
           {t('menu.settings')}
         </button>

@@ -6,6 +6,7 @@ import {
 import { Dialog, KeyCap, Spinner } from './ui';
 import { SettingsDialog } from './Settings';
 import { PeopleDialog } from './PeopleDialog';
+import { AiLogDialog } from './AiLogDialog';
 import { IllDone } from './illustrations';
 import { fmtBytes, fmtDuration, fmtNum, isAssignableKey, keyFromEvent, basename } from '../util';
 import { IconFolder, IconWarning, IconTrash, IconSearch, IconInfo } from '../icons';
@@ -32,6 +33,8 @@ export function Dialogs() {
       return <KeyCaptureDialog targetId={d.targetId} />;
     case 'people':
       return <PeopleDialog tab={d.tab} />;
+    case 'ailog':
+      return <AiLogDialog />;
     case 'prompt':
       return <PromptDialog title={d.title} value={d.value} onOk={d.onOk} />;
     default:

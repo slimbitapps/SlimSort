@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { t } from '../i18n';
-import { useStore, activeProfile, setOnly, closeDialog, openDialog, setView } from '../store';
+import { useStore, activeProfile, setOnly, closeDialog, openDialog, setView, goTo } from '../store';
 import { Dialog, Spinner } from './ui';
 import { IconUsers, IconTrash, IconImage, IconFolder } from '../icons';
 import { addSample, removePerson, renamePerson, setGroups, mergePeople, peopleEmbs, facesOn, displayName, people as getPeople } from '../people';
 import { addMemory, memories, removeMemory } from '../aimemory';
 import { refreshRules } from '../ai';
 import type { FaceCluster, Person, Thing } from '../types';
-import { thingsOn, renameThing, removeThing } from '../things';
+import { thingsOn, renameThing, removeThing, removeThingExample, setThingCategory } from '../things';
+import { thumbUrl } from '../util';
 
 /** Personen verwalten: Namen, Gruppen, Ordner – und unbekannte Gesichter benennen ("Wer ist das?") */
 export function PeopleDialog({ tab: initial = 'people' }: { tab?: 'people' | 'things' }) {
@@ -316,6 +317,7 @@ function ThingCard({ th, count }: { th: Thing; count: number | null }) {
   const targets = activeProfile().targets;
   const rule = memories().find((m) => m.kind === 'thing' && m.thingIds?.length === 1 && m.thingIds[0] === th.id);
   const [name, setName] = useState(th.name);
+  const [cat, setCat] = useState(th.category || '');
   const showPhotos = async () => {
     if (!session) return;
     const ids = session.items.filter((x) => x.kind === 'image').map((x) => x.id);
@@ -339,6 +341,44 @@ function ThingCard({ th, count }: { th: Thing; count: number | null }) {
         <div className="meta">
           {t('things.examples', { n: th.examples.length })}
           {count !== null && ` · ${t('people.onPhotos', { n: count })}`}
+        </div>
+        <input
+          className="input"
+          style={{ marginBottom: 6 }}
+          value={cat}
+          placeholder={t('things.categoryPlaceholder')}
+          onChange={(e) => setCat(e.target.value)}
+          onBlur={() => cat !== (th.category || '') && setThingCategory(th.id, cat)}
+          aria-label={t('things.category')}
+          data-tip={t('things.categoryTip')}
+          data-testid="thing-category"
+        />
+        {/* Beispielfotos, aus denen die KI gelernt hat */}
+        <div className="thing-examples" data-testid="thing-examples">
+          {th.examples.map((ex, i) => (
+            <span key={i} className="thing-ex" title={ex.path}>
+              <img
+                src={thumbUrl(ex.path, 128)}
+                alt=""
+                loading="lazy"
+                onClick={() => {
+                  const it = session?.items.find((x) => x.path === ex.path);
+                  if (!it) return;
+                  goTo(it.id, { select: true });
+                  setView('single');
+                  closeDialog();
+                }}
+              />
+              {ex.box && (
+                <i className="thing-ex-box" style={{ left: `${ex.box[0] * 100}%`, top: `${ex.box[1] * 100}%`, width: `${ex.box[2] * 100}%`, height: `${ex.box[3] * 100}%` }} />
+              )}
+              {th.examples.length > 1 && (
+                <button className="thing-ex-x" onClick={() => removeThingExample(th.id, i)} aria-label={t('things.removeExample')} data-tip={t('things.removeExample')}>
+                  ×
+                </button>
+              )}
+            </span>
+          ))}
         </div>
         <div className="row" style={{ gap: 6, marginBottom: 6 }}>
           <IconFolder size={14} style={{ flex: 'none', opacity: 0.7 }} />

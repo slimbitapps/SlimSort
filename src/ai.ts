@@ -8,7 +8,7 @@ import {
   selectIds, touchSession, goTo, setView, findDuplicates, undo, type SessionState,
 } from './store';
 import { t } from './i18n';
-import type { AiStatus, AiTier, Target, FaceCluster } from './types';
+import type { AiStatus, AiTier, Target, FaceCluster, Prefs } from './types';
 import { itemTime } from './util';
 import { parse, parseNaming, findTarget, matchesDate, resolveNamingItems, type Intent, type Ref, type DateFilter } from './chat';
 import { chatPrompt, toolContinue, parseToolCall, warmPrompt, situation, describeItem, wantsPhotos, cleanAnswer, type Turn } from './assistant';
@@ -17,9 +17,11 @@ import {
   memories, addMemory, removeMemory, clearMemories, findMemory, describeMemory, memoryForPrompt, ruleTargets, allowed, noConfirm,
   parseSetting, applySetting, settingsCatalog, settingGrammar, type Permission,
 } from './aimemory';
-import { createTargetFolder } from './store';
+import { createTargetFolder, moveIdsToDir, removeTarget } from './store';
 import { loadChats, saveCurrent, newChat, restore, useChats } from './chats';
-import { things, addThingExample, addThingNegative, findThing, thingsOn, thingsInQuery, thingsForPrompt, thingName, saveThings } from './things';
+import { logEntry, logPhotos, undoEntry, markUndone, type LogEntry } from './ailog';
+import { LIB, libName, libFolders, isLibFolder, scanLibrary, learnLibrary, findLibFolders, libRoots } from './library';
+import { things, addThingExample, addThingNegative, findThing, thingsOn, thingsInQuery, thingsForPrompt, thingName, saveThings, detectCategory } from './things';
 import {
   people, facesOn, addSample, savePeople, findPerson, groupMembers, allGroups, displayName, describeFaces, cleanName, positionWord, peopleEmbs,
   facesForPrompt, peopleForPrompt, fullName,
@@ -95,6 +97,10 @@ export function initAi() {
   if (inited) return;
   inited = true;
   const a = api();
+  // freigegebene Ordner einlesen (und Neues darin lernen)
+  scanLibrary().then(() => {
+    if (prefs().aiEnabled) learnLibrary();
+  });
   // Chats speichern, sobald eine Antwort fertig ist; den letzten Chat (heute) wieder öffnen
   loadChats().then(() => {
     const c = useChats.getState();
@@ -148,6 +154,7 @@ export function initAi() {
     if (s) s.aiSugg.clear();
   };
   hooks.undone = (ids) => {
+    markUndone(ids);
     if (prefs().aiEnabled) a.ai.learn(ids, null);
     session()?.aiSugg.clear();
   };
@@ -209,15 +216,21 @@ function syncSession() {
   const items = s.items.filter((it) => it.kind === 'image' && !s.done.has(it.id)).map((it) => ({ id: it.id, path: it.path }));
   api().ai.index(items);
   if (prefs().aiLearnFolders) api().ai.learnFolders(activeProfile().targets.map((tg) => ({ target: tg.path, dir: tg.path })));
+  learnLibrary();
 }
 
+/** Mögliche Ziele für Vorschläge: Zielordner, Löschordner und alle Unterordner freigegebener Ordner */
 function targetsWithTrash() {
-  return [...activeProfile().targets.map((tg) => tg.path), TRASH];
+  const tg = activeProfile().targets.map((x) => x.path);
+  const own = new Set(tg);
+  return [...tg, TRASH, ...(libFolders().map((f) => f.path).filter((p) => !own.has(p)))];
 }
 
 function targetIdOf(dest: string): string | null {
   if (dest === TRASH) return TRASH;
-  return activeProfile().targets.find((tg) => tg.path === dest)?.id ?? null;
+  const tg = activeProfile().targets.find((x) => x.path === dest)?.id;
+  if (tg) return tg;
+  return isLibFolder(dest) ? LIB + dest : null;
 }
 
 // ---------------------------------------------------------------- Vorschläge für das aktuelle Foto
@@ -287,7 +300,7 @@ export function planGroups(plan: SortPlan): SortGroup[] {
     if (!by.has(x.targetId)) by.set(x.targetId, []);
     by.get(x.targetId)!.push(x.id);
   }
-  const order = [...activeProfile().targets.map((tg) => tg.id), TRASH];
+  const order = [...activeProfile().targets.map((tg) => tg.id), ...[...by.keys()].filter((k) => k.startsWith(LIB)).sort(), TRASH];
   return order.filter((id) => by.has(id)).map((id) => ({ targetId: id, ids: by.get(id)!, on: !plan.off.has(id) }));
 }
 
@@ -307,14 +320,30 @@ export async function openAutoSort(): Promise<boolean> {
 }
 
 /** Plan ausführen: je Ordner ein Schritt (einzeln rückgängig machbar) */
-export function runPlan(plan: SortPlan): number {
+export let lastPlanEntry: LogEntry | null = null;
+
+export function runPlan(plan: SortPlan, source = t('log.fromAutoSort')): number {
   let n = 0;
+  const ops: { opId: number; ids: number[]; to?: string }[] = [];
+  const dels: { opId: number; ids: number[] }[] = [];
   for (const g of planGroups(plan)) {
     if (!g.on) continue;
-    if (g.targetId === TRASH) trashIds(g.ids);
-    else sortIdsToTarget(g.ids, g.targetId);
+    if (g.targetId === TRASH) {
+      const r = trashIds(g.ids);
+      if (r) dels.push(r);
+    } else if (g.targetId.startsWith(LIB)) {
+      const dir = g.targetId.slice(LIB.length);
+      const r = moveIdsToDir(g.ids, dir);
+      if (r) ops.push({ ...r, to: libName(dir) });
+    } else {
+      const r = sortIdsToTarget(g.ids, g.targetId, { quiet: true });
+      if (r) ops.push({ ...r, to: activeProfile().targets.find((x) => x.id === g.targetId)?.name });
+    }
     n += g.ids.length;
   }
+  const folders = new Set(ops.map((o) => o.to)).size;
+  lastPlanEntry = ops.length ? logPhotos('move', t('log.sortedMany', { n: ops.reduce((a, o) => a + o.ids.length, 0), k: folders }), ops, source) : null;
+  if (dels.length) logPhotos('delete', t('log.deleted', { n: dels.reduce((a, o) => a + o.ids.length, 0) }), dels, source);
   setUi({ plan: null });
   return n;
 }
@@ -327,12 +356,12 @@ async function maybeAutopilot() {
   const all = await suggestAll();
   if (!all?.length) return;
   const plan: SortPlan = { all: all.filter((x) => x.targetId !== TRASH), minConf: p.aiAutoConf, off: new Set() };
-  const steps = planGroups(plan).length;
-  const n = runPlan(plan);
+  const n = runPlan(plan, t('log.fromAutopilot'));
+  const entry = lastPlanEntry;
   if (n)
     toast('success', t('ai.autopilotDone', { n }), {
       timeout: 10000,
-      action: { label: t('ai.undo'), run: () => Array.from({ length: steps }, () => undo()) },
+      action: { label: t('ai.undo'), run: () => entry && undoEntry(entry) },
     });
 }
 
@@ -441,23 +470,56 @@ function permitted(p: Permission): boolean {
 
 function confirmDelete(ids: number[]) {
   if (!permitted('aiAllowDelete')) return;
-  if (noConfirm()) {
-    trashIds(ids);
-    return say(t('ai.deleted', { n: ids.length }), { actions: [{ label: t('ai.undo'), run: () => (undo(), say(t('ai.undone'))) }] });
-  }
+  const del = () => {
+    const r = trashIds(ids);
+    const e = r && logPhotos('delete', t(r.ids.length === 1 ? 'log.deletedOne' : 'log.deleted', { n: r.ids.length }), [r], t('log.fromChat'));
+    say(t('ai.deleted', { n: ids.length }), { actions: undoAction(e) });
+  };
+  if (noConfirm()) return del();
   say(t('ai.confirmDelete', { n: ids.length }), {
     ids: ids.slice(0, 12),
     actions: [
-      { label: t('ai.yesDelete', { n: ids.length }), run: () => (trashIds(ids), say(t('ai.deleted', { n: ids.length }))), danger: true },
+      { label: t('ai.yesDelete', { n: ids.length }), run: del, danger: true },
       { label: t('ai.no'), run: () => say(t('ai.ok')) },
     ],
   });
 }
 
+/** Knopf "Rückgängig" für einen Eintrag im KI-Verlauf (nimmt genau diesen Schritt zurück, nicht nur den letzten) */
+function undoAction(e: LogEntry | null): ChatAction[] {
+  if (!e) return [];
+  return [
+    { label: t('ai.undo'), run: () => (undoEntry(e), say(t('ai.undone'))) },
+    { label: t('log.open'), run: () => openDialog({ type: 'ailog' }) },
+  ];
+}
+
 function moveTo(ids: number[], tg: Target) {
   if (!permitted('aiAllowMove')) return;
-  sortIdsToTarget(ids, tg.id);
-  say(t('ai.moved', { n: ids.length, name: tg.name }), { actions: [{ label: t('ai.undo'), run: () => (undo(), say(t('ai.undone'))) }] });
+  const r = sortIdsToTarget(ids, tg.id, { quiet: true });
+  const e = r && logPhotos('move', t(r.ids.length === 1 ? 'log.movedOne' : 'log.moved', { n: r.ids.length, name: tg.name }), [{ ...r, to: tg.name }], t('log.fromChat'));
+  say(t(ids.length === 1 ? 'ai.movedOne' : 'ai.moved', { n: ids.length, name: tg.name }), { actions: undoAction(e) });
+  setUi({ lastIds: [] });
+}
+
+/** Vorschlag der KI in einen Unterordner eines freigegebenen Ordners annehmen (Knopf im Dock / Umschalt+Enter) */
+export function acceptLibSuggestion(s: SessionState, dir: string) {
+  const ids = s.view === 'grid' && s.selection.size ? [...s.selection] : s.currentId !== null ? [s.currentId] : [];
+  const r = moveIdsToDir(ids, dir);
+  if (!r) return;
+  const name = libName(dir);
+  const e = logPhotos('move', t(r.ids.length === 1 ? 'log.movedOne' : 'log.moved', { n: r.ids.length, name }), [{ ...r, to: name }], t('log.fromSuggestion'));
+  toast('success', t(r.ids.length === 1 ? 'ai.movedOne' : 'ai.moved', { n: r.ids.length, name }), { timeout: 5000, action: { label: t('ai.undo'), run: () => e && undoEntry(e) } });
+  // auch das lernt die KI (wie beim Sortieren per Taste)
+  if (prefs().aiEnabled) api().ai.learn(r.ids, dir);
+}
+
+/** In einen beliebigen Ordner (freigegebener Ordner / Dateisystem) */
+function moveToDir(ids: number[], dir: string, name: string) {
+  if (!permitted('aiAllowMove')) return;
+  const r = moveIdsToDir(ids, dir);
+  const e = r && logPhotos('move', t(r.ids.length === 1 ? 'log.movedOne' : 'log.moved', { n: r.ids.length, name }), [{ ...r, to: name }], t('log.fromChat'));
+  say(t(ids.length === 1 ? 'ai.movedOne' : 'ai.moved', { n: ids.length, name }), { actions: undoAction(e) });
   setUi({ lastIds: [] });
 }
 
@@ -481,7 +543,9 @@ export async function send(text: string, forced?: Intent) {
     // "Fotos mit Mama" → Gesichtserkennung (sicher), nicht das Sprachmodell
     if (intent.kind === 'search' && intent.query && session() && (await findPeoplePhotos(session()!, intent.query))) return;
     if (intent.kind === 'search' && intent.query && session() && (await findThingPhotos(session()!, intent.query))) return;
-    if (llmOn() && (intent.kind === 'search' || intent.kind === 'greet' || intent.kind === 'thanks' || intent.kind === 'describe')) {
+    // Fotosuche ohne Sätze (Einstellung): nur die gefundenen Fotos zeigen – schneller
+    const quietSearch = intent.kind === 'search' && prefs().aiSearchText === false && wantsPhotos(text);
+    if (llmOn() && !quietSearch && (intent.kind === 'search' || intent.kind === 'greet' || intent.kind === 'thanks' || intent.kind === 'describe')) {
       try {
         await llmTurn(text, intent);
         return;
@@ -543,7 +607,12 @@ async function llmTurn(text: string, intent: Intent) {
   }
   let thingsText = thingsForPrompt();
   if (s && s.currentId !== null && things().length) thingsText = thingsForPrompt((await thingsOn([s.currentId], imagePool(s))).get(s.currentId) || []);
-  const lage = situation(s, await tagsOf(s?.currentId), { faces: facesText, people: [peopleForPrompt(), thingsText].filter(Boolean).join('\n'), memory: memoryForPrompt() });
+  // freigegebene Ordner: weitere mögliche Ziele (bei vielen nur die oberen Ebenen)
+  const lib = libFolders();
+  const libText = lib.length
+    ? `Weitere Ordner, in die du verschieben kannst (freigegeben): ${(lib.length <= 60 ? lib : lib.filter((f) => f.rel.split('/').length <= 2)).slice(0, 60).map((f) => f.rel).join(', ')}.`
+    : '';
+  const lage = situation(s, await tagsOf(s?.currentId), { faces: facesText, people: [peopleForPrompt(), thingsText, libText].filter(Boolean).join('\n'), memory: memoryForPrompt() });
   let prompt = chatPrompt(ui().hist.slice(-4), text, lage, think);
 
   const mid = ++msgId;
@@ -776,23 +845,33 @@ async function handle(it: Intent) {
       return say(t('ai.shown', { n: ids.length }));
     }
     case 'move': {
+      // Ziel: Zielordner, Unterordner eines freigegebenen Ordners oder (wenn erlaubt) ein Pfad
       const tg = findTarget(activeProfile().targets, it.target);
-      if (!tg) {
+      let dest: { name: string; go: (ids: number[]) => void } | null = tg ? { name: tg.name, go: (ids) => moveTo(ids, tg) } : null;
+      if (!dest) {
+        const d = resolveDir(it.target);
+        if (d && 'denied' in d) return say(d.denied, { actions: [{ label: t('perm.open'), run: () => openDialog({ type: 'settings', tab: 'ai' }), primary: true }] });
+        if (d && 'choices' in d)
+          return say(t('fs.which', { name: it.target }), { actions: d.choices.slice(0, 8).map((f) => ({ label: libName(f.path), run: () => handle({ ...it, target: f.path }) })) });
+        if (d && 'dir' in d) dest = { name: d.name, go: (ids) => moveToDir(ids, d.dir, d.name) };
+      }
+      if (!dest) {
         return say(t('ai.noTarget', { name: it.target }), {
           actions: activeProfile().targets.slice(0, 8).map((x) => ({ label: x.name, run: () => handle({ ...it, target: x.name }) })),
         });
       }
+      const go = dest.go;
       if (it.query || it.date || it.video) {
         const r = await find(s!, it);
         if (typeof r === 'string') return say(r);
         if (!r.length) return say(t('ai.nothing'));
         setUi({ lastIds: r });
         if (!permitted('aiAllowMove')) return;
-        if (noConfirm()) return moveTo(r, tg);
-        return say(t('ai.confirmMove', { n: r.length, name: tg.name }), {
+        if (noConfirm()) return go(r);
+        return say(t('ai.confirmMove', { n: r.length, name: dest.name }), {
           ids: r.slice(0, 24),
           actions: [
-            { label: t('ai.yesMove', { n: r.length }), run: () => moveTo(r, tg), primary: true },
+            { label: t('ai.yesMove', { n: r.length }), run: () => go(r), primary: true },
             { label: t('ai.actShow'), run: () => setOnly(r, { grid: true }) },
             { label: t('ai.no'), run: () => say(t('ai.ok')) },
           ],
@@ -800,7 +879,7 @@ async function handle(it: Intent) {
       }
       const ids = refIds(s!, it.ref);
       if (!ids.length) return say(t('ai.nothingRef'));
-      return moveTo(ids, tg);
+      return go(ids);
     }
     case 'delete': {
       if (it.query || it.date || it.video) {
@@ -821,7 +900,17 @@ async function handle(it: Intent) {
         if (!memories().length) return say(t('mem.empty'));
         return say(t('mem.forgetAllAsk', { n: memories().length }), {
           actions: [
-            { label: t('mem.forgetAllYes'), run: () => (clearMemories(), refreshRules(), say(t('mem.forgotAll'))), danger: true },
+            {
+              label: t('mem.forgetAllYes'),
+              run: () => {
+                const all = memories();
+                clearMemories();
+                refreshRules();
+                logEntry({ kind: 'memory', title: t('mem.forgotAll'), revert: () => (all.forEach((x) => addMemory({ ...x })), refreshRules()) });
+                say(t('mem.forgotAll'));
+              },
+              danger: true,
+            },
             { label: t('ai.no'), run: () => say(t('ai.ok')) },
           ],
         });
@@ -830,6 +919,7 @@ async function handle(it: Intent) {
       if (!m) return listMemories(t('mem.notFound'));
       removeMemory(m.id);
       refreshRules();
+      logEntry({ kind: 'memory', title: t('log.forgot', { what: describeMemory(m) }), revert: () => addMemoryBack(m) });
       return say(t('mem.forgot', { what: describeMemory(m) }), { actions: [{ label: t('ai.undo'), run: () => (addMemoryBack(m), say(t('ai.undone'))) }] });
     }
     case 'memories':
@@ -848,7 +938,7 @@ async function handle(it: Intent) {
     case 'setting':
       return changeSetting(it.text);
     case 'mkfolder':
-      return makeFolder(it.name);
+      return makeFolder(it.name, it.parent);
     case 'search': {
       if (!it.query && !it.date && !it.video) return say(t('ai.notUnderstood'));
       if (it.query && (await findPeoplePhotos(s!, it.query))) return;
@@ -893,7 +983,7 @@ async function notePeopleSorted(ids: number[], target: Target) {
           action: {
             label: t('people.ruleYes'),
             run: () => {
-              addMemory({ kind: 'people', text: `${person.name} → ${target.name}`, label: who, personIds: [pid], targetPath: target.path });
+              aiAddMemory({ kind: 'people', text: `${person.name} → ${target.name}`, label: who, personIds: [pid], targetPath: target.path });
               refreshRules();
               toast('success', t('mem.rememberedPeople', { who, folder: target.name }));
             },
@@ -949,6 +1039,7 @@ async function nameFaces(it: Extract<Intent, { kind: 'name' }>) {
     }
     refreshRules();
     if (!n) return say(t('people.noSingle'));
+    logPeople(t('people.namedMany', { n, name: cleanName(it.items[0].name) }), before);
     return say(t('people.namedMany', { n, name: cleanName(it.items[0].name) }), { actions: [undoPeople(before)] });
   }
   const faces = await facesAt(id);
@@ -975,6 +1066,7 @@ async function nameFaces(it: Extract<Intent, { kind: 'name' }>) {
   refreshRules();
   const after = await facesAt(id);
   const list = (after || faces).map((f, i) => (f.person ? `${positionWord(i, faces.length) || ''} ${fullName(f.person)}`.trim() : null)).filter(Boolean);
+  logPeople(t('log.named', { list: list.join(', ') }), before);
   return say(t('people.named', { list: list.join(', ') }), {
     faces: await crops(s, id, after || faces, (f) => (f.person ? displayName(f.person) : '?')),
     actions: [undoPeople(before), { label: t('people.manage'), run: () => openDialog({ type: 'people' }) }],
@@ -1070,6 +1162,7 @@ async function answerAsk(text: string): Promise<boolean> {
   const name = cleanName(text.replace(/^(das ist|das bin|das sind|ist|sind)\s+/i, ''));
   if (!name || name.split(' ').length > 3) return false;
   const crop = await api().ai.faceCrop(s.byId.get(c.members[0].id)?.path || '', c.members[0].box).catch(() => null);
+  logPeople(t('people.learnedMany', { name, n: c.members.length }), people());
   c.samples.forEach((e, i) => addSample(name, e, i === 0 ? crop : null));
   refreshRules();
   say(t('people.learnedMany', { name: name === 'Ich' ? t('people.me') : name, n: c.members.length }));
@@ -1149,8 +1242,10 @@ async function learnThing(it: Extract<Intent, { kind: 'thing' }>) {
   setUi({ busyText: t('things.learning') });
   let th;
   for (const id of ids) th = await addThingExample(it.name, s.byId.get(id)!.path);
+  if (th && !th.category) await detectCategory(th.id, ids[0]);
   refreshRules();
   const n = th!.examples.length;
+  logEntry({ kind: 'things', title: t('things.learnedToast', { name: th!.name, n }), revert: () => (saveThings(before), refreshRules()) });
   return say(t(n < 3 ? 'things.learnedFew' : 'things.learned', { name: th!.name, n }), {
     actions: [
       { label: t('ai.undo'), run: () => (saveThings(before), refreshRules(), say(t('ai.undone'))) },
@@ -1203,9 +1298,21 @@ function lastMemory() {
   return list.find((m) => m.id === lastMemId) || list[list.length - 1];
 }
 function addMemoryBack(m: ReturnType<typeof memories>[number]) {
-  const n = addMemory({ ...m });
+  const n = addMemory({ ...m }); // (wieder) hinzufügen – kein neuer Verlaufseintrag
   lastMemId = n.id;
   refreshRules();
+}
+
+/** Gemerktes hinzufügen und im KI-Verlauf eintragen */
+function aiAddMemory(m: Parameters<typeof addMemory>[0]) {
+  const mem = addMemory(m);
+  logEntry({ kind: 'memory', title: t('log.remembered', { what: describeMemory(mem) }), revert: () => (removeMemory(mem.id), refreshRules()) });
+  return mem;
+}
+
+/** Personen/Dinge geändert → Eintrag im Verlauf (Zurücknehmen stellt den Stand davor wieder her) */
+function logPeople(title: string, before: ReturnType<typeof people>): LogEntry {
+  return logEntry({ kind: 'people', title, revert: () => (savePeople(before), refreshRules()) });
 }
 
 /** Nach Änderungen am Gedächtnis: Vorschläge neu berechnen */
@@ -1246,7 +1353,7 @@ async function remember(it: Extract<Intent, { kind: 'remember' }>) {
     for (const f of [...known.values()].flat()) {
       if (f.person && f.emb) addSample(f.person.me ? 'ich' : f.person.name, f.emb, null, it.faces.label);
     }
-    const m = addMemory({ kind: 'faces', text: it.text, label: it.faces.label, faces: embs.map((e) => e.map((x) => Math.round(x * 1e4) / 1e4)), targetPath: tg?.path });
+    const m = aiAddMemory({ kind: 'faces', text: it.text, label: it.faces.label, faces: embs.map((e) => e.map((x) => Math.round(x * 1e4) / 1e4)), targetPath: tg?.path });
     lastMemId = m.id;
     refreshRules();
     return say(t(tg ? 'faces.rememberedFolder' : 'faces.remembered', { n: embs.length, label: it.faces.label, folder: tg?.name || '' }), {
@@ -1278,7 +1385,7 @@ t ::= [^"\\\n]{0,40}`
       const tg = findTarget(targets, folder);
       if (!tg) return say(t('mem.noFolder', { name: folder }), { actions: targets.slice(0, 6).map((x) => ({ label: x.name, run: () => remember({ ...it, concept, folder: x.name }) })) });
       const who = tm.map((x) => x.name).join(', ');
-      const m = addMemory({ kind: 'thing', text: it.text, label: who, thingIds: tm.map((x) => x.id), targetPath: tg.path });
+      const m = aiAddMemory({ kind: 'thing', text: it.text, label: who, thingIds: tm.map((x) => x.id), targetPath: tg.path });
       lastMemId = m.id;
       refreshRules();
       return say(t('mem.rememberedPeople', { who, folder: tg.name }), { actions: [{ label: t('ai.undo'), run: () => (removeMemory(m.id), refreshRules(), say(t('ai.undone'))) }] });
@@ -1292,7 +1399,7 @@ t ::= [^"\\\n]{0,40}`
       if (!tg) return say(t('mem.noFolder', { name: folder }), { actions: targets.slice(0, 6).map((x) => ({ label: x.name, run: () => remember({ ...it, concept, folder: x.name }) })) });
       const group = allGroups().find((g) => cleanName(concept!).toLowerCase() === g.toLowerCase());
       const who = group || pm.persons.map(displayName).join(', ');
-      const m = addMemory({ kind: 'people', text: it.text, label: who, personIds: group ? undefined : pm.persons.map((p) => p.id), group, targetPath: tg.path });
+      const m = aiAddMemory({ kind: 'people', text: it.text, label: who, personIds: group ? undefined : pm.persons.map((p) => p.id), group, targetPath: tg.path });
       lastMemId = m.id;
       refreshRules();
       return say(t('mem.rememberedPeople', { who, folder: tg.name }), {
@@ -1310,7 +1417,7 @@ t ::= [^"\\\n]{0,40}`
         ],
       });
     }
-    const m = addMemory({ kind: 'concept', text: it.text, concept, query: query || (TPL_Q[getLang()] || TPL_Q.en).replace('{q}', concept), targetPath: tg.path });
+    const m = aiAddMemory({ kind: 'concept', text: it.text, concept, query: query || (TPL_Q[getLang()] || TPL_Q.en).replace('{q}', concept), targetPath: tg.path });
     lastMemId = m.id;
     refreshRules();
     return say(t('mem.rememberedRule', { what: concept, folder: tg.name }), {
@@ -1322,7 +1429,7 @@ t ::= [^"\\\n]{0,40}`
     return say(t('people.howToName'), { actions: [{ label: t('people.showFaces'), run: () => (updatePrefs({ showFaces: true }), setView('single')) }] });
   }
   // freie Notiz (gilt für das Gespräch)
-  const m = addMemory({ kind: 'note', text: it.text });
+  const m = aiAddMemory({ kind: 'note', text: it.text });
   lastMemId = m.id;
   return say(t('mem.rememberedNote'), { actions: [{ label: t('ai.undo'), run: () => (removeMemory(m.id), say(t('ai.undone'))) }] });
 }
@@ -1333,31 +1440,121 @@ async function changeSetting(text: string) {
   if (!r && llmOn()) {
     const j = await llmJson(`Welche Einstellung meint der Nutzer, und welchen Wert? Verfügbare Einstellungen (Schlüssel (Bedeutung): Werte):\n${settingsCatalog()}\nSatz: ${text}`, settingGrammar());
     if (j?.key) {
+      const before = prefs()[j.key as keyof Prefs];
       const done = applySetting(j.key, j.value);
-      if (done) return say(t('set.changed', { what: done }));
+      if (done) {
+        const e = logEntry({ kind: 'setting', title: t('log.setting', { what: done }), revert: () => updatePrefs({ [j.key]: before } as Partial<Prefs>) });
+        return say(t('set.changed', { what: done }), { actions: undoAction(e) });
+      }
     }
   }
   if (!r) return say(t('set.unknown'), { actions: [{ label: t('ai.actSettings'), run: () => openDialog({ type: 'settings' }) }] });
-  const done = applySetting(String(r.def.key), r.value);
+  const key = String(r.def.key) as keyof Prefs;
+  const before = prefs()[key];
+  const done = applySetting(key, r.value);
   if (!done) return say(t('set.unknown'));
   if (r.def.key === 'aiPerf') applyAiPrefs();
-  return say(t('set.changed', { what: done }));
+  const e = logEntry({ kind: 'setting', title: t('log.setting', { what: done }), revert: () => {
+      updatePrefs({ [key]: before } as Partial<Prefs>);
+      if (key === 'aiPerf') applyAiPrefs();
+    },
+  });
+  return say(t('set.changed', { what: done }), { actions: undoAction(e) });
 }
 
-async function makeFolder(name: string): Promise<string | null> {
+async function makeFolder(name: string, where?: string): Promise<string | null> {
   if (!permitted('aiAllowFolders')) return null;
   const targets = activeProfile().targets;
   const s = session();
-  // neben die anderen Zielordner, sonst neben den Quellordner
+  let parent: string | null = null;
+  // voller Pfad ("D:\Fotos\Neu") oder Ort genannt ("in Urlaub")
+  if (ABS.test(name)) {
+    const ok = fsAllowed(name);
+    if (ok !== true) return say(ok), null;
+    const dir = name.replace(/[\\/]+$/, '');
+    const base = dir.split(/[\\/]/).pop() || dir;
+    const made = await createTargetFolder(await api().parentDir(dir), base);
+    if (made) say(t('folder.created', { name: base, parent: await api().parentDir(dir) }), { actions: undoAction(logFolder(made, base)) });
+    return made;
+  }
+  if (where) {
+    const d = resolveDir(where);
+    if (d && 'denied' in d) return say(d.denied), null;
+    if (d && 'choices' in d) return say(t('fs.which', { name: where }), { actions: d.choices.slice(0, 8).map((f) => ({ label: libName(f.path), run: () => makeFolder(name, f.path) })) }), null;
+    if (d && 'dir' in d) parent = d.dir;
+    else {
+      const tg = findTarget(targets, where);
+      if (tg) parent = tg.path;
+    }
+    if (!parent) return say(t('ai.noTarget', { name: where })), null;
+  }
+  // sonst neben die anderen Zielordner, sonst neben den Quellordner
   const near = targets[0]?.path || s?.sources[0];
-  if (!near) {
+  if (!parent && !near) {
     say(t('folder.noPlace'));
     return null;
   }
-  const parent = await api().parentDir(near);
-  const dir = await createTargetFolder(parent, name);
-  if (dir) say(t('folder.created', { name, parent }));
+  parent = parent || (await api().parentDir(near!));
+  // in einem freigegebenen Ordner: nur anlegen (nicht unten als Zielordner)
+  const inLib = libRoots().some((r) => inside(parent!, r));
+  const dir = inLib ? await api().createFolder({ parent, name }).catch((e: any) => (toast('error', String(e?.message || e)), null)) : await createTargetFolder(parent, name);
+  if (dir) {
+    const e = logFolder(dir, name);
+    say(t('folder.created', { name, parent }), { actions: undoAction(e) });
+    if (isLibFolder(parent) || libRoots().includes(parent)) scanLibrary();
+  }
   return dir;
+}
+
+// ---------------------------------------------------------------- Dateisystem
+
+/** absoluter Pfad (Windows oder Mac/Linux) */
+const ABS = /^(?:[a-zA-Z]:[\\/]|\/|~\/)/;
+/** Systemordner bleiben immer gesperrt */
+const SYSTEM = /^(?:\/(?:bin|sbin|usr|etc|system|library|private|var|dev|proc|boot|lib|lib64|opt|root|applications)(?:\/|$)|[a-zA-Z]:[\\/](?:windows|program files|program files \(x86\)|programdata)(?:[\\/]|$))/i;
+
+function inside(path: string, root: string) {
+  const n = (x: string) => x.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  return n(path) === n(root) || n(path).startsWith(n(root) + '/');
+}
+
+/** Darf die KI hier etwas tun? true oder ein Hinweis, warum nicht */
+function fsAllowed(path: string): true | string {
+  const scope = prefs().aiFsScope || 'shared';
+  if (SYSTEM.test(path)) return t('fs.system');
+  if (scope === 'all') return true;
+  if (scope === 'shared' && (libRoots().some((r) => inside(path, r)) || activeProfile().targets.some((x) => inside(path, x.path)))) return true;
+  return t(scope === 'off' ? 'fs.off' : 'fs.notShared');
+}
+
+/** Ziel außerhalb der Zielordner: Unterordner eines freigegebenen Ordners oder ein Pfad */
+function resolveDir(name: string): { dir: string; name: string } | { choices: { path: string }[] } | { denied: string } | null {
+  if (ABS.test(name.trim())) {
+    const ok = fsAllowed(name.trim());
+    if (ok !== true) return { denied: ok };
+    const dir = name.trim().replace(/[\\/]+$/, '');
+    return { dir, name: dir.split(/[\\/]/).pop() || dir };
+  }
+  if ((prefs().aiFsScope || 'shared') === 'off') return isLibFolder(name) || findLibFolders(name).length ? { denied: t('fs.off') } : null;
+  if (isLibFolder(name)) return { dir: name, name: libName(name) };
+  const f = findLibFolders(name);
+  if (f.length === 1 || (f.length > 1 && f[0].rel.length < f[1].rel.length && f[0].rel.toLowerCase().endsWith(name.toLowerCase()))) return { dir: f[0].path, name: libName(f[0].path) };
+  if (f.length > 1) return { choices: f };
+  return null;
+}
+
+/** Angelegten Ordner im Verlauf eintragen – Zurücknehmen löscht ihn wieder (nur wenn leer) und nimmt ihn aus den Zielordnern */
+function logFolder(dir: string, name: string): LogEntry {
+  return logEntry({
+    kind: 'folder',
+    title: t('log.folder', { name }),
+    source: dir,
+    revert: async () => {
+      const tg = activeProfile().targets.find((x) => x.path === dir);
+      if (tg) removeTarget(tg.id);
+      if (!(await api().removeEmptyDir(dir))) toast('info', t('log.folderNotEmpty', { name }));
+    },
+  });
 }
 
 /** Sprachmodell in eine feste JSON-Form antworten lassen (für Gedächtnis/Einstellungen) */

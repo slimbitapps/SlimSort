@@ -1,3 +1,4 @@
+import { LIB, libName } from '../library';
 import { t } from '../i18n';
 import { useStore, activeProfile } from '../store';
 import { useAi, planGroups, runPlan } from '../ai';
@@ -58,7 +59,8 @@ export function AiSortDialog() {
         {groups.map((g) => {
           const tg = targets.find((x) => x.id === g.targetId);
           const trash = g.targetId === 'trash';
-          const name = trash ? t('targets.trash') : tg?.name ?? '?';
+          const lib = g.targetId.startsWith(LIB) ? g.targetId.slice(LIB.length) : null;
+          const name = trash ? t('targets.trash') : lib ? libName(lib) : tg?.name ?? '?';
           return (
             <label key={g.targetId} className={`ai-group ${g.on ? '' : 'off'}`} data-testid="ai-group">
               <input
@@ -71,7 +73,7 @@ export function AiSortDialog() {
                   set({ off });
                 }}
               />
-              <span className="ai-dot" style={{ background: trash ? 'var(--danger)' : tg?.color }}>
+              <span className="ai-dot" style={{ background: trash ? 'var(--danger)' : lib ? 'var(--accent)' : tg?.color }}>
                 {trash && <IconTrash size={12} />}
               </span>
               <span className="ai-name">
