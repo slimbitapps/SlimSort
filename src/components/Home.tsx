@@ -8,12 +8,22 @@ import type { QuickStart } from '../types';
 import { KeyCap, MenuPopup, useMenu } from './ui';
 import { IconFolder, IconFolderPlus, IconLock, IconMore, IconPin, IconWarning, IconArrowRight } from '../icons';
 import { basename } from '../util';
+import { NEWS_ID } from './NewsDialog';
 
 export function Home() {
   const quick = useStore((s) => s.settings.quickStarts);
   const reach = useStore((s) => s.reach);
   const [drag, setDrag] = useState(false);
   const recents = sortedRecents(quick);
+  // Neue Funktionen einmal vorstellen (wer die App schon kennt)
+  useEffect(() => {
+    const st = useStore.getState();
+    // (nicht bei automatischen Tests – navigator.webdriver)
+    if (st.settings.tutorialDone && st.settings.newsSeen !== NEWS_ID && !st.dialog && !navigator.webdriver) {
+      const timer = setTimeout(() => !useStore.getState().dialog && openDialog({ type: 'news' }), 600);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   // Ordner (oder Fotos) aus dem Explorer/Finder hineinziehen – bei Dateien zählt ihr Ordner
   useEffect(

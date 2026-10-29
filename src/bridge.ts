@@ -31,6 +31,7 @@ const api: Api = {
   undoItems: (opId, ids) => invoke('session_undo_items', { opId, ids }),
   removeEmptyDir: (path) => invoke('remove_empty_dir', { path }),
   scanFolders: (roots) => invoke('scan_folders', { roots }),
+  thumbStore: (path, size, data) => invoke('thumb_store', { path, size, data }),
   pending: () => invoke('session_pending'),
   trashInfo: (dir) => invoke('trash_info', { dir: dir ?? null }),
   emptyTrash: (systemTrash = true) => invoke('trash_empty', { systemTrash }),

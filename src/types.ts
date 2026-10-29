@@ -86,6 +86,8 @@ export interface Prefs {
   transferMode: 'move' | 'copy';
   liveVideo: 'move' | 'trash' | 'keep';
   liveAutoplay: boolean;
+  /** Videos: automatisch mit Ton, automatisch lautlos oder erst auf Play */
+  videoPlay?: 'auto' | 'muted' | 'click';
   recursive: boolean;
   showEta: boolean;
   suggest: boolean;
@@ -235,6 +237,8 @@ export interface SettingsData {
   recentSources: string[];
   onboarded?: boolean;
   tutorialDone?: boolean;
+  /** zuletzt gezeigte „Tipps & Neues“ */
+  newsSeen?: string;
   /** v2: wann zuletzt nach einer neuen Version geschaut wurde */
   lastUpdateCheck?: number;
   /** KI: was sie sich merken soll */
@@ -333,6 +337,7 @@ export interface Api {
   undoItems(opId: number, ids: number[]): Promise<boolean>;
   removeEmptyDir(path: string): Promise<boolean>;
   scanFolders(roots: string[]): Promise<{ path: string; rel: string; count: number }[]>;
+  thumbStore(path: string, size: number, data: number[]): Promise<boolean>;
   pending(): Promise<number>;
   trashInfo(dir?: string): Promise<{ dir: string; dirs?: string[]; count: number; bytes: number }>;
   emptyTrash(systemTrash?: boolean): Promise<{ removed: number; pruned: number[]; kept: number }>;

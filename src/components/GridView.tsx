@@ -7,6 +7,7 @@ import { browserCanPlay, browserCanShow, mediaUrl, thumbUrl } from '../util';
 import { heicUrl, isHeic } from '../heic';
 import { IconCheck, IconImage, IconVideo } from '../icons';
 import type { Item } from '../types';
+import { videoFrame } from '../videothumb';
 
 /** Wird von der Tastatursteuerung für Pfeil hoch/runter benutzt. */
 export const gridNav = { cols: 1 };
@@ -124,7 +125,11 @@ const Tile = memo(function Tile({
       setStage(3);
       heicUrl(it.path, px).then((u) => (u ? setAlt(u) : setStage(2)));
     } else if (stage === 0 && it.kind === 'image' && browserCanShow(it.ext)) setStage(1);
-    else if (stage === 0 && it.kind === 'video' && browserCanPlay(it.ext)) setStage(4);
+    else if (stage === 0 && it.kind === 'video' && browserCanPlay(it.ext)) {
+      // Standbild selbst erzeugen; geht das nicht, das Video als Bild zeigen
+      setStage(3);
+      videoFrame(it.path, px, it.ext).then((u) => (u ? setAlt(u) : setStage(4)));
+    }
     else setStage(2);
   };
   return (

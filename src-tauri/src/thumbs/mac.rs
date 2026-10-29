@@ -1,4 +1,5 @@
-//! macOS: Vorschaubilder über ImageIO (wie Quick Look) – schnell, dreht richtig, kann HEIC und RAW.
+//! macOS: Vorschaubilder über ImageIO – schnell, dreht richtig, kann HEIC und RAW.
+//! Videos (und was ImageIO sonst nicht kann) über Quick Look, wie im Finder.
 
 use core_foundation::base::{CFType, TCFType};
 use core_foundation::boolean::CFBoolean;
@@ -31,6 +32,17 @@ extern "C" {
     static kCGImageDestinationLossyCompressionQuality: CFStringRef;
 }
 
+#[repr(C)]
+struct CGSize {
+    width: f64,
+    height: f64,
+}
+
+#[link(name = "QuickLook", kind = "framework")]
+extern "C" {
+    fn QLThumbnailImageCreate(alloc: *const c_void, url: CFURLRef, max: CGSize, options: CFDictionaryRef) -> CGImageRef;
+}
+
 /// Gibt ein CoreFoundation-Objekt frei, sobald es nicht mehr gebraucht wird.
 struct Owned(CFTypeRef);
 impl Drop for Owned {
@@ -61,6 +73,28 @@ pub fn thumbnail(path: &Path, size: u32, quality: u8) -> Option<Vec<u8>> {
         if img.0.is_null() {
             return None;
         }
+        encode(img.0, quality)
+    }
+}
+
+/// Quick Look: Standbild aus Videos (und anderen Dateien, die ImageIO nicht öffnet)
+pub fn quicklook(path: &Path, size: u32, quality: u8) -> Option<Vec<u8>> {
+    let url = CFURL::from_path(path, false)?;
+    // SAFETY: gültige CF-Objekte; das Ergebnis wird auf null geprüft und freigegeben.
+    unsafe {
+        let img = Owned(QLThumbnailImageCreate(std::ptr::null(), url.as_concrete_TypeRef(), CGSize { width: size as f64, height: size as f64 }, std::ptr::null()));
+        if img.0.is_null() {
+            return None;
+        }
+        encode(img.0, quality)
+    }
+}
+
+/// CGImage → JPEG
+fn encode(img: CGImageRef, quality: u8) -> Option<Vec<u8>> {
+    // SAFETY: img ist ein gültiges CGImage; alle CF-Objekte werden geprüft und freigegeben.
+    unsafe {
+        let key = |k: CFStringRef| CFString::wrap_under_get_rule(k);
         let data = CFDataCreateMutable(std::ptr::null(), 0);
         if data.is_null() {
             return None;
@@ -73,7 +107,7 @@ pub fn thumbnail(path: &Path, size: u32, quality: u8) -> Option<Vec<u8>> {
         }
         let props: CFDictionary<CFString, CFType> =
             CFDictionary::from_CFType_pairs(&[(key(kCGImageDestinationLossyCompressionQuality), CFNumber::from(quality as f64 / 100.0).as_CFType())]);
-        CGImageDestinationAddImage(dest.0, img.0, props.as_concrete_TypeRef());
+        CGImageDestinationAddImage(dest.0, img, props.as_concrete_TypeRef());
         if !CGImageDestinationFinalize(dest.0) {
             return None;
         }

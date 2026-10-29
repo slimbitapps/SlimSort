@@ -107,6 +107,12 @@ pub fn render(path: &Path, ext: &str, size: u32, quality: u8) -> Option<Vec<u8>>
     if let Some(b) = mac::thumbnail(path, size, quality) {
         return Some(b);
     }
+    #[cfg(target_os = "macos")]
+    if !DECODABLE.contains(&ext) {
+        if let Some(b) = mac::quicklook(path, size, quality) {
+            return Some(b);
+        }
+    }
     #[cfg(windows)]
     if !DECODABLE.contains(&ext) || matches!(ext, ".tif" | ".tiff") {
         if let Some(img) = win::thumbnail(path, size) {

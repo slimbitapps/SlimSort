@@ -7,6 +7,7 @@ import { Dialog, KeyCap, Spinner } from './ui';
 import { SettingsDialog } from './Settings';
 import { PeopleDialog } from './PeopleDialog';
 import { AiLogDialog } from './AiLogDialog';
+import { NewsDialog } from './NewsDialog';
 import { IllDone } from './illustrations';
 import { fmtBytes, fmtDuration, fmtNum, isAssignableKey, keyFromEvent, basename } from '../util';
 import { IconFolder, IconWarning, IconTrash, IconSearch, IconInfo } from '../icons';
@@ -35,6 +36,8 @@ export function Dialogs() {
       return <PeopleDialog tab={d.tab} />;
     case 'ailog':
       return <AiLogDialog />;
+    case 'news':
+      return <NewsDialog />;
     case 'prompt':
       return <PromptDialog title={d.title} value={d.value} onOk={d.onOk} />;
     default:

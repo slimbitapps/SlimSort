@@ -151,6 +151,10 @@ function onKeyDown(e: KeyboardEvent) {
     } else if (k === '0') {
       e.preventDefault();
       zoomCommand('reset');
+    } else if (k === 'n') {
+      // Namen und Kästchen im Foto aus-/einblenden
+      e.preventDefault();
+      updatePrefs({ showFaces: !st.settings.prefs.showFaces });
     }
     return;
   }
@@ -239,6 +243,8 @@ function onKeyDown(e: KeyboardEvent) {
     const target = findTargetByKey(k);
     // I = Info-Anzeige (wenn kein Zielordner diese Taste hat)
     if (!target && k === 'I') return updatePrefs({ showInfo: !st.settings.prefs.showInfo });
+    // N = Namen/Kästchen im Foto aus-/einblenden (immer auch mit Strg/⌘ + N)
+    if (!target && k === 'N') return updatePrefs({ showFaces: !st.settings.prefs.showFaces });
     // Shift + Ordner-Taste: die ganze Serie auf einmal
     if (target) sortToTarget(target.id, { wholeSeries: e.shiftKey });
     else toast('info', t('toast.noTargetKey', { key: k }), { timeout: 1800 });

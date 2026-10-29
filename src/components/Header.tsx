@@ -11,8 +11,9 @@ import { tip } from './Tooltip';
 import {
   IconArrowLeft, IconGrid, IconImage, IconUndo, IconEye, IconMaximize, IconMinimize, IconSettings, IconHelp,
   IconMore, IconSliders, IconCheck, IconTrash, IconSearch, IconChart, IconKeyboard, IconInfo, IconFolderOut, IconLayers, IconCopy,
-  IconSparkle, IconChat, IconClose, IconUsers, IconActivity,
+  IconSparkle, IconChat, IconClose, IconUsers, IconActivity, IconMonitor, IconStar,
 } from '../icons';
+import { useViewer, toggleViewer } from '../viewer';
 import { basename, fmtBytes, fmtDuration, fmtNum, modKey } from '../util';
 
 export function Header() {
@@ -35,6 +36,10 @@ export function Header() {
         </div>
       )}
       <span className="spacer" />
+      <button className="btn ghost sm no-drag" onClick={() => openDialog({ type: 'news' })} data-testid="home-news" {...tip(t('news.title'), t('news.tip'))}>
+        <IconStar size={16} />
+        {t('news.short')}
+      </button>
       <button className="btn icon ghost" onClick={() => openDialog({ type: 'settings', tab: 'help' })} {...tip(t('menu.help'), t('tip.help'), 'F1')}>
         <IconHelp size={19} />
       </button>
@@ -92,6 +97,7 @@ function SessionHeader() {
   const mod = modKey();
   const nSeries = seriesCount(s);
   const chatOpen = useAi((a) => a.chatOpen);
+  const viewerOpen = useViewer((v) => v.open);
   const aiReady = useAi((a) => !!a.status?.installed);
   const title = s.sources.length > 1 ? `${basename(s.sources[0])} + ${s.sources.length - 1}` : basename(s.source);
 
@@ -184,6 +190,14 @@ function SessionHeader() {
         <IconLayers size={14} />
         {t('series.label')}
         {prefs.seriesEnabled ? <span className="n">{nSeries}</span> : <span>{t('series.offShort')}</span>}
+      </button>
+      <button
+        className={`btn icon ghost ${viewerOpen ? 'active' : ''}`}
+        onClick={toggleViewer}
+        data-testid="viewer-toggle"
+        {...tip(t(viewerOpen ? 'viewer.close' : 'viewer.open'), t('viewer.tip'))}
+      >
+        <IconMonitor size={18} />
       </button>
       <button className="btn icon ghost" onClick={undo} disabled={!s.undo.length} data-testid="undo" {...tip(t('ses.undo'), t('tip.undo'), `${mod} Z`)}>
         <IconUndo size={18} />
@@ -306,6 +320,10 @@ function SessionHeader() {
           </button>
         )}
         <div className="sep" />
+        <button className="mi" onClick={() => openDialog({ type: 'news' })} data-testid="menu-news">
+          <IconStar size={16} />
+          {t('news.title')}
+        </button>
         <button className="mi" onClick={() => openDialog({ type: 'settings', tab: 'help' })}>
           <IconKeyboard size={16} />
           {t('menu.help')}

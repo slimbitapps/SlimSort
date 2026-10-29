@@ -109,6 +109,11 @@ startet schneller und braucht weniger Arbeitsspeicher. Neu:
 - Löschordner auf Wunsch in den **Papierkorb des Systems** leeren (wiederherstellbar).
 - HEIC-Fotos werden überall angezeigt, Videos zeigen ein Standbild als Vorschau.
 - Hinweis, wenn eine neue Version erscheint (abschaltbar).
+- **Videos:** Standbild in der Leiste und in der Übersicht (statt schwarz), Wiedergabe nach Wunsch – sofort mit Ton, sofort lautlos oder erst auf Play
+- **Zoomen** flüssig und ohne schwarze Flächen (es wird nur der sichtbare Ausschnitt gezeichnet)
+- **Zweiter Bildschirm:** das Foto/Video groß und bildschirmfüllend auf dem einen Bildschirm, alle Fotos, große Ordner-Knöpfe und die KI auf dem anderen; Tasten wirken in beiden Fenstern
+- **Taste N** blendet Namen und Kästchen im Foto aus und wieder ein
+- **Tipps & Neues:** alle Funktionen kurz erklärt, mit Knopf zum Ausprobieren
 - **KI (freiwillig, läuft nur auf deinem Computer):**
   - lernt, welche Fotos du in welchen Ordner tust (auch aus Fotos, die schon in den Zielordnern liegen), und schlägt den Ordner mit Sicherheit in Prozent vor
   - **KI sortieren:** zeigt, wohin sie die offenen Fotos tun würde – du bestätigst; auf Wunsch **Autopilot** für sehr sichere Fotos

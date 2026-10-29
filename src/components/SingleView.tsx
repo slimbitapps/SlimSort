@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
 import {
-  useStore, currentItem, currentIndex, step, setView, openSeriesOf, openCompare, photoDrag, openPhotoMenu, hiddenCount, showAll, type SessionState,
+  useStore, currentItem, currentIndex, step, setView, openSeriesOf, openCompare, photoDrag, openPhotoMenu, hiddenCount, showAll, updatePrefs, type SessionState,
 } from '../store';
+import type { Item } from '../types';
+import { videoFrame } from '../videothumb';
 import { EmptyView } from './ui';
 import { beginDrag } from '../dnd';
 import { InfoPanel } from './InfoPanel';
 import { FaceOverlay } from './FaceOverlay';
 import { ThingTags, MarkLayer } from './ThingLayer';
-import { browserCanShow, displayUrl, fullUrl, mediaUrl, fmtBytes, fmtDate, fmtNum, itemTime, clamp, previewSize } from '../util';
-import { IconChevronLeft, IconChevronRight, IconFolderOut, IconLive, IconMaximize, IconLayers, IconTag } from '../icons';
+import { browserCanShow, displayUrl, fullUrl, mediaUrl, thumbUrl, fmtBytes, fmtDate, fmtNum, itemTime, clamp, previewSize } from '../util';
+import { IconChevronLeft, IconChevronRight, IconFolderOut, IconLive, IconMaximize, IconLayers, IconTag, IconEye, IconEyeOff } from '../icons';
 import { tip } from './Tooltip';
 import { heicUrl, isHeic } from '../heic';
 
@@ -39,6 +41,9 @@ export function SingleView({ s }: { s: SessionState }) {
   // Bereich markieren ("das ist mein Auto")
   const [marking, setMarking] = useState(false);
   const aiOn = useStore((st) => st.settings.prefs.aiEnabled);
+  const showMarks = useStore((st) => st.settings.prefs.showFaces);
+  // angezeigtes <img> – beim Zoomen wird nur der sichtbare Ausschnitt daraus gezeichnet
+  const [imgEl, setImgEl] = useState<HTMLImageElement | null>(null);
   useEffect(() => {
     const on = () => setMarking(true);
     window.addEventListener('fs-mark', on);
@@ -257,7 +262,8 @@ export function SingleView({ s }: { s: SessionState }) {
     : { opacity: 0 };
   const mod = window.api.platform === 'darwin' ? '⌘' : t('key.ctrl');
   const imgSrc = heicSrc ?? (hiRes ? fullUrl(it) : displayUrl(it, pSize));
-  if (nat && !fadeHold && it.kind === 'image' && !error) shown.current = { src: imgSrc, style: rect };
+  const canvasZoom = zoomed && it.kind === 'image' && !!nat && !error;
+  if (nat && !fadeHold && it.kind === 'image' && !error && !zoomed) shown.current = { src: imgSrc, style: rect };
   else if (it.kind !== 'image' || error) shown.current = null;
   const ghostVisible = (!nat || fadeHold) && !error;
 
@@ -279,20 +285,7 @@ export function SingleView({ s }: { s: SessionState }) {
       }}
     >
       {it.kind === 'video' ? (
-        <video
-          key={it.path}
-          className="media"
-          src={mediaUrl(it.path)}
-          controls
-          preload="metadata"
-          style={{ left: 0, top: 0, width: '100%', height: '100%', objectFit: 'contain' }}
-          onLoadedMetadata={(e) => {
-            const v = e.currentTarget;
-            setNat({ w: v.videoWidth || 1, h: v.videoHeight || 1 });
-          }}
-          onError={() => setError(true)}
-        />
-      ) : (
+        <VideoPlayer it={it} onSize={(w, h) => setNat({ w, h })} onError={() => setError(true)} />      ) : (
         <>
           {shown.current && (
             <img
@@ -305,12 +298,13 @@ export function SingleView({ s }: { s: SessionState }) {
           )}
           <img
             key={it.path + (hiRes ? ':hi' : '') + (heicSrc ? ':heic' : '')}
+            ref={setImgEl}
             className={`media ${nat ? 'ready' : ''}`}
             src={imgSrc}
             alt={it.name}
             decoding="async"
             draggable={false}
-            style={rect}
+            style={canvasZoom ? { ...rect, display: 'none' } : rect}
             onLoad={(e) => {
               const im = e.currentTarget;
               const nw = im.naturalWidth;
@@ -335,6 +329,7 @@ export function SingleView({ s }: { s: SessionState }) {
               else setError(true);
             }}
           />
+          {canvasZoom && imgEl && <ZoomCanvas img={imgEl} nat={nat!} view={view} box={box} />}
           {nat && !fadeHold && !error && !livePlaying && !marking && <FaceOverlay it={it} style={rect} />}
           {nat && !error && marking && <MarkLayer it={it} style={rect} onDone={() => setMarking(false)} />}
           {livePlaying && it.live && nat && (
@@ -383,6 +378,16 @@ export function SingleView({ s }: { s: SessionState }) {
 
       <div className="overlay-tools">
         {aiOn && it.kind === 'image' && (
+          <button
+            className={`overlay-btn ${showMarks ? '' : 'on'}`}
+            onClick={() => updatePrefs({ showFaces: !showMarks })}
+            data-testid="marks-toggle"
+            {...tip(showMarks ? t('ses.hideMarks') : t('ses.showMarks'), t('tip.marks'), `${mod} N`)}
+          >
+            {showMarks ? <IconEyeOff size={15} /> : <IconEye size={15} />}
+          </button>
+        )}
+        {aiOn && it.kind === 'image' && (
           <button className={`overlay-btn ${marking ? 'on' : ''}`} onClick={() => setMarking(!marking)} data-testid="mark-btn" {...tip(t('things.mark'), t('things.markTip'))}>
             <IconTag size={15} />
           </button>
@@ -425,5 +430,95 @@ export function SingleView({ s }: { s: SessionState }) {
       </button>
       {showInfo && <InfoPanel it={it} />}
     </div>
+  );
+}
+
+/**
+ * Gezoomtes Foto: nur der sichtbare Ausschnitt wird in Bildschirmgröße gezeichnet.
+ * (Ein riesig vergrößertes <img> ruckelt und bleibt in Teilen schwarz.)
+ */
+function ZoomCanvas({ img, nat, view, box }: { img: HTMLImageElement; nat: { w: number; h: number }; view: View; box: { w: number; h: number } }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const [, redraw] = useState(0);
+  useEffect(() => {
+    if (img.complete) return;
+    const f = () => redraw((x) => x + 1);
+    img.addEventListener('load', f);
+    return () => img.removeEventListener('load', f);
+  }, [img]);
+  useLayoutEffect(() => {
+    const c = ref.current;
+    // neues Bild lädt noch → altes Bild stehen lassen
+    if (!c || !img.complete || !img.naturalWidth) return;
+    const dpr = window.devicePixelRatio || 1;
+    const W = Math.round(box.w * dpr);
+    const H = Math.round(box.h * dpr);
+    if (c.width !== W) c.width = W;
+    if (c.height !== H) c.height = H;
+    const ctx = c.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, W, H);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    const s = view.scale;
+    const kx = img.naturalWidth / nat.w;
+    const ky = img.naturalHeight / nat.h;
+    const x0 = Math.max(0, view.x);
+    const y0 = Math.max(0, view.y);
+    const x1 = Math.min(box.w, view.x + nat.w * s);
+    const y1 = Math.min(box.h, view.y + nat.h * s);
+    if (x1 <= x0 || y1 <= y0) return;
+    ctx.drawImage(img, ((x0 - view.x) / s) * kx, ((y0 - view.y) / s) * ky, ((x1 - x0) / s) * kx, ((y1 - y0) / s) * ky, x0 * dpr, y0 * dpr, (x1 - x0) * dpr, (y1 - y0) * dpr);
+  });
+  return <canvas ref={ref} className="zoom-canvas" data-testid="zoom-canvas" style={{ width: box.w, height: box.h }} />;
+}
+
+/** Video mit Standbild (statt schwarz) und Wiedergabe nach Einstellung: automatisch, lautlos oder erst auf Play */
+function VideoPlayer({ it, onSize, onError }: { it: Item; onSize: (w: number, h: number) => void; onError: () => void }) {
+  const mode = useStore((st) => st.settings.prefs.videoPlay) || 'muted';
+  const ref = useRef<HTMLVideoElement>(null);
+  const [poster, setPoster] = useState<string | undefined>();
+  useEffect(() => {
+    let alive = true;
+    setPoster(undefined);
+    const url = thumbUrl(it.path, 1280);
+    const im = new Image();
+    im.onload = () => alive && setPoster(url);
+    im.onerror = () => videoFrame(it.path, 1280, it.ext).then((u) => alive && u && setPoster(u));
+    im.src = url;
+    return () => {
+      alive = false;
+    };
+  }, [it.path, it.ext]);
+  useEffect(() => {
+    const v = ref.current;
+    if (!v) return;
+    v.muted = mode === 'muted';
+    if (mode === 'click') return;
+    // Mit Ton gesperrt (Regel der Webansicht)? → lautlos abspielen, Ton per Knopf
+    v.play()?.catch(() => {
+      if (v.muted) return;
+      v.muted = true;
+      v.play()?.catch(() => {});
+    });
+  }, [it.path, mode]);
+  return (
+    <video
+      key={it.path}
+      ref={ref}
+      className="media"
+      data-testid="video"
+      src={mediaUrl(it.path)}
+      poster={poster}
+      controls
+      playsInline
+      preload={mode === 'click' ? 'metadata' : 'auto'}
+      style={{ left: 0, top: 0, width: '100%', height: '100%', objectFit: 'contain' }}
+      onLoadedMetadata={(e) => {
+        const v = e.currentTarget;
+        onSize(v.videoWidth || 1, v.videoHeight || 1);
+      }}
+      onError={onError}
+    />
   );
 }

@@ -3,6 +3,7 @@ import { heicUrl, isHeic } from '../heic';
 import { goTo, currentIndex, step, openPhotoMenu, type SessionState } from '../store';
 import { browserCanShow, mediaUrl, thumbUrl } from '../util';
 import { IconVideo } from '../icons';
+import { videoFrame } from '../videothumb';
 
 const ITEM_W = 46;
 const STEP = ITEM_W + 6;
@@ -57,6 +58,9 @@ export function Filmstrip({ s }: { s: SessionState }) {
             if (!im.dataset.fb && isHeic(it.ext)) {
               im.dataset.fb = '1';
               heicUrl(it.path, 256).then((u) => (u ? (im.src = u) : (im.style.visibility = 'hidden')));
+            } else if (!im.dataset.fb && it.kind === 'video') {
+              im.dataset.fb = '1';
+              videoFrame(it.path, 256, it.ext).then((u) => (u ? (im.src = u) : (im.style.visibility = 'hidden')));
             } else if (!im.dataset.fb && it.kind === 'image' && browserCanShow(it.ext)) {
               im.dataset.fb = '1';
               im.src = mediaUrl(it.path);

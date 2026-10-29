@@ -40,6 +40,7 @@ export type Dialog =
   | { type: 'profiles' }
   | { type: 'people'; tab?: 'people' | 'things' }
   | { type: 'ailog' }
+  | { type: 'news' }
   | { type: 'keyCapture'; targetId: string }
   | { type: 'prompt'; title: string; value: string; onOk: (v: string) => void };
 
@@ -166,6 +167,7 @@ export const defaultPrefs: Prefs = {
   transferMode: 'move',
   liveVideo: 'move',
   liveAutoplay: false,
+  videoPlay: 'muted',
   recursive: false,
   showEta: true,
   suggest: true,
@@ -612,6 +614,7 @@ export function goHome() {
   scanActive = false;
   resetAnalysis();
   set({ screen: 'home', session: null, setup: null, zen: false, dialog: null, scanning: null, coach: null });
+  window.dispatchEvent(new Event('fs-home'));
   api().pending().then((n) => n === 0 && set({ progress: null }));
   api().setFullscreen(false);
 }

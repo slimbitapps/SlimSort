@@ -175,6 +175,22 @@ async fn scan_folders(roots: Vec<String>) -> Res<Vec<ai::FolderInfo>> {
     blocking(move || ai::scan_folders(&roots)).await
 }
 
+/// Standbild eines Videos, das die Oberfläche selbst erzeugt hat, als Vorschaubild merken
+/// (wenn das System keine Video-Vorschau kann)
+#[tauri::command]
+fn thumb_store(st: State<AppState>, path: String, size: u32, data: Vec<u8>) -> bool {
+    if data.len() < 100 || data.len() > 8 << 20 || !data.starts_with(&[0xFF, 0xD8]) {
+        return false;
+    }
+    match thumbs::Cache::key(Path::new(&path), &size.to_string()) {
+        Some(key) => {
+            st.media.cache.store_thumb(&key, &data);
+            true
+        }
+        None => false,
+    }
+}
+
 /// Leeren Ordner löschen (KI-Verlauf: angelegten Ordner zurücknehmen) – nur wenn wirklich leer
 #[tauri::command]
 fn remove_empty_dir(path: String) -> bool {
@@ -800,6 +816,53 @@ fn open_with_default(app: AppHandle, p: String) -> Res<()> {
     app.opener().open_path(p, None::<&str>).map_err(|e| e.to_string())
 }
 
+// ------------------------------------------------------------------ Foto-Fenster (zweiter Bildschirm)
+
+/// Öffnet das Foto-Fenster – auf einem zweiten Bildschirm im Vollbild, sonst als eigenes Fenster.
+/// Rückgabe: true, wenn ein zweiter Bildschirm benutzt wird.
+#[tauri::command]
+async fn viewer_open(app: AppHandle) -> Res<bool> {
+    if let Some(w) = app.get_webview_window("viewer") {
+        let _ = w.show();
+        let _ = w.set_focus();
+        return Ok(w.is_fullscreen().unwrap_or(false));
+    }
+    let main = app.get_webview_window("main");
+    let monitors = main.as_ref().and_then(|m| m.available_monitors().ok()).unwrap_or_default();
+    let cur = main.as_ref().and_then(|m| m.current_monitor().ok().flatten());
+    let other = monitors.into_iter().find(|m| cur.as_ref().map_or(true, |c| c.position() != m.position() || c.size() != m.size()));
+    let mut b = WebviewWindowBuilder::new(&app, "viewer", WebviewUrl::App("index.html".into()))
+        .title("SlimSort")
+        .inner_size(1100.0, 750.0)
+        .min_inner_size(320.0, 240.0)
+        .initialization_script("window.__SLIMSORT_VIEWER__ = true;")
+        .background_color(tauri::window::Color(0, 0, 0, 255));
+    if let Some(m) = &other {
+        let p = m.position().to_logical::<f64>(m.scale_factor());
+        b = b.position(p.x + 60.0, p.y + 60.0);
+    }
+    let w = b.build().map_err(|e| e.to_string())?;
+    if other.is_some() {
+        let _ = w.set_fullscreen(true);
+    }
+    Ok(other.is_some())
+}
+
+#[tauri::command]
+fn viewer_close(app: AppHandle) {
+    if let Some(w) = app.get_webview_window("viewer") {
+        let _ = w.destroy();
+    }
+}
+
+#[tauri::command]
+fn viewer_fullscreen(app: AppHandle) {
+    if let Some(w) = app.get_webview_window("viewer") {
+        let on = w.is_fullscreen().unwrap_or(false);
+        let _ = w.set_fullscreen(!on);
+    }
+}
+
 // ------------------------------------------------------------------ Start
 
 fn create_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
@@ -961,6 +1024,10 @@ pub fn run() {
             ai_people_on,
             scan_folders,
             remove_empty_dir,
+            thumb_store,
+            viewer_open,
+            viewer_close,
+            viewer_fullscreen,
             ai_embed_region,
             ai_thing_scores,
             ai_face_clusters,
@@ -1044,6 +1111,12 @@ pub fn run() {
         })
         .on_window_event(|win, ev| {
             let app = win.app_handle();
+            if win.label() == "viewer" {
+                if let WindowEvent::Destroyed = ev {
+                    let _ = app.emit_to("main", "viewer:closed", ());
+                }
+                return;
+            }
             match ev {
                 WindowEvent::Resized(_) | WindowEvent::Moved(_) => {
                     remember_window(app, win);
@@ -1073,6 +1146,9 @@ pub fn run() {
                                 app2.exit(0);
                             });
                         }
+                    } else if let Some(v) = app.get_webview_window("viewer") {
+                        // Foto-Fenster mit schließen, sonst läuft die App weiter
+                        let _ = v.destroy();
                     }
                 }
                 _ => {}

@@ -10,7 +10,7 @@ import type { AppInfo, Prefs, Profile, AiMemory } from '../types';
 import { Help, KeyCap, Logo, Switch, MenuPopup, useMenu } from './ui';
 import {
   IconGlobe, IconSliders, IconTrash, IconImage, IconLayers, IconSettings, IconHelp, IconInfo, IconClose, IconCheck,
-  IconLock, IconRefresh, IconPlus, IconMore, IconLayers as IconStack, IconSparkle,
+  IconLock, IconRefresh, IconStar, IconPlus, IconMore, IconLayers as IconStack, IconSparkle,
   IconDownload, IconUpload,
 } from '../icons';
 import { useAi, applyAiPrefs, startDownload, currentTier, refreshRules } from '../ai';
@@ -249,6 +249,21 @@ export function SettingsDialog({ tab: initial }: { tab?: string }) {
                   <KeyRow label={t('ses.skip')} k="skip" />
                   <KeyRow label={t('ses.delete')} k="trash" />
                   <KeyRow label={t('ses.otherShort')} k="other" />
+                </Group>
+                <Group label={t('settings.videos')}>
+                  <Row label={t('settings.videoPlay')} desc={t('settings.videoPlay.desc')}>
+                    <span data-testid="video-play">
+                      <Seg
+                        value={p.videoPlay || 'muted'}
+                        options={[
+                          ['auto', t('settings.videoPlay.auto')],
+                          ['muted', t('settings.videoPlay.muted')],
+                          ['click', t('settings.videoPlay.click')],
+                        ]}
+                        onChange={(v) => set({ videoPlay: v })}
+                      />
+                    </span>
+                  </Row>
                 </Group>
                 <Group label={t('settings.live')}>
                   <Row label={t('settings.liveVideo')} help={t('settings.liveVideo.help')}>
@@ -1128,6 +1143,7 @@ function HelpTab() {
     ['keys.esc', ['Esc']],
     ['keys.selectAll', [mod, 'A']],
     ['keys.zoom', ['+', '−', `${mod} 0`]],
+    ['keys.marks', [`${mod} N`]],
     ['keys.firstLast', [t('key.home'), t('key.end')]],
     ['keys.help', ['F1']],
   ];
@@ -1136,6 +1152,12 @@ function HelpTab() {
       <h3>{t('settings.help')}</h3>
       <p className="sub">{t('settings.help.sub')}</p>
       <Group>
+        <Row label={t('news.title')} desc={t('news.tip')}>
+          <button className="btn" onClick={() => openDialog({ type: 'news' })}>
+            <IconStar size={15} />
+            {t('news.open')}
+          </button>
+        </Row>
         <Row label={t('help.tutorial')} desc={t('help.tutorial.desc')}>
           <button className="btn" onClick={restartTutorial} data-testid="restart-tutorial">
             <IconRefresh size={15} />
