@@ -79,11 +79,11 @@ scene('learn', (r, s) => {
   s.sg = el('div', 'sugg', r, '✨ AI suggests: Nature · 94 %');
   s.cap = el('div', 'cap', r);
   css(s.cap, { top: '1240px' });
-  s.f = [0, 1, 2].map((i) => folderEl(r, i, 30 + i * 350, 1560));
+  s.f = [0, 1, 2].map((i) => folderEl(r, i, 30 + i * 350, 1470));
 }, (s, lt) => {
   fadeIn(s.h, lt, 0.05);
   const fly = E.io(p(lt, 2.6, 0.6));
-  css(s.ph, { left: lerp(90, 30 + 2 * 350 + 60, fly) + 'px', top: lerp(400, 1600, fly) + 'px', width: lerp(900, 200, fly) + 'px', height: lerp(600, 134, fly) + 'px', opacity: 1 - p(fly, 0.85, 0.15) });
+  css(s.ph, { left: lerp(90, 30 + 2 * 350 + 60, fly) + 'px', top: lerp(400, 1510, fly) + 'px', width: lerp(900, 200, fly) + 'px', height: lerp(600, 134, fly) + 'px', opacity: 1 - p(fly, 0.85, 0.15) });
   css(s.sg, { left: '50%', top: '1060px', opacity: p(lt, 0.9, 0.2) * (1 - p(lt, 2.6, 0.2)), transform: `translateX(-50%) scale(${0.7 + 0.3 * E.back(p(lt, 0.9, 0.4))})` });
   drawKeys(s.cap, lt, [[2.3, ['3']]]);
   s.f.forEach((f, i) => {
@@ -133,7 +133,7 @@ scene('undo', (r, s) => {
   s.btn = s.r1.querySelector('.btn');
   const names = ['beach-1', 'beach-2', 'beach-3', 'sunset-1', 'sunset-2', 'lake-1', 'city-1', 'flowers-1', 'desert-1', 'snow-1', 'lake-2', 'forest-1'];
   s.t = names.map((n, i) => thumb(r, P(n), 0, 0, 230, 154));
-  s.f = folderEl(r, 1, 380, 1560);
+  s.f = folderEl(r, 1, 380, 1470);
   s.ok = el('div', 'chip', r, '✓ All 12 back where they were');
   css(s.ok, { left: '50%', top: '1400px', fontSize: '40px' });
 }, (s, lt) => {
@@ -146,7 +146,7 @@ scene('undo', (r, s) => {
   s.t.forEach((e, i) => {
     const k = E.out(p(lt, 1.8 + i * 0.07, 0.55));
     const gx = 30 + (i % 4) * 255, gy = 800 + Math.floor(i / 4) * 175;
-    css(e, { left: lerp(480, gx, k) + 'px', top: lerp(1600, gy, k) + 'px', transform: `scale(${0.3 + 0.7 * k})`, opacity: p(lt, 1.8 + i * 0.07, 0.1) });
+    css(e, { left: lerp(480, gx, k) + 'px', top: lerp(1510, gy, k) + 'px', transform: `scale(${0.3 + 0.7 * k})`, opacity: p(lt, 1.8 + i * 0.07, 0.1) });
   });
   s.ok.style.opacity = p(lt, 3.2, 0.3);
   s.ok.style.transform = 'translateX(-50%)';
@@ -185,7 +185,7 @@ scene('beta', (r, s) => {
 });
 ctaScene({ label: '✓ The real app · v2.0', clip: () => ['single', 0] });
 
-start({ captionTop: 1760 });
+start({ captionTop: 1790 });
 </script>
 </body>
 </html>

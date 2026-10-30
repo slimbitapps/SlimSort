@@ -61,7 +61,8 @@ const ALGOS = [
 ];
 const OPS = ALGOS.map(([, , fn]) => record(fn));
 const ORDER = OPS.map((o, i) => i).sort((x, y) => OPS[x].length - OPS[y].length); // Zielreihenfolge
-const T_GO = 4.0, T_RESULT = 3.6, WARP = 3;
+const T_GO = 4.3, T_RESULT = 3.6, WARP = 3;
+const CD = 0.22;   // Abstand der Countdown-Zahlen (wie die Stimme sie spricht)
 let race = null;   // Zeitplan, wird aus der Szenenlänge berechnet
 
 scene('race', (r, s) => {
@@ -135,10 +136,10 @@ scene('race', (r, s) => {
   });
   // 3 · 2 · 1 · GO
   const c = Math.ceil(T_GO - lt);
-  const inCd = lt > T_GO - 1.6 && lt < T_GO + 0.5;
+  const inCd = lt > T_GO - 3 * CD - 0.05 && lt < T_GO + 0.5;
   s.cd.style.opacity = inCd ? 1 - p(lt, T_GO + 0.2, 0.3) : 0;
-  s.cd.innerHTML = lt < T_GO ? `<span class="grad">${Math.max(1, Math.min(3, Math.ceil((T_GO - lt) / 0.5)))}</span>` : 'GO!';
-  const ph = ((T_GO - lt) % 0.5) / 0.5;
+  s.cd.innerHTML = lt < T_GO ? `<span class="grad">${Math.max(1, Math.min(3, Math.ceil((T_GO - lt) / CD)))}</span>` : 'GO!';
+  const ph = ((T_GO - lt) % CD) / CD;
   s.cd.style.transform = `scale(${lt < T_GO ? 0.8 + 0.4 * ph : 1.1})`;
   s.bet.style.opacity = p(lt, 1.2, 0.3) * (1 - p(lt, T_GO - 0.3, 0.3));
   s.bet.style.transform = 'translateX(-50%)';
@@ -146,7 +147,7 @@ scene('race', (r, s) => {
   s.ff.style.opacity = ffOn ? p(tr, race.t3 + 0.3, 0.3) : 0;
   s.ff.style.transform = `translateX(-50%) scale(${1 + 0.03 * Math.sin(lt * 8)})`;
   void c;
-});
+}, 4);
 scenes[0].tones = function (D) { this.draw(this, 0, D); return D; };
 
 scene('end', (r, s) => {
@@ -167,11 +168,11 @@ scene('end', (r, s) => {
   s.tag.style.transform = 'translateX(-50%)';
 });
 
-start({ captionTop: 1700 });
+start({ captionTop: 1790 });
 // Tonspur (Python baut daraus die Töne): Zeit, Tonhöhe 0..1, Spur
 window.TONES = (() => {
   const s0 = scenes[0];
-  s0.draw(s0, 0, C.durations[0]);
+  s0.draw(s0, 0, C.durations.slice(0, 4).reduce((a, b) => a + b, 0));
   const out = [];
   OPS.forEach((ops, i) => {
     let lastT = -1;
@@ -184,7 +185,7 @@ window.TONES = (() => {
     });
     out.push([T_GO + race.endOf(i), -1, i]); // Ziel-Ton
   });
-  for (let k = 0; k < 3; k++) out.push([T_GO - 1.5 + k * 0.5, -2, 0]); // Countdown
+  for (let k = 0; k < 3; k++) out.push([T_GO - (3 - k) * CD, -2, 0]); // Countdown
   out.push([T_GO, -3, 0]);
   return out;
 })();

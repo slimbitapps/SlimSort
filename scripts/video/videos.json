@@ -25,7 +25,7 @@
       "lufs": -14,
       "thumb": "SlimSort-Short7-YouTube.jpg",
       "upload": "docs/upload/short7.json",
-      "min": "25,4.5",
+      "min": "3.48,6.02,4.1,11.6,4.3",
       "thumb_social": "SlimSort-Short7-TikTok-Instagram.jpg",
       "music": "none",
       "seed": 7
@@ -41,7 +41,7 @@
       "lufs": -14,
       "thumb": "SlimSort-Short11-YouTube.jpg",
       "upload": "docs/upload/short11.json",
-      "min": "3,5.2,4.6,4.4,4.6,4,3.6,4.5",
+      "min": "6.12,5.20,4.69,5.26,4.60,5.32,6.70,4.50",
       "thumb_social": "SlimSort-Short11-TikTok-Instagram.jpg",
       "music": "house",
       "seed": 11
@@ -57,7 +57,7 @@
       "lufs": -14,
       "thumb": "SlimSort-Short9-YouTube.jpg",
       "upload": "docs/upload/short9.json",
-      "min": "2.6,7.5,7.5,7.5,3.2",
+      "min": "4.35,7.50,7.50,7.50,4.55",
       "thumb_social": "SlimSort-Short9-TikTok-Instagram.jpg",
       "music": "happy",
       "seed": 9
@@ -73,7 +73,7 @@
       "lufs": -14,
       "thumb": "SlimSort-Short10-YouTube.jpg",
       "upload": "docs/upload/short10.json",
-      "min": "28.5",
+      "min": "9.3,2.6,4.5,4.5,5.2,3.7",
       "thumb_social": "SlimSort-Short10-TikTok-Instagram.jpg",
       "music": "pop",
       "seed": 10
@@ -89,7 +89,7 @@
       "lufs": -14,
       "thumb": "SlimSort-Short12-YouTube.jpg",
       "upload": "docs/upload/short12.json",
-      "min": "3.2,3.6,7.5,4.6,3.8,4.5",
+      "min": "5.46,3.60,7.50,4.60,4.31,4.50",
       "thumb_social": "SlimSort-Short12-TikTok-Instagram.jpg",
       "music": "happy",
       "seed": 12

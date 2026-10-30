@@ -86,12 +86,19 @@ const CONFIG = { marks, frames, photos, photosHD, durations: DURATIONS, captions
   let voice = VOICE;
   // Seiten ohne Stimme können eine eigene Tonspur aus Ereignissen liefern (window.TONES → motion/tones.py)
   const tones = await page.evaluate(() => window.TONES || null);
-  if (tones && !VOICE) {
+  if (tones) {
     const { execFileSync } = require('node:child_process');
     const j = path.join(path.dirname(OUT), path.basename(OUT, '.mp4') + '-tones.json');
     fs.writeFileSync(j, JSON.stringify(tones));
-    voice = path.join(path.dirname(OUT), path.basename(OUT, '.mp4') + '-tones.wav');
-    execFileSync('python3', [path.join(__dirname, '..', 'motion', 'tones.py'), j, String(total), voice], { stdio: 'inherit' });
+    const tw = path.join(path.dirname(OUT), path.basename(OUT, '.mp4') + '-tones.wav');
+    execFileSync('python3', [path.join(__dirname, '..', 'motion', 'tones.py'), j, String(total), tw], { stdio: 'inherit' });
+    if (VOICE) {
+      // Stimme + Töne: Töne leiser, solange gesprochen wird
+      voice = path.join(path.dirname(OUT), path.basename(OUT, '.mp4') + '-stimme-toene.wav');
+      execFileSync('ffmpeg', ['-y', '-v', 'error', '-i', VOICE, '-i', tw, '-filter_complex',
+        '[0:a]aformat=sample_rates=48000:channel_layouts=mono,asplit[v][k];[1:a]aformat=sample_rates=48000:channel_layouts=mono,volume=0.7[t];[t][k]sidechaincompress=threshold=0.02:ratio=5:attack=15:release=300[td];[v][td]amix=inputs=2:normalize=0:duration=longest[o]',
+        '-map', '[o]', '-ar', '48000', voice]);
+    } else voice = tw;
   }
   if (sfx.length) {
     const { execFileSync } = require('node:child_process');
