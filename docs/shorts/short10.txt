@@ -1,0 +1,11 @@
+Let's zoom into this photo of a cat. Closer. And closer.
+
+See those squares? Those are pixels.
+
+And each one is just three numbers. Red, green, and blue.
+
+A normal phone photo has twelve million of them.
+
+That's thirty-six million numbers, for one photo. And your gallery has thousands.
+
+Too many photos? SlimSort sorts them for free.

@@ -1,0 +1,9 @@
+Four sorting algorithms. Same speed. Pick your winner.
+
+Three, two, one, go!
+
+Merge sort is done first. Quick sort right behind.
+
+Insertion sort is almost there. And bubble sort? Still going.
+
+Merge sort wins. Did you pick it? Tell me in the comments.

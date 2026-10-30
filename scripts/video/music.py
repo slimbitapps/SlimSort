@@ -1,7 +1,7 @@
 """Eigene Hintergrundmusik per Code – gehört uns, also keine Urheberrechts- oder Content-ID-Probleme.
 
   python3 scripts/video/music.py STIL SEKUNDEN AUSGABE.wav [--seed N]
-  STIL: lofi (ruhig, warm) · pop (fröhlich, Energie) · epic (groß, filmisch)
+  STIL: lofi (ruhig, warm) · pop (fröhlich, Energie) · epic (groß, filmisch) · house (entspannt, tanzbar) · happy (Ukulele, Pfeifen)
 
 Nur numpy. Jede Zahl bei --seed ergibt eine andere Melodie/Variante im selben Stil (Standard: 1).
 Am Ende wird die Musik weich ausgeblendet. In finish.sh wird sie automatisch unter die Stimme gelegt
@@ -118,6 +118,10 @@ class Mix:
         i = int(at * SR)
         if i >= self.n: return
         s = sig if sig.ndim == 2 else np.stack([sig * np.cos(pan * np.pi / 2), sig * np.sin(pan * np.pi / 2)], 1) * np.sqrt(2)
+        # jede Note am Ende kurz ausblenden – sonst knackt es, wenn sie noch klingt und abgeschnitten wird
+        fo = min(len(s) // 4, int(0.012 * SR))
+        if fo > 1:
+            s = s.copy(); s[-fo:] *= np.linspace(1, 0, fo)[:, None]
         s = s[: len(b) - i]
         b[i:i + len(s)] += s * gain
 
@@ -147,9 +151,6 @@ def lofi(sec, seed):
             for k in range(r.integers(2, 5)):
                 n = scale[r.integers(len(scale))] + 12
                 m.add('lead', additive(hz(n), 1.2, nh=4, tilt=2, dec=2.5, deck=1.2), t0 + r.integers(0, 8) * beat / 2, 0.09, 0.3 + 0.4 * r.random())
-    t = tt(sec + 4)
-    crackle = (rng.random(len(t)) > 0.9993) * rng.standard_normal(len(t)) * 0.5 + filt(rng.standard_normal(len(t)), lo=2000, hi=8000) * 0.006
-    m.add('vinyl', crackle, 0, 0.5)
     fx = {'keys': dict(hi=3200), 'lead': dict(hi=6000), 'drums': dict(hi=7000), 'bass': dict(hi=900)}
     return m, fx, dict(rt=1.8, mix=0.22)
 
@@ -217,8 +218,88 @@ def epic(sec, seed):
     return m, fx, dict(rt=2.8, mix=0.3)
 
 
+def house(sec, seed):
+    """Entspannter Deep-House: gerade Kick, warme Akkord-Stabs, federnder Bass, Shaker."""
+    bpm = 120; beat = 60 / bpm; bar = beat * 4
+    # Fmaj7 – Em7 – Dm7 – Cmaj7 (sanft absteigend)
+    prog = [[53, 57, 60, 64], [52, 55, 59, 62], [50, 53, 57, 60], [48, 52, 55, 59]]
+    bass = [29, 28, 26, 24]
+    m = Mix(sec); r = np.random.default_rng(seed); bars = int(np.ceil(sec / bar)) + 1
+    K, C, H, HO = kick(0.9, 0.3), clap(), hat(), hat(True)
+    stab_at = [0.5, 1.5, 2.75, 3.5] if seed % 2 else [0.5, 1.25, 2.5, 3.5]
+    for b in range(bars):
+        t0 = b * bar; ch = prog[b % 4]
+        for q in stab_at:  # kurze, weiche Akkord-Stabs (Orgel/Piano-artig)
+            for i, n in enumerate(ch):
+                m.add('stab', additive(hz(n + 12), 0.45, nh=8, tilt=1.4, dec=5, deck=0.8), t0 + q * beat + i * 0.004, 0.11, 0.3 + 0.13 * i)
+        m.add('pad', pad([n + 12 for n in ch], bar, voices=4, det=0.1, a=0.4, r=0.8, hi=1800), t0, 0.28)
+        for q in range(4):  # Bass auf den Offbeats + Oktavsprung
+            f = hz(bass[b % 4] + 12 + (12 if q == 3 and b % 2 else 0))
+            s = np.sin(2 * np.pi * f * tt(beat * 0.45)) + 0.3 * np.sin(4 * np.pi * f * tt(beat * 0.45))
+            m.add('bass', s * adsr(int(beat * 0.45 * SR), 0.004, 0.2, 0.6, 0.04, beat * 0.38), t0 + q * beat + beat / 2, 0.34)
+        if b == 0: continue
+        for q in range(4):
+            m.add('drums', K, t0 + q * beat, 0.7)
+            if q in (1, 3): m.add('drums', C, t0 + q * beat, 0.35, 0.55)
+            m.add('drums', HO if q % 2 else H, t0 + q * beat + beat / 2, 0.16, 0.62)
+            for k in range(4):  # Shaker in 16teln
+                m.add('drums', H, t0 + q * beat + k * beat / 4, 0.05 + 0.03 * (k == 2), 0.35)
+        if b >= 2 and r.random() < 0.7:  # kleine Melodie (Marimba-artig)
+            sc = [65, 67, 69, 72, 74, 76]
+            for k in range(3):
+                m.add('lead', additive(hz(sc[r.integers(len(sc))]), 0.5, nh=4, tilt=2.2, dec=6, deck=2), t0 + (2 + k) * beat + r.integers(0, 2) * beat / 2, 0.1, 0.4 + 0.2 * r.random())
+    t = np.arange(m.n + SR * 4) / SR
+    ph = (t % beat) / beat
+    pump = np.where(t < bar, 1.0, 0.45 + 0.55 * np.minimum(1, ph / 0.5) ** 1.4)
+    for k in ('pad', 'stab'):
+        if k in m.bus: m.bus[k] *= pump[:, None]
+    fx = {'stab': dict(hi=4200, lo=180), 'pad': dict(hi=2200, lo=150), 'bass': dict(hi=700), 'lead': dict(hi=7000), 'drums': dict(hi=11000)}
+    return m, fx, dict(rt=1.6, mix=0.2)
+
+
+def happy(sec, seed):
+    """Fröhlich und federnd: gezupfte Ukulele-Akkorde, Klatschen, Pfeif-Melodie, Glockenspiel."""
+    bpm = 104; beat = 60 / bpm; bar = beat * 4
+    # C – G – Am – F (I–V–vi–IV)
+    prog = [[60, 64, 67, 72], [59, 62, 67, 71], [57, 60, 64, 69], [57, 60, 65, 69]]
+    bass = [36, 31, 33, 29]
+    mel = [[72, 74, 76, 79], [74, 71, 74, 79], [76, 72, 76, 81], [77, 72, 76, 74]]
+    m = Mix(sec); r = np.random.default_rng(seed); bars = int(np.ceil(sec / bar)) + 1
+    K, C, H = kick(0.8, 0.25), clap(), hat()
+    strum = [0, 1, 1.5, 2.5, 3, 3.5]   # Ukulele-Anschlag: D-D-U-U-D-U
+    for b in range(bars):
+        t0 = b * bar; ch = prog[b % 4]
+        for j, q in enumerate(strum):
+            up = q % 1 != 0
+            for i, n in enumerate(ch[::-1] if up else ch):
+                m.add('uke', additive(hz(n), 0.5, nh=10, tilt=0.9, dec=8, deck=1.6), t0 + q * beat + i * 0.012, 0.075 * (0.7 if up else 1), 0.35 + 0.1 * i)
+        for q in (0, 2):  # hüpfender Bass (Grundton – Quinte)
+            for k, iv in enumerate((0, 7)):
+                f = hz(bass[b % 4] + iv)
+                s = additive(f, beat * 0.9, nh=5, tilt=1.6, dec=4, deck=0.6)
+                m.add('bass', s, t0 + (q + k) * beat, 0.34)
+        if b == 0: continue
+        for q in range(4):
+            m.add('drums', K, t0 + q * beat, 0.6 if q in (0, 2) else 0.3)
+            if q in (1, 3): m.add('drums', C, t0 + q * beat, 0.45, 0.45 + 0.1 * (q == 3))
+            m.add('drums', H, t0 + q * beat + beat / 2, 0.13, 0.65)
+        if b >= 1:  # Pfeif-Melodie (Sinus mit Vibrato), jede zweite Phrase eine Oktave Glockenspiel dazu
+            notes = mel[(b + seed) % 4]
+            for k, n in enumerate(notes):
+                d = beat * (1.5 if k % 2 == 0 else 0.5)
+                at = t0 + [0, 1.5, 2, 3.5][k] * beat
+                tw = tt(d * 1.1)
+                vib = 1 + 0.006 * np.sin(2 * np.pi * 5.5 * tw) * np.minimum(1, tw / 0.25)
+                w = np.sin(2 * np.pi * np.cumsum(hz(n) * vib) / SR) * adsr(len(tw), 0.03, 0.3, 0.8, 0.08, d)
+                w += filt(rng.standard_normal(len(tw)), lo=hz(n) * 0.9, hi=hz(n) * 1.2) * 0.04 * adsr(len(tw), 0.03, 0.3, 0.8, 0.08, d)
+                m.add('whistle', w, at, 0.1, 0.5)
+                if b % 2 == 0: m.add('glock', additive(hz(n + 12), 1.0, nh=3, tilt=2.5, dec=3, deck=1.5), at, 0.05, 0.6)
+    fx = {'uke': dict(hi=6500, lo=200), 'bass': dict(hi=900), 'whistle': dict(hi=5000, lo=400), 'glock': dict(hi=9000), 'drums': dict(hi=10000)}
+    return m, fx, dict(rt=1.3, mix=0.18)
+
+
 def render(style, sec, seed):
-    m, fx, rv = {'lofi': lofi, 'pop': pop, 'epic': epic}[style](sec, seed)
+    m, fx, rv = {'lofi': lofi, 'pop': pop, 'epic': epic, 'house': house, 'happy': happy}[style](sec, seed)
     out = np.zeros((m.n + SR * 4, 2))
     for k, b in m.bus.items():
         out += filt(b, **fx[k]) if k in fx else b
@@ -232,7 +313,7 @@ def render(style, sec, seed):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('style', choices=['lofi', 'pop', 'epic'])
+    ap.add_argument('style', choices=['lofi', 'pop', 'epic', 'house', 'happy'])
     ap.add_argument('seconds', type=float)
     ap.add_argument('out')
     ap.add_argument('--seed', type=int, default=1)
