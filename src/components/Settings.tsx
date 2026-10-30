@@ -7,7 +7,7 @@ import {
 import { tip } from './Tooltip';
 import slimbitMark from '../assets/slimbit-mark.png';
 import type { AppInfo, Prefs, Profile, AiMemory } from '../types';
-import { Help, KeyCap, Logo, Switch, MenuPopup, useMenu } from './ui';
+import { Help, KeyCap, Logo, Switch, MenuPopup, useMenu, Beta } from './ui';
 import {
   IconGlobe, IconSliders, IconTrash, IconImage, IconLayers, IconSettings, IconHelp, IconInfo, IconClose, IconCheck,
   IconLock, IconRefresh, IconStar, IconPlus, IconMore, IconLayers as IconStack, IconSparkle,
@@ -164,6 +164,7 @@ export function SettingsDialog({ tab: initial }: { tab?: string }) {
               <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)} data-testid={`settings-${id}`}>
                 {icon}
                 {label}
+                {id === 'ai' && <Beta />}
               </button>
             ))}
           </nav>
@@ -663,8 +664,14 @@ function AiTab() {
   const pct = st && st.size ? Math.round((100 * st.received) / st.size) : 0;
   return (
     <>
-      <h3>{t('ai.tab')}</h3>
+      <h3>
+        {t('ai.tab')} <Beta />
+      </h3>
       <p className="sub">{t('ai.sub')}</p>
+      <div className="beta-note" data-testid="beta-note">
+        <IconInfo size={16} />
+        <span>{t('beta.note')}</span>
+      </div>
       <Group>
         <Row label={t('ai.enable')} desc={t('ai.enableDesc')}>
           <span data-testid="ai-enable">

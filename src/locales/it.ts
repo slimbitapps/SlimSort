@@ -1003,4 +1003,7 @@ export const it: Dict = {
   'news.marks.text': 'Il tasto N (o l’occhio nella foto) nasconde e mostra nomi e riquadri.',
   'news.video.title': 'Video come vuoi tu',
   'news.video.text': 'I video partono subito (con o senza audio) o solo con Play: in Impostazioni → Smistamento.',
+
+  'beta.tip': 'L’IA è ancora in sviluppo. Controlla i suoi suggerimenti: tutto si può annullare.',
+  'beta.note': 'L’IA è una versione beta: aiuta a ordinare, ma può sbagliare. Non fidarti ciecamente e controlla i suoi suggerimenti. Tutto ciò che cambia è nella cronologia IA e si può annullare. Le tue foto non vengono mai sovrascritte né eliminate senza passare dal cestino.',
 };

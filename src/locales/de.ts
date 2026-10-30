@@ -1017,4 +1017,7 @@ export const de = {
   'news.marks.text': 'Taste N (oder das Auge im Foto) blendet Namen und Kästchen aus und wieder ein.',
   'news.video.title': 'Videos wie du willst',
   'news.video.text': 'Videos starten sofort (mit oder ohne Ton) oder erst auf Play – einstellbar unter Einstellungen → Sortieren.',
+
+  'beta.tip': 'Die KI ist noch in Entwicklung. Prüfe ihre Vorschläge – alles lässt sich rückgängig machen.',
+  'beta.note': 'Die KI ist eine Beta-Version: Sie hilft beim Sortieren, kann sich aber irren. Verlass dich nicht blind auf sie und schau dir ihre Vorschläge an. Alles, was sie ändert, steht im KI-Verlauf und lässt sich rückgängig machen. Deine Fotos werden nie überschrieben oder ohne Papierkorb gelöscht.',
 };

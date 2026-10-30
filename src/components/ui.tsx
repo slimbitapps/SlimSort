@@ -173,10 +173,21 @@ export function Help({ topic, title, text }: { topic?: string; title?: string; t
   );
 }
 
+/** Kennzeichen „Beta“ für die KI: noch in Entwicklung – Vorschläge prüfen */
+export function Beta() {
+  return (
+    <span className="beta-badge" data-tip={t('beta.tip')} data-testid="beta">
+      Beta
+    </span>
+  );
+}
+
 export function Dialog({
-  title, children, footer, size, icon, onClose = closeDialog, testId,
+  title, children, footer, size, icon, onClose = closeDialog, testId, beta,
 }: {
   title: string;
+  /** „Beta“-Kennzeichen hinter dem Titel (KI-Fenster) */
+  beta?: boolean;
   children: ReactNode;
   footer?: ReactNode;
   size?: 'wide' | 'xwide';
@@ -189,7 +200,10 @@ export function Dialog({
       <div className={`dialog ${size || ''}`} role="dialog" aria-label={title} data-testid={testId}>
         <div className="d-head">
           {icon}
-          <h2>{title}</h2>
+          <h2>
+            {title}
+            {beta && <Beta />}
+          </h2>
           <button className="btn icon ghost sm" onClick={onClose} aria-label={t('common.close')}>
             <IconClose size={16} />
           </button>

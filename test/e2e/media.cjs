@@ -104,6 +104,14 @@ for i, c in enumerate([(91, 140, 255), (47, 191, 113)]):
   await win.click('[data-testid="news-ok"]');
   await waitFor(() => saved().newsSeen, 4000, 'Tipps gesehen gespeichert');
   console.log('Tipps & Neues ✔');
+  // KI ist als Beta gekennzeichnet
+  await win.click('[data-testid="settings-btn"]');
+  await win.click('[data-testid="settings-ai"]');
+  await win.waitForSelector('[data-testid="beta-note"]');
+  assert.ok((await win.$$('[data-testid="beta"]')).length >= 2, 'Beta-Kennzeichen');
+  await shot('01b-beta');
+  await win.keyboard.press('Escape');
+  console.log('KI Beta ✔');
 
   await win.keyboard.press('1');
   await win.waitForSelector('[data-testid="session"]');
@@ -124,6 +132,20 @@ for i, c in enumerate([(91, 140, 255), (47, 191, 113)]):
   await sleep(500);
   const b2 = brightness(await shot('03-zoom-more'), [0.3, 0.3, 0.7, 0.7]);
   assert.ok(b2 > 80, `stark gezoomt sichtbar (${b2})`);
+  // Trackpad: zwei Finger verschieben das gezoomte Foto (statt zu zoomen)
+  const before = await win.evaluate(() => document.querySelector('[data-testid="single"] .overlay-chip.zoom')?.textContent);
+  await win.evaluate(() => {
+    const el = document.querySelector('[data-testid="single"]');
+    for (let i = 0; i < 10; i++) el.dispatchEvent(new WheelEvent('wheel', { deltaX: 12.5, deltaY: 8.25, deltaMode: 0, bubbles: true, cancelable: true, clientX: 600, clientY: 400 }));
+  });
+  await sleep(300);
+  const after = await win.evaluate(() => document.querySelector('[data-testid="single"] .overlay-chip.zoom')?.textContent);
+  assert.equal(after, before, 'Trackpad-Wischen ändert den Zoom nicht');
+  const b3 = brightness(await shot('03b-pan'), [0.3, 0.3, 0.7, 0.7]);
+  assert.ok(b3 > 80, `verschoben sichtbar (${b3})`);
+  // Mausrad zoomt weiter
+  await win.evaluate(() => document.querySelector('[data-testid="single"]').dispatchEvent(new WheelEvent('wheel', { deltaY: -100, deltaMode: 0, bubbles: true, cancelable: true, clientX: 600, clientY: 400 })));
+  await waitFor(async () => (await win.evaluate(() => document.querySelector('[data-testid="single"] .overlay-chip.zoom')?.textContent)) !== before, 3000, 'Mausrad zoomt');
   await win.keyboard.press('Control+0');
   await waitFor(() => win.evaluate(() => !document.querySelector('[data-testid="zoom-canvas"]')), 4000, 'zurück auf ganze Größe');
   console.log('Zoomen ohne schwarze Flächen ✔');

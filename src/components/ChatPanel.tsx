@@ -9,6 +9,7 @@ import { getLang } from '../i18n';
 import { useChats, deleteChat, when } from '../chats';
 import { displayName } from '../people';
 import { IconClose, IconSend, IconSparkle, IconStop, IconHistory, IconPlusChat, IconTrash, IconActivity } from '../icons';
+import { Beta } from './ui';
 
 const EXAMPLES = ['ai.ex1', 'ai.ex2', 'ai.ex3', 'ai.ex4'] as const;
 
@@ -57,7 +58,9 @@ export function ChatPanel() {
       <div className="chat-head">
         <IconSparkle size={17} className="chat-spark" />
         <div className="chat-title">
-          <b>{t('ai.chatTitle')}</b>
+          <b>
+            {t('ai.chatTitle')} <Beta />
+          </b>
           <span className="muted small" data-testid="chat-status">
             {!enabled
               ? t('ai.stateOff')

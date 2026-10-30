@@ -1,6 +1,6 @@
 import { t, type TKey } from '../i18n';
 import { useStore, closeDialog, openDialog, updateSettings } from '../store';
-import { Dialog } from './ui';
+import { Dialog, Beta } from './ui';
 import { toggleChat } from '../ai';
 import { openViewer } from '../viewer';
 import { IconSparkle, IconChat, IconUsers, IconActivity, IconFolder, IconMonitor, IconEyeOff, IconVideo, IconStar } from '../icons';
@@ -9,10 +9,10 @@ import { modKey } from '../util';
 /** Kennung der aktuellen Tipps – neu setzen, wenn neue Funktionen dazukommen (dann erscheinen sie einmal) */
 export const NEWS_ID = '2.0-ki';
 
-type Card = { icon: typeof IconSparkle; title: TKey; text: TKey; vars?: Record<string, string>; go?: () => void; ai?: boolean; session?: boolean };
+type Card = { icon: typeof IconSparkle; title: TKey; text: TKey; go?: () => void; ai?: boolean; session?: boolean; beta?: boolean };
 
 const CARDS: Card[] = [
-  { icon: IconSparkle, title: 'news.ai.title', text: 'news.ai.text', go: () => openDialog({ type: 'settings', tab: 'ai' }) },
+  { icon: IconSparkle, title: 'news.ai.title', text: 'news.ai.text', beta: true, go: () => openDialog({ type: 'settings', tab: 'ai' }) },
   { icon: IconChat, title: 'news.chat.title', text: 'news.chat.text', ai: true, session: true, go: () => (closeDialog(), toggleChat(true)) },
   { icon: IconUsers, title: 'news.people.title', text: 'news.people.text', ai: true, go: () => openDialog({ type: 'people' }) },
   { icon: IconActivity, title: 'news.log.title', text: 'news.log.text', ai: true, go: () => openDialog({ type: 'ailog' }) },
@@ -60,7 +60,10 @@ export function NewsDialog() {
                 <Icon size={20} />
               </div>
               <div className="grow">
-                <div className="news-title">{t(c.title)}</div>
+                <div className="news-title">
+                  {t(c.title)}
+                  {(c.beta || c.ai) && <Beta />}
+                </div>
                 <div className="news-text">{t(c.text, { mod: modKey() })}</div>
                 {can && (
                   <button

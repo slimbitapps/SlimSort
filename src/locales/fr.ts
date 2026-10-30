@@ -1003,4 +1003,7 @@ export const fr: Dict = {
   'news.marks.text': 'La touche N (ou l’œil sur la photo) masque et affiche noms et cadres.',
   'news.video.title': 'Vidéos à votre façon',
   'news.video.text': 'Les vidéos démarrent directement (avec ou sans son) ou seulement sur Lecture – dans Réglages → Tri.',
+
+  'beta.tip': 'L’IA est encore en développement. Vérifiez ses propositions – tout peut être annulé.',
+  'beta.note': 'L’IA est une version bêta : elle aide à trier mais peut se tromper. Ne vous y fiez pas aveuglément, vérifiez ses propositions. Tout ce qu’elle change figure dans l’historique de l’IA et peut être annulé. Vos photos ne sont jamais écrasées ni supprimées sans passer par la corbeille.',
 };

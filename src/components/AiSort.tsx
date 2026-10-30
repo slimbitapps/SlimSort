@@ -20,6 +20,7 @@ export function AiSortDialog() {
   return (
     <Dialog
       title={t('ai.sortTitle')}
+      beta
       icon={<IconSparkle size={18} />}
       size="wide"
       onClose={close}

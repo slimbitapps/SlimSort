@@ -57,7 +57,7 @@ export function PeopleDialog({ tab: initial = 'people' }: { tab?: 'people' | 'th
 
   const nThings = (useStore((s) => s.settings.things) || []).length;
   return (
-    <Dialog title={t('people.dialogTitle')} icon={<IconUsers size={20} />} size="xwide" testId="people-dialog">
+    <Dialog beta title={t('people.dialogTitle')} icon={<IconUsers size={20} />} size="xwide" testId="people-dialog">
       <div className="seg people-tabs" role="tablist">
         <button className={tab === 'people' ? 'on' : ''} onClick={() => setTab('people')} data-testid="tab-people">
           {t('people.title')} ({list.length})

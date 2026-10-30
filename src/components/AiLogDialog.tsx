@@ -21,7 +21,7 @@ const ICON: Record<LogEntry['kind'], typeof IconMove> = {
 export function AiLogDialog() {
   const entries = useAiLog((l) => l.entries);
   return (
-    <Dialog title={t('log.title')} icon={<IconHistory size={20} />} size="wide" testId="ailog-dialog">
+    <Dialog beta title={t('log.title')} icon={<IconHistory size={20} />} size="wide" testId="ailog-dialog">
       <p className="muted" style={{ marginTop: 0 }}>
         {t('log.intro')}
       </p>

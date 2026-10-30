@@ -1003,4 +1003,7 @@ export const es: Dict = {
   'news.marks.text': 'La tecla N (o el ojo en la foto) oculta y muestra nombres y recuadros.',
   'news.video.title': 'Vídeos a tu manera',
   'news.video.text': 'Los vídeos empiezan al instante (con o sin sonido) o solo al pulsar Play: en Ajustes → Ordenar.',
+
+  'beta.tip': 'La IA aún está en desarrollo. Revisa sus sugerencias; todo se puede deshacer.',
+  'beta.note': 'La IA es una versión beta: ayuda a ordenar, pero puede equivocarse. No confíes ciegamente en ella y revisa sus sugerencias. Todo lo que cambia aparece en el historial de la IA y se puede deshacer. Tus fotos nunca se sobrescriben ni se borran sin pasar por la papelera.',
 };

@@ -44,6 +44,8 @@ export function SingleView({ s }: { s: SessionState }) {
   const showMarks = useStore((st) => st.settings.prefs.showFaces);
   // angezeigtes <img> – beim Zoomen wird nur der sichtbare Ausschnitt daraus gezeichnet
   const [imgEl, setImgEl] = useState<HTMLImageElement | null>(null);
+  // einmal dekodierte Kopie des Fotos fürs Zoomen (ein verstecktes <img> würde bei jedem Schritt neu dekodiert)
+  const [zoomSrc, setZoomSrc] = useState<{ el: HTMLCanvasElement; img: HTMLImageElement } | null>(null);
   useEffect(() => {
     const on = () => setMarking(true);
     window.addEventListener('fs-mark', on);
@@ -103,6 +105,7 @@ export function SingleView({ s }: { s: SessionState }) {
     setOneFailed(false);
     setFadeHold(true);
     setHeicSrc(null);
+    setZoomSrc(null);
     setMarking(false);
   }, [it?.id, it?.path]);
 
@@ -143,6 +146,29 @@ export function SingleView({ s }: { s: SessionState }) {
     return () => clearTimeout(timer);
   }, [s.currentId, pSize]); // eslint-disable-line
 
+  // Beim Zoomen: Foto einmal in eine Zeichenfläche kopieren (neu, sobald das Original geladen ist)
+  const zoomingNow = !!nat && view.scale > fitScale * 1.01 && it?.kind === 'image';
+  useEffect(() => {
+    if (!zoomingNow || !imgEl || zoomSrc?.img === imgEl) return;
+    let alive = true;
+    const build = () => {
+      if (!alive || !imgEl.naturalWidth) return;
+      imgEl
+        .decode()
+        .catch(() => {})
+        .then(() => {
+          const el = alive ? copyImage(imgEl) : null;
+          if (el && alive) setZoomSrc({ el, img: imgEl });
+        });
+    };
+    if (imgEl.complete) build();
+    else imgEl.addEventListener('load', build, { once: true });
+    return () => {
+      alive = false;
+      imgEl.removeEventListener('load', build);
+    };
+  }, [zoomingNow, imgEl, zoomSrc]);
+
   const zoomAt = useCallback(
     (factor: number, px: number, py: number) => {
       if (!nat) return;
@@ -168,10 +194,56 @@ export function SingleView({ s }: { s: SessionState }) {
 
   const onWheel = (e: React.WheelEvent) => {
     if (!nat || it?.kind !== 'image') return;
+    // Mac-Trackpad: Zusammenziehen kommt als Geste (unten) – nicht doppelt zoomen
+    if (e.ctrlKey && gestureOn.current) return;
     const r = ref.current!.getBoundingClientRect();
-    const speed = e.ctrlKey ? 0.01 : 0.0018; // Trackpad-Pinch kommt mit Strg
+    // Zwei Finger auf dem Trackpad (feine Schritte, auch seitlich): gezoomt verschieben, sonst nichts tun
+    const trackpad = !e.ctrlKey && e.deltaMode === 0 && (e.deltaX !== 0 || Math.abs(e.deltaY) < 40 || !Number.isInteger(e.deltaY));
+    if (trackpad) {
+      if (zoomed) {
+        setFitMode(false);
+        setViewState((v) => clampView({ ...v, x: v.x - e.deltaX, y: v.y - e.deltaY }));
+      }
+      return;
+    }
+    const speed = e.ctrlKey ? 0.01 : 0.0018; // Trackpad-Pinch (Chrome/Windows) kommt mit Strg
     zoomAt(Math.exp(-e.deltaY * speed), e.clientX - r.left, e.clientY - r.top);
   };
+
+  // Safari/Mac: Zusammenziehen mit zwei Fingern kommt als „gesture“-Ereignis
+  const gestureOn = useRef(false);
+  const zoomRef = useRef(zoomAt);
+  zoomRef.current = zoomAt;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let last = 1;
+    type G = Event & { scale: number; clientX: number; clientY: number };
+    const start = (e: Event) => {
+      e.preventDefault();
+      gestureOn.current = true;
+      last = 1;
+    };
+    const change = (e: Event) => {
+      e.preventDefault();
+      const g = e as G;
+      const r = el.getBoundingClientRect();
+      zoomRef.current(g.scale / last, g.clientX - r.left, g.clientY - r.top);
+      last = g.scale;
+    };
+    const end = (e: Event) => {
+      e.preventDefault();
+      setTimeout(() => (gestureOn.current = false), 80);
+    };
+    el.addEventListener('gesturestart', start);
+    el.addEventListener('gesturechange', change);
+    el.addEventListener('gestureend', end);
+    return () => {
+      el.removeEventListener('gesturestart', start);
+      el.removeEventListener('gesturechange', change);
+      el.removeEventListener('gestureend', end);
+    };
+  }, []);
 
   const onDouble = (e: React.MouseEvent) => {
     if (!nat || it?.kind !== 'image' || (e.target as HTMLElement).closest('button')) return;
@@ -262,7 +334,7 @@ export function SingleView({ s }: { s: SessionState }) {
     : { opacity: 0 };
   const mod = window.api.platform === 'darwin' ? '⌘' : t('key.ctrl');
   const imgSrc = heicSrc ?? (hiRes ? fullUrl(it) : displayUrl(it, pSize));
-  const canvasZoom = zoomed && it.kind === 'image' && !!nat && !error;
+  const canvasZoom = zoomed && it.kind === 'image' && !!nat && !error && !!zoomSrc;
   if (nat && !fadeHold && it.kind === 'image' && !error && !zoomed) shown.current = { src: imgSrc, style: rect };
   else if (it.kind !== 'image' || error) shown.current = null;
   const ghostVisible = (!nat || fadeHold) && !error;
@@ -329,7 +401,7 @@ export function SingleView({ s }: { s: SessionState }) {
               else setError(true);
             }}
           />
-          {canvasZoom && imgEl && <ZoomCanvas img={imgEl} nat={nat!} view={view} box={box} />}
+          {canvasZoom && <ZoomCanvas src={zoomSrc!.el} nat={nat!} view={view} box={box} />}
           {nat && !fadeHold && !error && !livePlaying && !marking && <FaceOverlay it={it} style={rect} />}
           {nat && !error && marking && <MarkLayer it={it} style={rect} onDone={() => setMarking(false)} />}
           {livePlaying && it.live && nat && (
@@ -433,23 +505,38 @@ export function SingleView({ s }: { s: SessionState }) {
   );
 }
 
+/** größte Zeichenfläche, die alle Webansichten sicher können (Safari: 16,7 Mio. Bildpunkte) */
+const MAX_AREA = 16_777_216;
+
+/** Foto einmal dekodiert in eine Zeichenfläche kopieren (bei sehr großen Fotos etwas verkleinert) */
+function copyImage(img: HTMLImageElement): HTMLCanvasElement | null {
+  const w = img.naturalWidth;
+  const h = img.naturalHeight;
+  if (!w || !h) return null;
+  const k = Math.min(1, Math.sqrt(MAX_AREA / (w * h)));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.floor(w * k));
+  c.height = Math.max(1, Math.floor(h * k));
+  const ctx = c.getContext('2d');
+  if (!ctx) return null;
+  ctx.imageSmoothingQuality = 'high';
+  try {
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+  } catch {
+    return null;
+  }
+  return c;
+}
+
 /**
- * Gezoomtes Foto: nur der sichtbare Ausschnitt wird in Bildschirmgröße gezeichnet.
- * (Ein riesig vergrößertes <img> ruckelt und bleibt in Teilen schwarz.)
+ * Gezoomtes Foto: nur der sichtbare Ausschnitt wird in Bildschirmgröße gezeichnet – einmal pro Bild
+ * der Anzeige. (Ein riesig vergrößertes <img> ruckelt und bleibt in Teilen schwarz.)
  */
-function ZoomCanvas({ img, nat, view, box }: { img: HTMLImageElement; nat: { w: number; h: number }; view: View; box: { w: number; h: number } }) {
+function ZoomCanvas({ src, nat, view, box }: { src: HTMLCanvasElement; nat: { w: number; h: number }; view: View; box: { w: number; h: number } }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const [, redraw] = useState(0);
-  useEffect(() => {
-    if (img.complete) return;
-    const f = () => redraw((x) => x + 1);
-    img.addEventListener('load', f);
-    return () => img.removeEventListener('load', f);
-  }, [img]);
-  useLayoutEffect(() => {
+  const draw = () => {
     const c = ref.current;
-    // neues Bild lädt noch → altes Bild stehen lassen
-    if (!c || !img.complete || !img.naturalWidth) return;
+    if (!c) return;
     const dpr = window.devicePixelRatio || 1;
     const W = Math.round(box.w * dpr);
     const H = Math.round(box.h * dpr);
@@ -461,14 +548,25 @@ function ZoomCanvas({ img, nat, view, box }: { img: HTMLImageElement; nat: { w: 
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     const s = view.scale;
-    const kx = img.naturalWidth / nat.w;
-    const ky = img.naturalHeight / nat.h;
+    const kx = src.width / nat.w;
+    const ky = src.height / nat.h;
     const x0 = Math.max(0, view.x);
     const y0 = Math.max(0, view.y);
     const x1 = Math.min(box.w, view.x + nat.w * s);
     const y1 = Math.min(box.h, view.y + nat.h * s);
     if (x1 <= x0 || y1 <= y0) return;
-    ctx.drawImage(img, ((x0 - view.x) / s) * kx, ((y0 - view.y) / s) * ky, ((x1 - x0) / s) * kx, ((y1 - y0) / s) * ky, x0 * dpr, y0 * dpr, (x1 - x0) * dpr, (y1 - y0) * dpr);
+    ctx.drawImage(src, ((x0 - view.x) / s) * kx, ((y0 - view.y) / s) * ky, ((x1 - x0) / s) * kx, ((y1 - y0) / s) * ky, x0 * dpr, y0 * dpr, (x1 - x0) * dpr, (y1 - y0) * dpr);
+  };
+  // erstes Bild sofort (kein leerer Moment), danach höchstens einmal pro Bild der Anzeige
+  const first = useRef(true);
+  useLayoutEffect(() => {
+    if (first.current) {
+      first.current = false;
+      draw();
+      return;
+    }
+    const id = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(id);
   });
   return <canvas ref={ref} className="zoom-canvas" data-testid="zoom-canvas" style={{ width: box.w, height: box.h }} />;
 }

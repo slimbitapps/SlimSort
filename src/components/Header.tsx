@@ -5,7 +5,7 @@ import {
 } from '../store';
 import { useAi, toggleChat, openAutoSort } from '../ai';
 import type { Filter, SortBy } from '../types';
-import { Logo, MenuPopup, useMenu } from './ui';
+import { Logo, MenuPopup, useMenu, Beta } from './ui';
 import { SetupStepper } from './Setup';
 import { tip } from './Tooltip';
 import {
@@ -171,6 +171,7 @@ function SessionHeader() {
         <button className="btn sm ai-sort-btn" onClick={() => openAutoSort()} data-testid="ai-sort-open" {...tip(t('ai.sortTitle'), t('ai.sortTip'))}>
           <IconSparkle size={15} />
           {t('ai.sortBtn')}
+          <Beta />
         </button>
       )}
       <button

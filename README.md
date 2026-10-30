@@ -114,7 +114,7 @@ startet schneller und braucht weniger Arbeitsspeicher. Neu:
 - **Zweiter Bildschirm:** das Foto/Video groß und bildschirmfüllend auf dem einen Bildschirm, alle Fotos, große Ordner-Knöpfe und die KI auf dem anderen; Tasten wirken in beiden Fenstern
 - **Taste N** blendet Namen und Kästchen im Foto aus und wieder ein
 - **Tipps & Neues:** alle Funktionen kurz erklärt, mit Knopf zum Ausprobieren
-- **KI (freiwillig, läuft nur auf deinem Computer):**
+- **KI (Beta – freiwillig, läuft nur auf deinem Computer; kann sich irren, alles lässt sich rückgängig machen):**
   - lernt, welche Fotos du in welchen Ordner tust (auch aus Fotos, die schon in den Zielordnern liegen), und schlägt den Ordner mit Sicherheit in Prozent vor
   - **KI sortieren:** zeigt, wohin sie die offenen Fotos tun würde – du bestätigst; auf Wunsch **Autopilot** für sehr sichere Fotos
   - **KI-Assistent (Chat, Strg/⌘ + K):** Fotos per Beschreibung finden („Baum links, Wiese und Berg“, „Strand im Sommer 2023“), ähnliche Fotos, verschieben/löschen per Satz, Doppelte finden, Statistik – ab Stufe „Ausgewogen“ mit Sprachmodell, das Fragen beantwortet und sich unterhält

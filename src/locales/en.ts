@@ -1003,4 +1003,7 @@ export const en: Dict = {
   'news.marks.text': 'Key N (or the eye in the photo) hides and shows names and boxes.',
   'news.video.title': 'Videos your way',
   'news.video.text': 'Videos start right away (with or without sound) or only on Play – set it under Settings → Sorting.',
+
+  'beta.tip': 'The AI is still in development. Check its suggestions – everything can be undone.',
+  'beta.note': 'The AI is a beta version: it helps you sort, but it can be wrong. Don’t rely on it blindly – check its suggestions. Everything it changes is listed in the AI history and can be undone. Your photos are never overwritten or deleted without the trash.',
 };
