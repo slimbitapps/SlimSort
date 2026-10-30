@@ -52,3 +52,13 @@ den Ordner `scripts/video/` übernehmen; nur die Szenen (HTML) und die Aufnahme-
 - Abschluss: Logo + „Free · Windows & Mac“ + „Link in profile“.
 - Keine Maus-/Tastatur-Einblendungen über der echten App (wirkt unruhig). Wortenden der Stimme nie abschneiden.
 - Fotos des Nutzers nie committen oder veröffentlichen.
+
+## Runde 3 (ohne Stimme): Unterhaltung + SlimSort 2.0
+- Shorts ohne Sprechtext (`"novoice": true` in `videos.json`): nur Text im Bild, eigene Musik, Effekte. Längen stehen in `min`.
+  Ablauf: `render.cjs … --durations <min>` → `covers.cjs` → `NODUCK=1 finish.sh MASTER COVER FINAL -14 MUSIK SEED` → `package.py video-out --runde`.
+- **Eigene Bilder statt Nutzerfotos:** `python3 scripts/video/gen/scenes.py WORK/gen` malt bunte Landschaften (Strand, Berge, Stadt …) –
+  gehören uns. Dazu das Katzenfoto „Chelsea“ aus scikit-image (CC0) für Zoom/Erkennung.
+- **Eigene Tonspur aus Ereignissen:** Eine Seite kann `window.TONES = [[t, höhe 0..1 | -1 Ziel | -2/-3 Countdown, spur], …]` setzen;
+  `render.cjs` baut daraus mit `motion/tones.py` die Tonspur (z. B. Sortier-Rennen: ein Ton pro Schritt).
+- Echte App für das Ende: englische Bildschirmfotos über den E2E-Treiber (Sprache `en`, gemalte Bilder), als `frames/<name>/00001.jpg` (16:9).
+- Mischung: 4 Shorts ohne/kaum SlimSort (Sortier-Rennen, Nachbild-Illusion, Emoji-Suchbild, Pixel-Zoom), 2 zu SlimSort 2.0 (Überblick, KI findet die Katze).

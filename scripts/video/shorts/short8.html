@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="common.css" />
+<style>
+  .pic { position: absolute; left: 30px; top: 640px; width: 1020px; height: 680px; border-radius: 26px; overflow: hidden; box-shadow: 0 30px 90px rgba(0,0,0,.6); }
+  .pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .dot { position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%; background: #ff2a2a; box-shadow: 0 0 0 4px #fff, 0 0 20px rgba(0,0,0,.6); }
+  .bar { position: absolute; left: 90px; right: 90px; top: 1380px; height: 14px; border-radius: 7px; background: rgba(255,255,255,.12); overflow: hidden; }
+  .bar i { display: block; height: 100%; background: linear-gradient(90deg, #3b8bff, #1ec8f0, #3ee089); }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="../motion/core.js"></script>
+<script src="common.js"></script>
+<script>
+// Kein Sprechtext: Nachbild-Täuschung. 15 s auf ein Negativ starren → Schwarzweißbild wirkt farbig.
+const SRC = HD.find((x) => x.endsWith('beach-2.jpg')) || HD[0];
+const T_STARE = 4.6, STARE = 15, T_SWITCH = T_STARE + STARE;
+
+scene('illusion', (r, s) => {
+  s.h1 = words(r, 'This photo is black & white.', { top: '150px', fontSize: '74px' });
+  s.h1.className += ' head';
+  s.h2 = words(r, 'Your brain will color it 🤯', { top: '330px', fontSize: '74px' }, 'grad');
+  s.h2.className += ' head';
+  s.h3 = el('div', 'abs head', r, 'Stare at the <span style="color:#ff4d4d">red dot</span>.<br><span style="font-size:56px;color:#c7d0e2;letter-spacing:0">Don’t move your eyes. Don’t blink.</span>');
+  css(s.h3, { top: '200px', fontSize: '86px' });
+  s.num = el('div', 'abs head', r);
+  css(s.num, { top: '420px', fontSize: '150px', fontVariantNumeric: 'tabular-nums' });
+  s.pic = el('div', 'pic', r, `<img src="${SRC}"><div class="dot"></div>`);
+  s.img = s.pic.querySelector('img');
+  s.bar = el('div', 'bar', r, '<i></i>');
+  s.now = el('div', 'abs head', r, 'Keep looking<br>at the dot… 👀');
+  css(s.now, { top: '250px', fontSize: '80px' });
+  s.col = el('div', 'abs head', r, 'It’s in <span class="grad">COLOR</span>… right? 😳');
+  css(s.col, { top: '230px', fontSize: '96px' });
+  s.proof = el('div', 'chip', r, 'It’s 100% black &amp; white 🖤🤍');
+  css(s.proof, { left: '50%', top: '1400px', fontSize: '46px' });
+  s.end = el('div', 'abs head', r, 'Did it work for you?<br><span style="font-size:150px">👇</span>');
+  css(s.end, { top: '1500px', fontSize: '76px' });
+}, (s, lt, D) => {
+  // 1) Ankündigung (Vorschau in Schwarzweiß)
+  drawWords(s.h1, lt, 0.05, 0.08);
+  drawWords(s.h2, lt, 0.8, 0.08);
+  const hOut = 1 - p(lt, T_STARE - 1.6, 0.3);
+  s.h1.style.opacity = s.h2.style.opacity = hOut;
+  fadeIn(s.h3, lt, T_STARE - 1.4);
+  s.h3.style.opacity = Math.min(s.h3.style.opacity, 1 - p(lt, T_SWITCH, 0.15));
+  // Bild: erst grau (Vorschau), dann Negativ, dann wieder grau
+  const neg = lt >= T_STARE - 1.4 && lt < T_SWITCH;
+  s.img.style.filter = neg ? 'invert(1) saturate(1.8) contrast(1.05)' : 'grayscale(1) contrast(1.05)';
+  const kp = E.out(p(lt, 0.3, 0.6));
+  s.pic.style.opacity = kp;
+  s.pic.style.transform = `scale(${0.9 + 0.1 * kp})`;
+  s.pic.querySelector('.dot').style.opacity = p(lt, T_STARE - 1.4, 0.2);
+  // 2) Countdown
+  const left = Math.ceil(T_SWITCH - lt);
+  const inStare = lt >= T_STARE && lt < T_SWITCH;
+  s.num.style.opacity = inStare ? 1 : 0;
+  s.num.innerHTML = `<span class="grad">${left}</span>`;
+  s.bar.style.opacity = inStare ? 1 : 0;
+  s.bar.firstChild.style.width = clamp((lt - T_STARE) / STARE) * 100 + '%';
+  // 3) Umschalten: Schwarzweiß
+  s.now.style.opacity = p(lt, T_SWITCH, 0.1) * (1 - p(lt, T_SWITCH + 2.2, 0.3));
+  fadeIn(s.col, lt, T_SWITCH + 2.4);
+  s.proof.style.opacity = p(lt, T_SWITCH + 5.2, 0.3);
+  s.proof.style.transform = 'translateX(-50%)';
+  fadeIn(s.end, lt, T_SWITCH + 7.4);
+});
+scenes[0].sfx = function () {
+  const out = [];
+  for (let k = 1; k < STARE; k++) out.push({ t: T_STARE + k, type: 'click' });
+  out.push({ t: T_SWITCH, type: 'pop' });
+  return out;
+};
+
+start({ captionTop: 1700 });
+</script>
+</body>
+</html>

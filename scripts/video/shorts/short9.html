@@ -1,0 +1,102 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="common.css" />
+<style>
+  .grid { position: absolute; left: 45px; top: 470px; width: 990px; height: 1188px; display: grid; grid-template-columns: repeat(9, 1fr); grid-template-rows: repeat(11, 1fr);
+    border-radius: 30px; background: rgba(14,18,28,.85); border: 2px solid rgba(255,255,255,.08); padding: 14px; }
+  .grid span { display: flex; align-items: center; justify-content: center; font-size: 78px; line-height: 1; font-family: 'Noto Color Emoji', sans-serif; }
+  .ring { position: absolute; width: 170px; height: 170px; border-radius: 50%; border: 10px solid #3ee089; box-shadow: 0 0 40px rgba(62,224,137,.7); }
+  .timer { position: absolute; right: 60px; top: 320px; width: 130px; height: 130px; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="../motion/core.js"></script>
+<script src="common.js"></script>
+<script>
+// Kein Sprechtext: Finde das andere Emoji – 3 Stufen à 5 Sekunden
+const LEVELS = [
+  { name: 'Level 1 · easy', base: '🐨', odd: '🐼', at: 49 },
+  { name: 'Level 2 · medium', base: '🙈', odd: '🙊', at: 75 },
+  { name: 'Level 3 · hard', base: '😀', odd: '😃', at: 22 },
+];
+const COLS = 9, ROWS = 11, CELLS = COLS * ROWS, LOOK = 5;
+
+scene('hook', (r, s) => {
+  s.a = words(r, 'Find the odd one out 👀', { top: '640px', fontSize: '110px' });
+  s.a.className += ' head';
+  s.b = el('div', 'abs head', r, '3 levels · 5 seconds each');
+  css(s.b, { top: '960px', fontSize: '64px', color: '#c7d0e2', fontWeight: 700, letterSpacing: 0 });
+  s.c = el('div', 'abs head', r, '<span style="font-size:170px">🐨🙈😀</span>');
+  css(s.c, { top: '1120px' });
+}, (s, lt) => {
+  drawWords(s.a, lt, 0.05, 0.1);
+  fadeIn(s.b, lt, 0.6);
+  popIn(s.c, lt, 0.9, '');
+});
+
+LEVELS.forEach((L, li) => {
+  scene('level' + li, (r, s) => {
+    s.t = el('div', 'abs head', r, L.name);
+    css(s.t, { top: '170px', fontSize: '84px' });
+    s.q = el('div', 'abs head', r, `Find the ${L.odd}`);
+    css(s.q, { top: '290px', fontSize: '60px', color: '#c7d0e2', fontWeight: 700, letterSpacing: 0 });
+    s.g = el('div', 'grid', r, Array.from({ length: CELLS }, (_, i) => `<span>${i === L.at ? L.odd : L.base}</span>`).join(''));
+    s.cells = [...s.g.children];
+    s.ring = el('div', 'ring', r);
+    s.timer = el('div', 'timer', r, '<svg viewBox="0 0 100 100" width="130" height="130"><circle cx="50" cy="50" r="44" fill="rgba(14,18,28,.9)" stroke="rgba(255,255,255,.15)" stroke-width="8"/><circle class="arc" cx="50" cy="50" r="44" fill="none" stroke="#3b8bff" stroke-width="8" stroke-linecap="round" transform="rotate(-90 50 50)" stroke-dasharray="276.5"/><text x="50" y="64" text-anchor="middle" font-size="42" font-weight="900" fill="#fff" font-family="Inter"></text></svg>');
+    s.ok = el('div', 'chip', r, li < 2 ? 'Got it? ✅  Next level…' : 'Got it? 🏆 You’re a pro');
+    css(s.ok, { left: '50%', top: '1700px', fontSize: '44px' });
+  }, (s, lt, D) => {
+    fadeIn(s.t, lt, 0.05);
+    fadeIn(s.q, lt, 0.25);
+    const T0 = 0.6, TR = T0 + LOOK;   // Suchen ab T0, Auflösung ab TR
+    const kg = E.out(p(lt, 0.2, 0.4));
+    s.g.style.opacity = kg;
+    s.g.style.transform = `scale(${0.94 + 0.06 * kg})`;
+    const rev = E.out(p(lt, TR, 0.4));
+    s.cells.forEach((c, i) => {
+      c.style.opacity = i === L.at ? 1 : 1 - 0.75 * rev;
+      c.style.transform = i === L.at ? `scale(${1 + 0.5 * E.back(p(lt, TR, 0.5))})` : 'none';
+    });
+    // Ring um das gesuchte Emoji
+    const col = L.at % COLS, row = Math.floor(L.at / COLS);
+    const cw = (990 - 28) / COLS, ch = (1188 - 28) / ROWS;
+    const cx = 45 + 14 + cw * (col + 0.5), cy = 470 + 14 + ch * (row + 0.5);
+    const kr = E.back(p(lt, TR + 0.1, 0.45));
+    css(s.ring, { left: cx - 85 + 'px', top: cy - 85 + 'px', opacity: p(lt, TR + 0.1, 0.15), transform: `scale(${2.2 - 1.2 * kr})` });
+    // Uhr
+    const left = clamp((TR - lt) / LOOK);
+    s.timer.querySelector('.arc').style.strokeDashoffset = 276.5 * (1 - left);
+    s.timer.querySelector('.arc').style.stroke = left < 0.4 ? '#ff6b6b' : '#3b8bff';
+    s.timer.querySelector('text').textContent = lt < TR ? Math.ceil(TR - lt) : '✓';
+    s.timer.style.opacity = p(lt, T0 - 0.2, 0.2);
+    s.ok.style.opacity = p(lt, TR + 0.7, 0.3);
+    s.ok.style.transform = 'translateX(-50%)';
+  });
+  scenes[scenes.length - 1].sfx = () => [
+    { t: 0.05, type: 'whoosh' },
+    ...[1, 2, 3, 4].map((k) => ({ t: 0.6 + k, type: 'click' })),
+    { t: 0.6 + LOOK + 0.1, type: 'pop' },
+  ];
+});
+
+scene('end', (r, s) => {
+  s.a = el('div', 'abs head', r, 'How many did<br>you find?');
+  css(s.a, { top: '560px', fontSize: '120px' });
+  s.b = el('div', 'abs head', r, '<span class="grad">1 · 2 · 3</span>');
+  css(s.b, { top: '900px', fontSize: '150px' });
+  s.c = el('div', 'abs head', r, 'Comment your score 👇');
+  css(s.c, { top: '1150px', fontSize: '70px' });
+}, (s, lt) => {
+  popIn(s.a, lt, 0.05, '');
+  popIn(s.b, lt, 0.4, '');
+  fadeIn(s.c, lt, 0.9);
+});
+
+start({ captionTop: 1760 });
+</script>
+</body>
+</html>

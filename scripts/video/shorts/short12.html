@@ -1,0 +1,166 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="common.css" />
+<style>
+  .beta { display: inline-block; padding: 6px 18px; border-radius: 999px; font-size: 34px; font-weight: 800; letter-spacing: 2px; color: #ffb43a; background: rgba(245,165,36,.16); border: 2px solid rgba(245,165,36,.5); vertical-align: middle; }
+  .big { position: absolute; border-radius: 30px; overflow: hidden; box-shadow: 0 30px 90px rgba(0,0,0,.6); }
+  .big img, .t img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .bub { position: absolute; max-width: 800px; padding: 26px 34px; border-radius: 34px; font-size: 46px; font-weight: 600; line-height: 1.3; right: 90px;
+    background: linear-gradient(135deg, #2f7bff, #1a9fe0); border-bottom-right-radius: 10px; }
+  .box { position: absolute; border: 6px solid #3ee089; border-radius: 22px; box-shadow: 0 0 30px rgba(62,224,137,.6); }
+  .tag { position: absolute; padding: 12px 24px; border-radius: 16px; background: #3ee089; color: #04130a; font-size: 40px; font-weight: 900; white-space: nowrap; }
+  .win2 { position: absolute; left: 40px; right: 40px; top: 470px; height: 1000px; overflow: hidden; border-radius: 30px; background: rgba(14,18,28,.9); border: 2px solid rgba(255,255,255,.08); }
+  .t { position: absolute; width: 230px; height: 154px; border-radius: 14px; overflow: hidden; border: 4px solid transparent; }
+  .t .lb { position: absolute; left: 8px; bottom: 8px; padding: 4px 12px; border-radius: 10px; background: #3ee089; color: #04130a; font-size: 24px; font-weight: 900; }
+  .scan { position: absolute; left: 0; right: 0; height: 6px; background: linear-gradient(90deg, transparent, #1ec8f0, transparent); box-shadow: 0 0 30px #1ec8f0; }
+  .stat { position: absolute; left: 40px; right: 40px; top: 300px; display: flex; justify-content: space-around; font-weight: 900; }
+  .stat div { text-align: center; font-size: 76px; font-variant-numeric: tabular-nums; letter-spacing: -2px; }
+  .stat small { display: block; font-size: 36px; color: #a9b3c8; font-weight: 700; letter-spacing: 0; }
+  .go { position: absolute; left: 50%; padding: 24px 44px; border-radius: 26px; font-size: 50px; font-weight: 900; background: linear-gradient(90deg, #1560f0, #0a9fd0); box-shadow: 0 16px 50px rgba(21,96,240,.5); white-space: nowrap; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="../motion/core.js"></script>
+<script src="common.js"></script>
+<script>
+// Kein Sprechtext: einmal sagen „Das ist meine Katze“ → die KI findet sie in 2.000 Fotos und sortiert sie
+const P = (n) => HD.find((x) => x.endsWith(n + '.jpg'));
+const CAT = P('zz-chelsea');
+const OTHER = ['beach-1', 'mountains-1', 'sunset-1', 'city-1', 'flowers-1', 'lake-1', 'aurora-1', 'desert-1', 'snow-1', 'forest-1', 'beach-2', 'mountains-2', 'sunset-2', 'city-2', 'flowers-2', 'lake-2', 'aurora-2', 'desert-2', 'snow-2', 'forest-2'].map(P);
+// „andere Fotos“ von Chelsea: Ausschnitt, gespiegelt, wärmer/kühler
+const CATV = [
+  'object-position:30% 40%;transform:scale(1.4)', 'transform:scaleX(-1)', 'filter:saturate(1.3) brightness(1.1)', 'object-position:60% 30%;transform:scale(1.8)',
+  'filter:sepia(.35)', 'transform:scaleX(-1) scale(1.3);object-position:40% 60%', 'filter:hue-rotate(-12deg) brightness(.9)', 'transform:scale(2.2);object-position:35% 35%',
+];
+const COLS = 4, ROWS = 26;
+let seed = 5;
+const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+const TILES = Array.from({ length: COLS * ROWS }, (_, i) => (rnd() < 0.13 && i > 3 ? { cat: true, v: CATV[i % CATV.length] } : { cat: false, src: OTHER[Math.floor(rnd() * OTHER.length)] }));
+// Treffer, die die Suchlinie bis zum Ende erreicht (auf 47 hochgerechnet)
+const LAST = 480 + 16 + ROWS * 172 - 1000;
+const NCAT = TILES.filter((t, i) => t.cat && 16 + Math.floor(i / COLS) * 172 + 77 < LAST).length;
+
+scene('hook', (r, s) => {
+  s.a = words(r, 'I told my photo app ONE sentence…', { top: '560px', fontSize: '96px' });
+  s.a.className += ' head';
+  s.b = el('div', 'abs head', r, '…and it found my cat<br>in <span class="grad">2,000 photos</span> 🐱');
+  css(s.b, { top: '900px', fontSize: '88px' });
+}, (s, lt) => {
+  drawWords(s.a, lt, 0.05, 0.08);
+  fadeIn(s.b, lt, 1.2);
+});
+
+scene('tell', (r, s) => {
+  s.ph = el('div', 'big', r, `<img src="${CAT}">`);
+  css(s.ph, { left: '90px', top: '400px', width: '900px', height: '600px' });
+  s.me = el('div', 'bub', r, 'This is Chelsea, my cat 🐱');
+  css(s.me, { top: '1090px' });
+  s.box = el('div', 'box', r);
+  s.tag = el('div', 'tag', r, '✓ Remembered: Chelsea');
+}, (s, lt) => {
+  fadeIn(s.ph, lt, 0.05, 20);
+  const n = Math.floor(clamp((lt - 0.4) / 1.0) * 26);
+  s.me.textContent = 'This is Chelsea, my cat 🐱'.slice(0, n);
+  s.me.style.opacity = p(lt, 0.35, 0.1);
+  const k = E.out(p(lt, 1.7, 0.5));
+  css(s.box, { opacity: p(lt, 1.7, 0.15), left: lerp(90, 250, k) + 'px', top: lerp(400, 420, k) + 'px', width: lerp(900, 470, k) + 'px', height: lerp(600, 520, k) + 'px' });
+  css(s.tag, { left: '250px', top: '360px', opacity: p(lt, 2.3, 0.2), transform: `scale(${0.6 + 0.4 * E.back(p(lt, 2.3, 0.4))})` });
+});
+scenes[1].sfx = () => [{ t: 1.7, type: 'pop' }, { t: 2.3, type: 'pop' }];
+
+scene('scan', (r, s) => {
+  s.h = el('div', 'abs head', r, 'Searching…');
+  css(s.h, { top: '150px', fontSize: '84px' });
+  s.st = el('div', 'stat', r, '<div><span class="a">0</span><small>photos checked</small></div><div><span class="b grad">0</span><small>Chelsea found 🐱</small></div>');
+  s.w = el('div', 'win2', r);
+  s.tiles = TILES.map((t, i) => {
+    const e = el('div', 't', s.w, t.cat ? `<img src="${CAT}" style="${t.v}"><div class="lb" style="display:none">🐱 Chelsea</div>` : `<img src="${t.src}">`);
+    css(e, { left: 16 + (i % COLS) * 247 + 'px', top: 16 + Math.floor(i / COLS) * 172 + 'px' });
+    return e;
+  });
+  s.scan = el('div', 'scan', s.w);
+  css(s.scan, { top: '480px' });
+}, (s, lt, D) => {
+  fadeIn(s.h, lt, 0.05);
+  fadeIn(s.st, lt, 0.2, 20);
+  const total = 16 + ROWS * 172 - 1000;
+  const scroll = E.io(p(lt, 0.4, D - 1.4)) * total;
+  const lineY = 480 + scroll;   // Position der Suchlinie im Raster
+  let found = 0;
+  s.tiles.forEach((e, i) => {
+    const y = 16 + Math.floor(i / COLS) * 172;
+    e.style.transform = `translateY(${-scroll}px)`;
+    const passed = y + 77 < lineY;
+    const t = TILES[i];
+    if (t.cat && passed) found++;
+    e.style.borderColor = t.cat && passed ? '#3ee089' : 'transparent';
+    e.style.opacity = passed && !t.cat ? 0.35 : 1;
+    if (t.cat) e.querySelector('.lb').style.display = passed ? 'block' : 'none';
+  });
+  // Zähler: sichtbare Treffer hochgerechnet auf 2.000 Fotos (47 Treffer)
+  const prog = clamp(scroll / total);
+  s.st.querySelector('.a').textContent = Math.round(2000 * prog).toLocaleString('en-US');
+  s.st.querySelector('.b').textContent = Math.round(47 * (found / NCAT));
+  s.scan.style.transform = `translateY(${0}px)`;
+  s.scan.style.opacity = 1 - p(lt, D - 0.9, 0.3);
+});
+scenes[2].sfx = function (D) {
+  const out = [];
+  const total = 16 + ROWS * 172 - 1000;
+  TILES.forEach((t, i) => {
+    if (!t.cat) return;
+    const y = 16 + Math.floor(i / COLS) * 172 + 77 - 480;
+    // Zeitpunkt, an dem die Linie die Kachel erreicht (Umkehrung von E.io näherungsweise per Suche)
+    for (let k = 0; k <= 400; k++) { const lt = 0.4 + (k / 400) * (D - 1.4); if (E.io(k / 400) * total >= y) { out.push({ t: lt, type: 'pop' }); break; } }
+  });
+  return out;
+};
+
+scene('sort', (r, s) => {
+  s.h = el('div', 'abs head', r, '<span class="grad">47</span> photos of Chelsea 🐱');
+  css(s.h, { top: '220px', fontSize: '84px' });
+  s.btn = el('div', 'go', r, 'Put them in “Pets” →');
+  css(s.btn, { top: '420px' });
+  s.t = Array.from({ length: 16 }, (_, i) => { const e = el('div', 't', r, `<img src="${CAT}" style="${CATV[i % CATV.length]}">`); css(e, { borderColor: '#3ee089' }); return e; });
+  s.f = el('div', 'folder', r, `${folderSvg('#e05bd0')}<div class="nm">Pets</div><div class="ct">0 photos</div>`);
+  css(s.f, { left: '380px', top: '1500px' });
+}, (s, lt) => {
+  fadeIn(s.h, lt, 0.05);
+  const press = lt > 1.1 && lt < 1.3;
+  s.btn.style.opacity = p(lt, 0.3, 0.3);
+  s.btn.style.transform = `translateX(-50%) scale(${press ? 0.93 : 1})`;
+  s.f.style.opacity = p(lt, 0.3, 0.3);
+  s.t.forEach((e, i) => {
+    const gx = 40 + (i % 4) * 255, gy = 620 + Math.floor(i / 4) * 190;
+    const k = E.io(p(lt, 1.3 + i * 0.08, 0.55));
+    css(e, { left: lerp(gx, 465, k) + 'px', top: lerp(gy, 1560, k) - Math.sin(k * Math.PI) * 120 + 'px', transform: `scale(${1 - 0.6 * k})`, opacity: p(lt, 0.2, 0.3) * (1 - p(k, 0.85, 0.15)) });
+  });
+  const n = Math.round(47 * clamp((lt - 1.6) / 1.9));
+  s.f.querySelector('.ct').textContent = photosLabel(n);
+  const hit = lt > 1.7 && lt < 3.6;
+  s.f.style.borderColor = hit ? '#e05bd0' : 'rgba(255,255,255,.08)';
+  s.f.style.transform = `scale(${hit ? 1.06 + 0.03 * Math.sin(lt * 20) : 1})`;
+});
+scenes[3].sfx = () => [{ t: 1.1, type: 'click' }, ...Array.from({ length: 8 }, (_, i) => ({ t: 1.35 + i * 0.16, type: 'whoosh' })), { t: 3.6, type: 'pop' }];
+
+scene('more', (r, s) => {
+  s.a = el('div', 'abs head', r, 'Works for <span class="grad">family</span>,<br>pets &amp; things too');
+  css(s.a, { top: '500px', fontSize: '96px' });
+  s.b = el('div', 'abs head', r, '<span style="font-size:150px">👨‍👩‍👧 🐶 🚗 🏡</span>');
+  css(s.b, { top: '820px' });
+  s.c = el('div', 'abs head', r, 'Runs 100% on your computer 🔒<br><span class="beta">AI · BETA</span> &nbsp;you stay in control');
+  css(s.c, { top: '1150px', fontSize: '50px', fontWeight: 700, color: '#c7d0e2', letterSpacing: 0, lineHeight: 1.5 });
+}, (s, lt) => {
+  fadeIn(s.a, lt, 0.05);
+  popIn(s.b, lt, 0.5, '');
+  fadeIn(s.c, lt, 1.1);
+});
+ctaScene({ label: '✓ The real app · v2.0', clip: () => ['grid', 0] });
+
+start({ captionTop: 1760 });
+</script>
+</body>
+</html>

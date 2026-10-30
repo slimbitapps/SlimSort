@@ -84,13 +84,22 @@ const CONFIG = { marks, frames, photos, photosHD, durations: DURATIONS, captions
   // Soundeffekte (Tastenklick, Wusch …) mit der Stimme zu einer Tonspur mischen
   const sfx = await page.evaluate(() => window.SFX || []);
   let voice = VOICE;
+  // Seiten ohne Stimme können eine eigene Tonspur aus Ereignissen liefern (window.TONES → motion/tones.py)
+  const tones = await page.evaluate(() => window.TONES || null);
+  if (tones && !VOICE) {
+    const { execFileSync } = require('node:child_process');
+    const j = path.join(path.dirname(OUT), path.basename(OUT, '.mp4') + '-tones.json');
+    fs.writeFileSync(j, JSON.stringify(tones));
+    voice = path.join(path.dirname(OUT), path.basename(OUT, '.mp4') + '-tones.wav');
+    execFileSync('python3', [path.join(__dirname, '..', 'motion', 'tones.py'), j, String(total), voice], { stdio: 'inherit' });
+  }
   if (sfx.length) {
     const { execFileSync } = require('node:child_process');
     const dir = path.join(__dirname, '..', 'motion', 'sfx');
     const VOL = { click: 0.24, whoosh: 0.13, 'whoosh-back': 0.13, pop: 0.16 };
     const ins = [], fl = [];
     let k = 0;
-    if (VOICE) { ins.push('-i', VOICE); fl.push(`[${k}:a]aformat=sample_rates=48000:channel_layouts=mono,asplit[v][key]`); k++; }
+    if (voice) { ins.push('-i', voice); fl.push(`[${k}:a]aformat=sample_rates=48000:channel_layouts=mono,asplit[v][key]`); k++; }
     else { ins.push('-f', 'lavfi', '-t', String(total), '-i', 'anullsrc=r=48000:cl=mono'); fl.push(`[${k}:a]anull,asplit[v][key]`); k++; }
     sfx.forEach((e, i) => {
       ins.push('-i', path.join(dir, e.type + '.wav'));

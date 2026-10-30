@@ -1,0 +1,193 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="common.css" />
+<style>
+  .lane { position: absolute; left: 40px; width: 1000px; height: 300px; border-radius: 26px; background: rgba(14,18,28,.85); border: 2px solid rgba(255,255,255,.08); overflow: hidden; }
+  .lane canvas { position: absolute; left: 0; top: 0; }
+  .lane .nm { position: absolute; left: 26px; top: 16px; font-size: 40px; font-weight: 900; letter-spacing: -1px; text-shadow: 0 4px 16px rgba(0,0,0,.8); }
+  .lane .st { position: absolute; right: 26px; top: 20px; font-size: 32px; font-weight: 700; color: #a9b3c8; font-variant-numeric: tabular-nums; text-shadow: 0 4px 16px rgba(0,0,0,.8); }
+  .lane .medal { position: absolute; right: 22px; bottom: 18px; padding: 8px 22px; border-radius: 999px; font-size: 40px; font-weight: 900; background: rgba(8,10,16,.9); border: 2px solid rgba(255,255,255,.2); }
+  .cd { font-size: 300px; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="../motion/core.js"></script>
+<script src="common.js"></script>
+<script>
+// Kein Sprechtext: 4 Sortierverfahren gegeneinander (gleiche Schritte pro Sekunde), Töne je Schritt
+const N = 56;
+let seed = 11;
+const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+const START = Array.from({ length: N }, (_, i) => i + 1);
+for (let i = N - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [START[i], START[j]] = [START[j], START[i]]; }
+
+// Jeder Schritt: Zustand danach + markierte Stellen + Wert (für den Ton)
+function record(fn) {
+  const a = START.slice(), ops = [];
+  const log = (hi, v) => ops.push({ a: Int8Array.from(a), hi, v });
+  fn(a, log);
+  return ops;
+}
+const ALGOS = [
+  ['Bubble sort', '#ff6b6b', (a, log) => {
+    for (let n = a.length; n > 1; n--) for (let i = 0; i < n - 1; i++) { if (a[i] > a[i + 1]) [a[i], a[i + 1]] = [a[i + 1], a[i]]; log([i, i + 1], a[i + 1]); }
+  }],
+  ['Insertion sort', '#f5a524', (a, log) => {
+    for (let i = 1; i < a.length; i++) { let j = i; log([j - 1, j], a[j]); while (j > 0 && a[j - 1] > a[j]) { [a[j - 1], a[j]] = [a[j], a[j - 1]]; j--; log([j, j + 1], a[j]); } }
+  }],
+  ['Quick sort', '#3ee089', (a, log) => {
+    const qs = (lo, hi) => {
+      if (lo >= hi) return;
+      const pv = a[hi]; let i = lo;
+      for (let j = lo; j < hi; j++) { if (a[j] < pv) { [a[i], a[j]] = [a[j], a[i]]; i++; } log([j, hi], a[j]); }
+      [a[i], a[hi]] = [a[hi], a[i]]; log([i, hi], a[i]);
+      qs(lo, i - 1); qs(i + 1, hi);
+    };
+    qs(0, a.length - 1);
+  }],
+  ['Merge sort', '#3b8bff', (a, log) => {
+    const ms = (lo, hi) => {
+      if (hi - lo < 1) return;
+      const mid = (lo + hi) >> 1; ms(lo, mid); ms(mid + 1, hi);
+      const L = a.slice(lo, mid + 1), R = a.slice(mid + 1, hi + 1);
+      let i = 0, j = 0, k = lo;
+      while (i < L.length || j < R.length) { a[k] = j >= R.length || (i < L.length && L[i] <= R[j]) ? L[i++] : R[j++]; log([k], a[k]); k++; }
+    };
+    ms(0, a.length - 1);
+  }],
+];
+const OPS = ALGOS.map(([, , fn]) => record(fn));
+const ORDER = OPS.map((o, i) => i).sort((x, y) => OPS[x].length - OPS[y].length); // Zielreihenfolge
+const T_GO = 4.0, T_RESULT = 3.6, WARP = 3;
+let race = null;   // Zeitplan, wird aus der Szenenlänge berechnet
+
+scene('race', (r, s) => {
+  s.title = words(r, 'Which one wins?', { top: '120px', fontSize: '104px' });
+  s.title.className += ' head';
+  s.sub = el('div', 'abs head', r, '🏁 Same speed · same 56 bars');
+  css(s.sub, { top: '245px', fontSize: '50px', fontWeight: 700, color: '#c7d0e2', letterSpacing: 0 });
+  s.lanes = ALGOS.map(([nm, c], i) => {
+    const e = el('div', 'lane', r, `<canvas width="1000" height="300"></canvas><div class="nm" style="color:${c}">${nm}</div><div class="st"></div><div class="medal" style="display:none"></div>`);
+    css(e, { top: 340 + i * 330 + 'px' });
+    return e;
+  });
+  s.cd = el('div', 'abs head cd', r);
+  css(s.cd, { top: '760px' });
+  s.ff = el('div', 'chip', r, '⏩ 3× speed – Bubble sort is still going 🐢');
+  css(s.ff, { left: '50%', top: '1690px', fontSize: '36px' });
+  s.bet = el('div', 'chip', r, 'Pick your winner 👇');
+  css(s.bet, { left: '50%', top: '1690px', fontSize: '44px' });
+}, (s, lt, D) => {
+  if (!race) {
+    // Schritte pro Sekunde so wählen, dass das Rennen genau in die Szene passt
+    const len = D - T_GO - T_RESULT;
+    const last = ORDER[ORDER.length - 1], third = OPS[ORDER[ORDER.length - 2]].length, n = OPS[last].length;
+    const R = (third + (n - third) / WARP) / len;
+    race = { R, t3: third / R };
+    race.opsAt = (lane, t) => {
+      if (t <= 0) return 0;
+      const o = t <= race.t3 || lane !== last ? t * R : third + (t - race.t3) * R * WARP;
+      return Math.min(OPS[lane].length, Math.floor(o));
+    };
+    race.endOf = (lane) => (lane !== last ? OPS[lane].length / R : race.t3 + (OPS[lane].length - third) / (R * WARP));
+  }
+  drawWords(s.title, lt, 0.05, 0.12);
+  s.sub.style.opacity = p(lt, 0.7, 0.4);
+  const tr = lt - T_GO;
+  s.lanes.forEach((e, i) => {
+    const k = E.out(p(lt, 0.4 + i * 0.15, 0.5));
+    e.style.opacity = k;
+    e.style.transform = `translateX(${(1 - k) * (i % 2 ? 80 : -80)}px)`;
+    const n = race.opsAt(i, tr), ops = OPS[i];
+    const st = n ? ops[n - 1] : { a: START, hi: [] };
+    const done = n >= ops.length;
+    const end = race.endOf(i);
+    const sweep = done ? p(tr, end, 0.5) : 0;
+    const cv = e.querySelector('canvas'), g = cv.getContext('2d');
+    g.clearRect(0, 0, 1000, 300);
+    const bw = 1000 / N;
+    for (let j = 0; j < N; j++) {
+      const v = st.a[j], h = 20 + (v / N) * 200;
+      let col = ALGOS[i][1];
+      if (!done && st.hi && st.hi.includes(j)) col = '#ffffff';
+      else if (done && j / N < sweep) col = '#3ee089';
+      g.globalAlpha = done && j / N < sweep ? 1 : 0.85;
+      g.fillStyle = col;
+      g.fillRect(j * bw + 2, 290 - h, bw - 4, h);
+    }
+    g.globalAlpha = 1;
+    // echte Zeit des Verfahrens (ohne Zeitraffer): Schritte / Schritte pro Sekunde
+    const steps = tr > 0 ? n : 0;
+    e.querySelector('.st').textContent = `${steps.toLocaleString('en-US')} steps · ${(steps / race.R).toFixed(1)} s`;
+    const m = e.querySelector('.medal');
+    const place = ORDER.indexOf(i);
+    if (done && tr > end + 0.2) {
+      m.style.display = 'block';
+      m.textContent = ['🥇 1st', '🥈 2nd', '🥉 3rd', '🐢 4th'][place];
+      const kk = E.back(p(tr, end + 0.2, 0.4));
+      m.style.transform = `scale(${0.5 + 0.5 * kk})`;
+      e.style.borderColor = place === 0 ? '#ffd34d' : 'rgba(255,255,255,.08)';
+      e.style.boxShadow = place === 0 ? '0 0 50px rgba(255,211,77,.35)' : 'none';
+    } else m.style.display = 'none';
+  });
+  // 3 · 2 · 1 · GO
+  const c = Math.ceil(T_GO - lt);
+  const inCd = lt > T_GO - 1.6 && lt < T_GO + 0.5;
+  s.cd.style.opacity = inCd ? 1 - p(lt, T_GO + 0.2, 0.3) : 0;
+  s.cd.innerHTML = lt < T_GO ? `<span class="grad">${Math.max(1, Math.min(3, Math.ceil((T_GO - lt) / 0.5)))}</span>` : 'GO!';
+  const ph = ((T_GO - lt) % 0.5) / 0.5;
+  s.cd.style.transform = `scale(${lt < T_GO ? 0.8 + 0.4 * ph : 1.1})`;
+  s.bet.style.opacity = p(lt, 1.2, 0.3) * (1 - p(lt, T_GO - 0.3, 0.3));
+  s.bet.style.transform = 'translateX(-50%)';
+  const ffOn = tr > race.t3 + 0.3 && tr < race.endOf(ORDER[3]);
+  s.ff.style.opacity = ffOn ? p(tr, race.t3 + 0.3, 0.3) : 0;
+  s.ff.style.transform = `translateX(-50%) scale(${1 + 0.03 * Math.sin(lt * 8)})`;
+  void c;
+});
+scenes[0].tones = function (D) { this.draw(this, 0, D); return D; };
+
+scene('end', (r, s) => {
+  s.h = el('div', 'abs head', r, '<span style="font-size:200px">🏆</span><br>' + ALGOS[ORDER[0]][0]);
+  css(s.h, { top: '330px', fontSize: '120px' });
+  s.list = el('div', 'abs', r);
+  css(s.list, { left: '140px', right: '140px', top: '900px', fontSize: '50px', fontWeight: 800, lineHeight: 1.7 });
+  s.list.innerHTML = ORDER.map((i, k) => `<div style="display:flex;justify-content:space-between;opacity:0" data-k="${k}"><span>${['🥇', '🥈', '🥉', '🐢'][k]} ${ALGOS[i][0]}</span><span style="color:#a9b3c8">${OPS[i].length.toLocaleString('en-US')} steps</span></div>`).join('');
+  s.q = el('div', 'abs head', r, 'Did you pick the winner? 👇');
+  css(s.q, { top: '1360px', fontSize: '64px' });
+  s.tag = el('div', 'chip', r, '<img src="' + ICON + '" style="width:48px;height:48px;border-radius:12px"> SlimSort sorts photos, not bars 😉');
+  css(s.tag, { left: '50%', top: '1640px', fontSize: '32px', fontWeight: 700 });
+}, (s, lt, D) => {
+  popIn(s.h, lt, 0.05, '');
+  [...s.list.children].forEach((e, k) => fadeIn(e, lt, 0.4 + k * 0.18, 20));
+  fadeIn(s.q, lt, 1.3);
+  s.tag.style.opacity = p(lt, 2.2, 0.4) * 0.9;
+  s.tag.style.transform = 'translateX(-50%)';
+});
+
+start({ captionTop: 1700 });
+// Tonspur (Python baut daraus die Töne): Zeit, Tonhöhe 0..1, Spur
+window.TONES = (() => {
+  const s0 = scenes[0];
+  s0.draw(s0, 0, C.durations[0]);
+  const out = [];
+  OPS.forEach((ops, i) => {
+    let lastT = -1;
+    ops.forEach((o, k) => {
+      // Zeitpunkt dieses Schritts (Umkehrung von opsAt)
+      const t = i !== ORDER[3] || k < OPS[ORDER[2]].length ? (k + 1) / race.R : race.t3 + (k + 1 - OPS[ORDER[2]].length) / (race.R * WARP);
+      if (t - lastT < 1 / 45) return;   // höchstens 45 Töne pro Sekunde und Spur
+      lastT = t;
+      out.push([T_GO + t, o.v / N, i]);
+    });
+    out.push([T_GO + race.endOf(i), -1, i]); // Ziel-Ton
+  });
+  for (let k = 0; k < 3; k++) out.push([T_GO - 1.5 + k * 0.5, -2, 0]); // Countdown
+  out.push([T_GO, -3, 0]);
+  return out;
+})();
+</script>
+</body>
+</html>
