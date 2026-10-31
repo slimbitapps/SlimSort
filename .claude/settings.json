@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh release create:*)",
+      "Bash(gh release upload:*)",
+      "mcp__Metricool_Social_Media_Management__createScheduledPost"
+    ]
+  }
+}
