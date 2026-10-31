@@ -1,0 +1,11 @@
+You bought a one terabyte drive. Windows says nine hundred thirty one gigabytes. Where did the rest go?
+
+Nothing is missing. It's just math.
+
+Drive makers count in thousands. One terabyte is one trillion bytes.
+
+But Windows counts in steps of one thousand twenty four.
+
+One trillion, divided by one thousand twenty four, three times, is nine hundred thirty one.
+
+Same space, different units. A Mac even shows the full terabyte, because it counts in thousands. Follow for more tech facts.

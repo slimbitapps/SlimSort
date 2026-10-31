@@ -1,0 +1,11 @@
+Windows Task Manager looks like it's from twenty ten. So I built my own.
+
+SlimManager. A live dashboard in your style. Gauges, graphs and big numbers, wherever you want them.
+
+Pick a skin. Neon, glass, retro, terminal, or your own background.
+
+Tap any tile, and see exactly which app is slowing you down.
+
+And it's featherweight. In the background it uses about half a percent of one CPU core.
+
+SlimManager is free for Windows and Mac. Link in my profile.

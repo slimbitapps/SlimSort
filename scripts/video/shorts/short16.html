@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="common.css" />
+<style>
+  .menu { position: absolute; width: 520px; border-radius: 20px; background: #1f232c; box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 1px #2e3440; padding: 12px; }
+  .menu div { padding: 18px 24px; border-radius: 12px; font-size: 36px; font-weight: 600; color: #dfe5f0; }
+  .tag { position: absolute; padding: 10px 22px; border-radius: 14px; font-size: 36px; font-weight: 900; }
+  .bar2 { position: absolute; height: 26px; border-radius: 13px; background: rgba(255,255,255,.1); overflow: hidden; }
+  .bar2 i { display: block; height: 100%; border-radius: 13px; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="../motion/core.js"></script>
+<script src="common.js"></script>
+<script src="month.js"></script>
+<script>
+// Tipp: 100 Dateien auf einmal umbenennen (Windows: F2, Mac: Rechtsklick → Umbenennen)
+const NAMES = ['IMG_4823.jpg', 'IMG_4824.jpg', 'DSC0091.jpg', 'photo (2).jpg', 'IMG_5102.jpg', 'Screenshot 3.png', 'IMG_5110.jpg', 'download.jpg'];
+function fileList(r, y) {
+  const b = el('div', 'win', r, '<div class="bar"><div class="dots"><i></i><i></i><i></i></div>📁 Holiday photos</div>');
+  css(b, { left: '70px', top: y + 'px', width: '940px' });
+  b.rows = NAMES.map((n) => { const e = el('div', '', b, `<span>🖼️</span><span class="n">${n}</span>`); css(e, { display: 'flex', gap: '22px', padding: '16px 30px', fontSize: '38px', fontWeight: 600 }); return e; });
+  return b;
+}
+scene('hook', (r, s) => {
+  s.h = head(r, 'Stop renaming files<br><span style="color:#ff6b6b">one by one</span> 😩', 160, 84);
+  s.l = fileList(r, 560);
+}, (s, lt) => { fadeIn(s.h, lt, 0.05); fadeIn(s.l, lt, 0.2, 30); });
+scene('select', (r, s) => {
+  s.h = head(r, '1 · Select all', 160, 84);
+  s.l = fileList(r, 560);
+  s.k = keyBox(r, 1500);
+}, (s, lt, D) => {
+  fadeIn(s.h, lt, 0.05);
+  drawKeys(s.k, lt, [[D * 0.35, ['Ctrl', 'A']]]);
+  s.l.rows.forEach((e, i) => { e.style.background = lt > D * 0.4 + i * 0.03 ? 'rgba(47,123,255,.3)' : 'transparent'; });
+});
+scene('f2', (r, s) => {
+  s.h = head(r, '2 · Press F2 + type one name', 160, 76);
+  s.l = fileList(r, 560);
+  s.k = keyBox(r, 1500);
+}, (s, lt, D) => {
+  fadeIn(s.h, lt, 0.05);
+  drawKeys(s.k, lt, [[0.4, ['F2']]]);
+  s.l.rows.forEach((e, i) => { e.style.background = 'rgba(47,123,255,.3)'; });
+  const name = 'Holiday'.slice(0, Math.floor(clamp((lt - 1.0) / 1.0) * 7));
+  s.l.rows[0].querySelector('.n').innerHTML = lt > 0.6 ? `<span style="background:#fff;color:#111;padding:2px 10px;border-radius:6px">${name}▍</span>` : NAMES[0];
+});
+scene('enter', (r, s) => {
+  s.h = head(r, '3 · Enter. <span class="grad">Done.</span>', 160, 84);
+  s.l = fileList(r, 560);
+  s.k = keyBox(r, 1500);
+  s.c = chip(r, '✓ all the way to Holiday (100)', 1720, 40);
+}, (s, lt, D) => {
+  fadeIn(s.h, lt, 0.05);
+  drawKeys(s.k, lt, [[0.3, ['Enter']]]);
+  s.l.rows.forEach((e, i) => {
+    const done = lt > 0.6 + i * 0.12;
+    e.querySelector('.n').innerHTML = done ? `<span class="grad">Holiday (${i + 1}).jpg</span>` : NAMES[i];
+    e.style.background = 'transparent';
+  });
+  chipIn(s.c, lt, D * 0.6);
+});
+scene('mac', (r, s) => {
+  s.h = head(r, '🍎 On a Mac', 160, 90);
+  s.m = el('div', 'menu', r, '<div>Open</div><div>Get Info</div><div class="hl">Rename 100 Items…</div><div>Compress</div>');
+  css(s.m, { left: '280px', top: '620px' });
+  s.c = cursor(r);
+}, (s, lt, D) => {
+  fadeIn(s.h, lt, 0.05);
+  moveCursor(s.c, lt, [[0, 700, 1300], [0.6, 280, 620], [1.0, 830, 790], [D, 830, 790]]);
+  s.m.style.opacity = p(lt, 0.6, 0.15);
+  highlight(s.m.querySelector('.hl'), lt > 1.0, lt);
+});
+followScene('more time-saving tips');
+start({ captionTop: 1790 });
+</script>
+</body>
+</html>

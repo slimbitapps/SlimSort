@@ -1,0 +1,11 @@
+How does your keyboard know which key you pressed?
+
+Under the keys, there's a grid of wires. Rows, and columns.
+
+Every key sits where one row crosses one column.
+
+A tiny chip checks the grid, row by row, hundreds of times every second.
+
+When a row and a column connect, it knows. That's the letter G.
+
+That's why some keyboards get confused when you press lots of keys at once. Follow for more tech facts.

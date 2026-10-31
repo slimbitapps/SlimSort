@@ -1,0 +1,78 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="common.css" />
+<style>
+  .menu { position: absolute; width: 520px; border-radius: 20px; background: #1f232c; box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 1px #2e3440; padding: 12px; }
+  .menu div { padding: 18px 24px; border-radius: 12px; font-size: 36px; font-weight: 600; color: #dfe5f0; }
+  .tag { position: absolute; padding: 10px 22px; border-radius: 14px; font-size: 36px; font-weight: 900; }
+  .bar2 { position: absolute; height: 26px; border-radius: 13px; background: rgba(255,255,255,.1); overflow: hidden; }
+  .bar2 i { display: block; height: 100%; border-radius: 13px; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="../motion/core.js"></script>
+<script src="common.js"></script>
+<script src="month.js"></script>
+<script>
+// Info: Warum 144 Bilder pro Sekunde flüssiger wirken als 60
+function track(r, y, fps, color, label) {
+  const b = el('div', 'abs', r, `<div style="font:800 44px Inter;margin-bottom:16px">${label}</div>`);
+  css(b, { left: '60px', top: y + 'px', width: '960px', height: '260px', padding: '24px 30px', borderRadius: '28px', background: 'rgba(16,20,30,.92)', border: '2px solid rgba(255,255,255,.08)' });
+  b.dots = [];
+  const n = Math.round(fps / 10);  // 100 ms Ausschnitt
+  for (let i = 0; i < n; i++) { const d = el('div', 'abs', b); css(d, { width: '44px', height: '44px', borderRadius: '50%', background: color, top: '150px', left: 30 + (i / (n - 1)) * 850 + 'px', opacity: 0 }); b.dots.push(d); }
+  return b;
+}
+scene('hook', (r, s) => {
+  s.h = head(r, 'Why does <span class="grad">144 fps</span><br>feel so much smoother than 60?', 300, 80);
+  s.a = big(r, '60 <span style="color:#5b6478">vs</span> <span class="grad">144</span>', 800, 200);
+}, (s, lt, D) => { fadeIn(s.h, lt, 0.05); popIn(s.a, lt, D * 0.4, ''); });
+scene('60', (r, s) => {
+  s.n = big(r, '<span style="font-size:60px;color:#c7d0e2">60 fps: a new picture every</span><br>16.7 ms', 300, 150);
+  s.t = track(r, 900, 60, '#ff6b6b', '60 fps · 100 ms');
+}, (s, lt) => { popIn(s.n, lt, 0.05, ''); fadeIn(s.t, lt, 0.3, 30); s.t.dots.forEach((d, i) => (d.style.opacity = p(lt, 0.6 + i * 0.12, 0.1))); });
+scene('144', (r, s) => {
+  s.n = big(r, '<span style="font-size:60px;color:#c7d0e2">144 fps: every</span><br><span class="grad">6.9 ms</span>', 300, 150);
+  s.t1 = track(r, 800, 60, '#ff6b6b', '60 fps');
+  s.t2 = track(r, 1120, 144, '#3ee089', '144 fps');
+  s.c = chip(r, 'more than 2× as often', 1450, 44);
+}, (s, lt, D) => {
+  popIn(s.n, lt, 0.05, '');
+  s.t1.dots.forEach((d) => (d.style.opacity = 1));
+  fadeIn(s.t2, lt, 0.3, 30);
+  s.t2.dots.forEach((d, i) => (d.style.opacity = p(lt, 0.5 + i * 0.06, 0.1)));
+  chipIn(s.c, lt, D * 0.6);
+});
+scene('jump', (r, s) => {
+  s.h = head(r, 'Smaller jumps between frames<br>= <span class="grad">smoother aim</span> 🎯', 170, 74);
+  s.t1 = track(r, 640, 60, '#ff6b6b', '60 fps – big jumps');
+  s.t2 = track(r, 1000, 144, '#3ee089', '144 fps – tiny steps');
+}, (s, lt) => {
+  fadeIn(s.h, lt, 0.05);
+  // ein „Ball“ bewegt sich: bei 60 fps springt er in großen Schritten, bei 144 in kleinen
+  const u = (lt * 0.35) % 1;
+  [[s.t1, 6], [s.t2, 14]].forEach(([t, n]) => t.dots.forEach((d, i) => (d.style.opacity = i === Math.min(n - 1, Math.floor(u * n)) ? 1 : 0.15)));
+});
+scene('monitor', (r, s) => {
+  s.h = head(r, 'But a <span style="color:#ff6b6b">60 Hz</span> screen<br>throws the extra frames away 🗑️', 170, 74);
+  s.m = shot(r, P('city-2'), { x: 190, y: 600, w: 700, h: 420, radius: 16 });
+  s.f = Array.from({ length: 6 }, () => { const e = el('div', 'abs', r); css(e, { width: '90px', height: '60px', borderRadius: '10px', background: '#3ee089', opacity: 0 }); return e; });
+}, (s, lt) => {
+  fadeIn(s.h, lt, 0.05); fadeIn(s.m, lt, 0.2, 20);
+  s.f.forEach((e, i) => { const k = ((lt * 0.8 + i / 6) % 1); css(e, { left: 495 + Math.sin(i * 2) * 60 + 'px', top: 1050 + k * 500 + 'px', opacity: p(lt, 0.6, 0.3) * (1 - k), transform: `rotate(${k * 120}deg)` }); });
+});
+scene('end', (r, s) => {
+  s.c = chip(r, '🖥️ Check your refresh rate in Display settings', 520, 38);
+  s.i = el('img', 'abs', r);
+  s.i.src = P('icon-slimbit');
+  css(s.i, { left: '415px', top: '760px', width: '250px', height: '250px', borderRadius: '60px' });
+  s.a = big(r, 'Follow for<br><span class="grad">more gaming tips</span>', 1080, 96);
+  s.b = sub(r, '@slimbitapps', 1380, 60);
+}, (s, lt, D) => { chipIn(s.c, lt, 0.05); s.i.style.transform = `scale(${E.back(p(lt, D * 0.35, 0.5))})`; fadeIn(s.a, lt, D * 0.4); fadeIn(s.b, lt, D * 0.55); });
+start({ captionTop: 1790 });
+</script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="common.css" />
+<style>
+  .menu { position: absolute; width: 520px; border-radius: 20px; background: #1f232c; box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 1px #2e3440; padding: 12px; }
+  .menu div { padding: 18px 24px; border-radius: 12px; font-size: 36px; font-weight: 600; color: #dfe5f0; }
+  .tag { position: absolute; padding: 10px 22px; border-radius: 14px; font-size: 36px; font-weight: 900; }
+  .bar2 { position: absolute; height: 26px; border-radius: 13px; background: rgba(255,255,255,.1); overflow: hidden; }
+  .bar2 i { display: block; height: 100%; border-radius: 13px; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="../motion/core.js"></script>
+<script src="common.js"></script>
+<script src="month.js"></script>
+<script>
+// Tipp: Läuft dein Arbeitsspeicher langsamer als gekauft? (XMP/EXPO)
+function ramStick(r, y, label) {
+  const b = el('div', 'abs', r, `<div style="position:absolute;left:40px;right:40px;top:30px;height:110px;display:flex;gap:20px">${'<i style="flex:1;background:#1b1e25;border-radius:8px"></i>'.repeat(8)}</div><div class="lb" style="position:absolute;right:40px;bottom:16px;font:900 40px Inter;color:#111">${label}</div>`);
+  css(b, { left: '90px', top: y + 'px', width: '900px', height: '220px', borderRadius: '18px', background: 'linear-gradient(180deg,#2fbf71,#1d8f53)', boxShadow: '0 30px 80px rgba(0,0,0,.5)' });
+  return b;
+}
+scene('hook', (r, s) => {
+  s.h = head(r, 'Your RAM might be <span style="color:#ff6b6b">slower</span><br>than what you paid for 🐌', 160, 76);
+  s.r = ramStick(r, 760, 'DDR4-3200');
+}, (s, lt) => { fadeIn(s.h, lt, 0.05); fadeIn(s.r, lt, 0.3, 40); });
+scene('open', (r, s) => {
+  s.h = head(r, 'Open Task Manager', 170, 84);
+  s.k = keyBox(r, 700);
+}, (s, lt, D) => {
+  fadeIn(s.h, lt, 0.05);
+  s.k.innerHTML = ['Ctrl', 'Shift', 'Esc'].map((x) => `<kbd style="min-width:200px">${x}</kbd>`).join('<span class="plus">+</span>');
+  s.k.style.opacity = p(lt, 0.3, 0.2);
+  s.k.style.transform = `translateX(-50%) scale(${0.7 + 0.3 * E.back(p(lt, 0.3, 0.4))})`;
+});
+scenes[scenes.length - 1].sfx = () => [{ t: 0.3, type: 'click' }];
+scene('speed', (r, s) => {
+  s.h = head(r, 'Performance → Memory', 170, 80);
+  s.w = settingsWin(r, 'Memory', [['In use', '9.8 GB'], ['Slots used', '2 of 4'], ['Speed', '2133 MT/s']], { y: 560 });
+}, (s, lt, D) => { fadeIn(s.h, lt, 0.05); fadeIn(s.w, lt, 0.15, 30); s.w.rows.forEach((e, i) => highlight(e, i === 2 && lt > D * 0.4, lt)); });
+scene('off', (r, s) => {
+  s.a = big(r, '<span style="font-size:60px;color:#c7d0e2">You bought</span><br><span class="grad">3200</span>', 380, 200);
+  s.b = big(r, '<span style="font-size:60px;color:#c7d0e2">It runs at</span><br><span style="color:#ff6b6b">2133</span>', 860, 200);
+  s.c = chip(r, '→ XMP is off', 1400, 54);
+}, (s, lt, D) => { popIn(s.a, lt, 0.05, ''); popIn(s.b, lt, D * 0.3, ''); chipIn(s.c, lt, D * 0.6); });
+scene('bios', (r, s) => {
+  s.h = head(r, 'Turn on <span class="grad">XMP</span> (AMD: <span class="grad">EXPO</span>)<br>in your BIOS', 150, 76);
+  s.w = settingsWin(r, 'BIOS · Memory', [['Memory profile', 'Disabled'], ['Memory frequency', 'Auto']], { y: 600 });
+  s.r = big(r, '', 1200, 120);
+}, (s, lt, D) => {
+  fadeIn(s.h, lt, 0.05); fadeIn(s.w, lt, 0.15, 30);
+  const on = lt > D * 0.4;
+  s.w.rows[0].querySelector('.v').innerHTML = on ? '<span class="grad">XMP Profile 1</span>' : 'Disabled';
+  s.w.rows[1].querySelector('.v').textContent = on ? '3200 MT/s' : 'Auto';
+  highlight(s.w.rows[0], true, lt);
+  s.r.innerHTML = on ? '<span class="grad">3200 ✓</span>' : '';
+  s.r.style.transform = `scale(${0.6 + 0.4 * E.back(p(lt, D * 0.45, 0.4))})`;
+});
+scene('end', (r, s) => {
+  s.c = chip(r, '📖 Check your motherboard manual first', 520, 42);
+  s.i = el('img', 'abs', r);
+  s.i.src = P('icon-slimbit');
+  css(s.i, { left: '415px', top: '760px', width: '250px', height: '250px', borderRadius: '60px' });
+  s.a = big(r, 'Follow for<br><span class="grad">more gaming tips</span>', 1080, 96);
+  s.b = sub(r, '@slimbitapps', 1380, 60);
+}, (s, lt, D) => { chipIn(s.c, lt, 0.05); s.i.style.transform = `scale(${E.back(p(lt, D * 0.35, 0.5))})`; fadeIn(s.a, lt, D * 0.4); fadeIn(s.b, lt, D * 0.55); });
+start({ captionTop: 1790 });
+</script>
+</body>
+</html>

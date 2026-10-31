@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="common.css" />
+<style>
+  .menu { position: absolute; width: 520px; border-radius: 20px; background: #1f232c; box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 1px #2e3440; padding: 12px; }
+  .menu div { padding: 18px 24px; border-radius: 12px; font-size: 36px; font-weight: 600; color: #dfe5f0; }
+  .tag { position: absolute; padding: 10px 22px; border-radius: 14px; font-size: 36px; font-weight: 900; }
+  .bar2 { position: absolute; height: 26px; border-radius: 13px; background: rgba(255,255,255,.1); overflow: hidden; }
+  .bar2 i { display: block; height: 100%; border-radius: 13px; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="../motion/core.js"></script>
+<script src="common.js"></script>
+<script src="month.js"></script>
+<script>
+// Tipp: 5 Windows-Tastenkürzel wie Cheat-Codes
+scene('hook', (r, s) => {
+  s.h = head(r, '5 Windows shortcuts<br>that feel like <span class="grad">cheat codes</span> 🎮', 600, 90);
+}, (s, lt) => popIn(s.h, lt, 0.05, ''));
+const SC = [
+  ['Win', 'V'], ['Win', 'Shift', 'S'], ['Win', '.'], ['Ctrl', 'Shift', 'T'], ['Win', 'Ctrl', 'D'],
+];
+const WHAT = [
+  ['📋', 'Clipboard history', 'Everything you copied – turn it on once'],
+  ['✂️', 'Screenshot a part', 'Just the area you need'],
+  ['😀', 'Emojis anywhere', 'In every text field'],
+  ['↩️', 'Reopen closed tab', 'In your browser'],
+  ['🖥️', 'New empty desktop', 'Your secret clean workspace'],
+];
+SC.forEach((keys, i) => {
+  scene('k' + i, (r, s) => {
+    s.n = el('div', 'abs head', r, `<span class="grad">${i + 1}</span><span style="color:#5b6478"> / 5</span>`);
+    css(s.n, { top: '170px', fontSize: '90px' });
+    s.k = keyBox(r, 560);
+    s.e = big(r, WHAT[i][0], 880, 200);
+    s.t = head(r, WHAT[i][1], 1150, 84);
+    s.s = sub(r, WHAT[i][2], 1270, 48);
+    if (i === 4) s.f = chip(r, 'Which one did you not know? 👇 Follow for more', 1520, 36);
+  }, (s, lt, D) => {
+    fadeIn(s.n, lt, 0.05);
+    // Tasten bleiben stehen (statt nur kurz zu blinken)
+    s.k.innerHTML = keys.map((x) => `<kbd${x.length > 2 ? ' style="min-width:200px"' : ''}>${x}</kbd>`).join('<span class="plus">+</span>');
+    const kk = E.back(p(lt, 0.15, 0.4));
+    s.k.style.opacity = p(lt, 0.1, 0.2);
+    s.k.style.transform = `translateX(-50%) scale(${0.7 + 0.3 * kk})`;
+    popIn(s.e, lt, 0.5, '');
+    fadeIn(s.t, lt, 0.7);
+    fadeIn(s.s, lt, 1.0);
+    if (s.f) chipIn(s.f, lt, D * 0.55);
+  });
+  scenes[scenes.length - 1].sfx = () => [{ t: 0.15, type: 'click' }, { t: 0.5, type: 'pop' }];
+});
+start({ captionTop: 1790 });
+</script>
+</body>
+</html>

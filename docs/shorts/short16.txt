@@ -1,0 +1,11 @@
+Stop renaming files one by one. Windows can rename a hundred at once.
+
+Select all the files with Control A.
+
+Press F2, and type one name. For example, Holiday.
+
+Press Enter. Done. Holiday one, Holiday two, all the way to a hundred.
+
+On a Mac, select them, right-click, and choose Rename.
+
+Follow for more tips that save you time.

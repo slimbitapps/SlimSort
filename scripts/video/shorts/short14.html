@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="common.css" />
+<style>
+  .menu { position: absolute; width: 520px; border-radius: 20px; background: #1f232c; box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 1px #2e3440; padding: 12px; }
+  .menu div { padding: 18px 24px; border-radius: 12px; font-size: 36px; font-weight: 600; color: #dfe5f0; }
+  .tag { position: absolute; padding: 10px 22px; border-radius: 14px; font-size: 36px; font-weight: 900; }
+  .bar2 { position: absolute; height: 26px; border-radius: 13px; background: rgba(255,255,255,.1); overflow: hidden; }
+  .bar2 i { display: block; height: 100%; border-radius: 13px; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="../motion/core.js"></script>
+<script src="common.js"></script>
+<script src="month.js"></script>
+<script>
+// Werbung SlimManager: „Windows Task-Manager sieht aus wie 2010 – also hab ich meinen eigenen gebaut“
+scene('hook', (r, s) => {
+  s.old = settingsWin(r, 'Task Manager', [['Processes', 'CPU 23 %'], ['Performance', ''], ['App history', ''], ['Startup apps', '']], { y: 620 });
+  s.old.style.filter = 'grayscale(1)';
+  s.h = head(r, 'Task Manager looks like <span style="color:#ff6b6b">2010</span>…', 180, 82);
+  s.h2 = sub(r, 'So I built my own 👇', 400, 64);
+}, (s, lt, D) => {
+  fadeIn(s.h, lt, 0.05);
+  fadeIn(s.old, lt, 0.2, 20);
+  s.old.style.opacity = Math.min(s.old.style.opacity, 1 - p(lt, D * 0.75, 0.3));
+  fadeIn(s.h2, lt, D * 0.55);
+});
+scene('dash', (r, s) => {
+  s.h = head(r, 'Slim<span class="grad">Manager</span>', 160, 110);
+  s.s = sub(r, 'A live dashboard in your style', 300, 56);
+  s.a = laptop(r, P('sm-hero-app'), 960, 900);
+}, (s, lt) => {
+  popIn(s.h, lt, 0.05, '');
+  fadeIn(s.s, lt, 0.4);
+  const k = E.out(p(lt, 0.2, 0.8));
+  place(s.a, { s: 0.9 + 0.1 * k, ry: -14 * (1 - k), y: 40 * (1 - k) });
+});
+scene('skins', (r, s) => {
+  s.h = head(r, 'Pick a <span class="grad">skin</span>', 160, 100);
+  s.imgs = ['sm-skins-app', 'sm-light-app', 'sm-hero-app'].map((n, i) => shot(r, P(n), { x: 90, y: 420 + i * 420, w: 900, h: 505, radius: 22 }));
+  s.c = chip(r, 'Neon · Glass · Retro · Terminal · your own image', 1700, 34);
+}, (s, lt, D) => {
+  fadeIn(s.h, lt, 0.05);
+  s.imgs.forEach((e, i) => { const k = E.out(p(lt, 0.2 + i * D * 0.2, 0.5)); e.style.opacity = k; e.style.transform = `translateX(${(1 - k) * (i % 2 ? 300 : -300)}px) rotate(${(i - 1) * 2}deg)`; });
+  chipIn(s.c, lt, D * 0.6);
+});
+scene('detail', (r, s) => {
+  s.h = head(r, 'Tap a tile → see <span class="grad">who</span> slows you down', 150, 74);
+  s.a = shot(r, P('sm-detail-app'), { x: 40, y: 520, w: 1000, h: 561, radius: 22 });
+}, (s, lt) => {
+  fadeIn(s.h, lt, 0.05);
+  const k = E.out(p(lt, 0.2, 0.6));
+  s.a.style.opacity = k;
+  s.a.style.transform = `scale(${0.85 + 0.15 * k})`;
+});
+scene('light', (r, s) => {
+  s.h = head(r, 'And it’s <span class="grad">featherweight</span> 🪶', 300, 90);
+  s.n = big(r, '', 650, 220);
+  s.s = sub(r, 'of one CPU core in the background', 980, 52);
+}, (s, lt) => {
+  fadeIn(s.h, lt, 0.05);
+  s.n.innerHTML = `<span class="grad">~${(0.5 * E.out(p(lt, 0.4, 1))).toFixed(1)} %</span>`;
+  fadeIn(s.s, lt, 0.8);
+});
+productCta({ name: 'Slim', grad: 'Manager', icon: P('icon-sm'), app: P('sm-hero-app'), color: 'linear-gradient(90deg,#7c4dff,#3b6cff)' });
+start({ captionTop: 1790 });
+</script>
+</body>
+</html>

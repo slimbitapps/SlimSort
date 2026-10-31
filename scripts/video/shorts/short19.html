@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="common.css" />
+<style>
+  .menu { position: absolute; width: 520px; border-radius: 20px; background: #1f232c; box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 1px #2e3440; padding: 12px; }
+  .menu div { padding: 18px 24px; border-radius: 12px; font-size: 36px; font-weight: 600; color: #dfe5f0; }
+  .tag { position: absolute; padding: 10px 22px; border-radius: 14px; font-size: 36px; font-weight: 900; }
+  .bar2 { position: absolute; height: 26px; border-radius: 13px; background: rgba(255,255,255,.1); overflow: hidden; }
+  .bar2 i { display: block; height: 100%; border-radius: 13px; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="../motion/core.js"></script>
+<script src="common.js"></script>
+<script src="month.js"></script>
+<script>
+// Werbung SlimKit: Ordnerstruktur ohne Dateien kopieren, Jahr wird ersetzt
+const tree = (r, year, files, x, y) => {
+  const rows = [['📁', `Photos ${year}`, 0], ['📁', `School ${year}-${year + 1}`, 1], ['📁', 'Holidays', 1], ['📁', `Birthdays ${year}`, 1]];
+  const b = el('div', 'abs', r);
+  css(b, { left: x + 'px', top: y + 'px', width: '900px', padding: '26px 30px', borderRadius: '28px', background: 'rgba(16,20,30,.95)', border: '2px solid rgba(255,255,255,.08)' });
+  b.innerHTML = rows.map(([i, n, d]) => `<div style="padding:12px 0 12px ${d * 60}px;font-size:42px;font-weight:700">${i} ${n}${files && d ? ' <span style="color:#a9b3c8;font-size:32px">· 248 photos</span>' : d ? ' <span style="color:#3ee089;font-size:32px">· empty</span>' : ''}</div>`).join('');
+  return b;
+};
+scene('hook', (r, s) => {
+  s.h = head(r, 'Every January:<br>copy my folders – <span class="grad">without the files</span>', 150, 72);
+  s.a = tree(r, 2025, true, 90, 560);
+}, (s, lt) => { fadeIn(s.h, lt, 0.05); fadeIn(s.a, lt, 0.3, 30); });
+scene('example', (r, s) => {
+  s.a = tree(r, 2025, true, 90, 320);
+  s.ar = big(r, '⬇️', 820, 120);
+  s.b = tree(r, 2026, false, 90, 1000);
+}, (s, lt, D) => { fadeIn(s.a, lt, 0.05, 20); popIn(s.ar, lt, D * 0.3, ''); fadeIn(s.b, lt, D * 0.45, 30); });
+scene('rightclick', (r, s) => {
+  s.h = head(r, 'Slim<span class="grad">Kit</span>: one right-click', 160, 84);
+  s.a = shot(r, P('sk-structure-app'), { x: 40, y: 500, w: 1000, h: 481, radius: 22, pos: '50% 0%' });
+  s.c = chip(r, '📁 Copy folder structure', 1100, 46);
+}, (s, lt, D) => { fadeIn(s.h, lt, 0.05); fadeIn(s.a, lt, 0.2, 30); chipIn(s.c, lt, D * 0.4); });
+scene('year', (r, s) => {
+  s.h = head(r, 'The year updates <span class="grad">by itself</span>', 160, 80);
+  s.y = big(r, '', 650, 200);
+  s.s = sub(r, 'also “2025-2026” → “2026-2027”', 1000, 50);
+}, (s, lt, D) => {
+  fadeIn(s.h, lt, 0.05);
+  const k = p(lt, D * 0.35, 0.6);
+  s.y.innerHTML = k < 0.5 ? '2025' : '<span class="grad">2026</span>';
+  s.y.style.transform = `rotateX(${Math.sin(k * Math.PI) * 90}deg)`;
+  fadeIn(s.s, lt, D * 0.6);
+});
+scene('more', (r, s) => {
+  s.h = head(r, 'And so much more', 150, 84);
+  s.l = el('div', 'abs', r);
+  css(s.l, { left: '110px', right: '110px', top: '400px', fontSize: '50px', fontWeight: 700, lineHeight: 2 });
+  s.l.innerHTML = ['✏️ Rename many files', '🖼️ Shrink photos for WhatsApp', '📱 Send files to your phone (QR)', '↶ Undo every change'].map((x) => `<div style="opacity:0">${x}</div>`).join('');
+  s.a = shot(r, P('sk-rightclick-app'), { x: 90, y: 1050, w: 900, h: 432, radius: 22, pos: '50% 0%' });
+}, (s, lt, D) => {
+  fadeIn(s.h, lt, 0.05);
+  [...s.l.children].forEach((e, i) => fadeIn(e, lt, 0.3 + i * D * 0.17, 20));
+  fadeIn(s.a, lt, 0.4, 30);
+});
+productCta({ name: 'Slim', grad: 'Kit', icon: P('icon-sk'), app: P('sk-structure-app'), color: 'linear-gradient(90deg,#0ea5e9,#14b8a6)' });
+start({ captionTop: 1790 });
+</script>
+</body>
+</html>

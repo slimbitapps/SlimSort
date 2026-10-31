@@ -1,0 +1,11 @@
+Your RAM might be running way slower than what you paid for.
+
+Check it. Open Task Manager with Control, Shift, Escape.
+
+Go to Performance, then Memory, and look at the speed.
+
+Bought thirty-two hundred, but it says twenty-one thirty-three? Then XMP is off.
+
+Turn on XMP, or EXPO on AMD, in your BIOS. One switch, and you get the speed on the box.
+
+Check your motherboard manual first. Follow for more gaming tips.

@@ -1,0 +1,11 @@
+Every January, I copy my folders for the new year. But without the files inside.
+
+Photos twenty twenty-five, with all its subfolders, becomes an empty Photos twenty twenty-six.
+
+With SlimKit, that's one right-click. Copy folder structure.
+
+It even replaces the year in every folder name by itself.
+
+It can also rename files, shrink photos for WhatsApp, or send files to your phone with a QR code. And every change can be undone.
+
+SlimKit is free for Windows and Mac. Link in my profile.

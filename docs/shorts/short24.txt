@@ -1,0 +1,11 @@
+Why does 144 frames per second feel so much smoother than 60?
+
+At 60, a new picture shows up every 16.7 milliseconds.
+
+At 144, every 6.9 milliseconds. More than twice as often.
+
+So moving things jump less between frames. Your aim feels smoother, and the picture reacts faster.
+
+But only if your monitor can show it. A 60 hertz screen just throws the extra frames away.
+
+So check your refresh rate in Display settings. Follow for more gaming tips.

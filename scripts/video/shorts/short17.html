@@ -1,0 +1,69 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="common.css" />
+<style>
+  .menu { position: absolute; width: 520px; border-radius: 20px; background: #1f232c; box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 1px #2e3440; padding: 12px; }
+  .menu div { padding: 18px 24px; border-radius: 12px; font-size: 36px; font-weight: 600; color: #dfe5f0; }
+  .tag { position: absolute; padding: 10px 22px; border-radius: 14px; font-size: 36px; font-weight: 900; }
+  .bar2 { position: absolute; height: 26px; border-radius: 13px; background: rgba(255,255,255,.1); overflow: hidden; }
+  .bar2 i { display: block; height: 100%; border-radius: 13px; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="../motion/core.js"></script>
+<script src="common.js"></script>
+<script src="month.js"></script>
+<script>
+// Werbung SlimManager: Live-Werte des PCs aufs Handy (QR-Code, keine App)
+scene('hook', (r, s) => {
+  s.h = head(r, 'My phone shows what<br>my PC is doing. <span class="grad">Live.</span>', 160, 80);
+  s.p = phone(r, P('sm-hero-phone'), { x: 340, y: 520, w: 400 });
+}, (s, lt) => { fadeIn(s.h, lt, 0.05); const k = E.back(p(lt, 0.3, 0.6)); s.p.style.opacity = p(lt, 0.3, 0.2); s.p.style.transform = `translateY(${(1 - k) * 200}px)`; });
+scene('qr', (r, s) => {
+  s.h = head(r, 'Scan the QR code', 160, 84);
+  s.s = sub(r, 'No app to install', 280, 56);
+  s.a = laptop(r, P('sm-hero-app'), 700, 760);
+  s.qr = el('div', 'abs', r);
+  css(s.qr, { left: '420px', top: '1180px', width: '240px', height: '240px', borderRadius: '20px', background: '#fff', padding: '18px' });
+  // einfaches QR-Muster (nur Bild, kein echter Code)
+  let seed = 3; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  s.qr.innerHTML = '<div style="display:grid;grid-template-columns:repeat(17,1fr);width:100%;height:100%">' + Array.from({ length: 289 }, (_, i) => {
+    const x = i % 17, y = Math.floor(i / 17), corner = (x < 5 && y < 5) || (x > 11 && y < 5) || (x < 5 && y > 11);
+    const on = corner ? (x % 4 === 0 || y % 4 === 0 || (x % 4 === 2 && y % 4 === 2)) : rnd() < 0.45;
+    return `<i style="background:${on ? '#111' : '#fff'}"></i>`;
+  }).join('') + '</div>';
+  s.scan = el('div', 'abs', r);
+  css(s.scan, { left: '400px', width: '280px', height: '6px', background: '#3ee089', boxShadow: '0 0 20px #3ee089' });
+}, (s, lt, D) => {
+  fadeIn(s.h, lt, 0.05);
+  fadeIn(s.s, lt, 0.4);
+  place(s.a, { s: 1, y: 0 });
+  s.qr.style.opacity = p(lt, 0.3, 0.3);
+  s.scan.style.top = 1180 + 240 * (0.5 + 0.5 * Math.sin(lt * 4)) + 'px';
+  s.scan.style.opacity = p(lt, 0.6, 0.2) * (1 - p(lt, D - 0.6, 0.3));
+});
+scene('stats', (r, s) => {
+  s.h = head(r, 'CPU · GPU · RAM · network<br><span class="grad">in your hand</span>', 150, 72);
+  s.p = phone(r, P('sm-boost-phone'), { x: 120, y: 480, w: 400 });
+  s.p2 = phone(r, P('sm-hero-phone'), { x: 560, y: 560, w: 400 });
+}, (s, lt) => {
+  fadeIn(s.h, lt, 0.05);
+  [s.p, s.p2].forEach((e, i) => { const k = E.out(p(lt, 0.2 + i * 0.3, 0.5)); e.style.opacity = k; e.style.transform = `translateY(${(1 - k) * 120}px) rotate(${(i ? 4 : -4) * k}deg)`; });
+});
+scene('tablet', (r, s) => {
+  s.h = head(r, 'Tablet = <span class="grad">second screen</span>', 160, 84);
+  s.t = shot(r, P('sm-tablet-full'), { x: 40, y: 480, w: 1000, h: 562, radius: 26, pos: '0% 70%' });
+}, (s, lt) => { fadeIn(s.h, lt, 0.05); fadeIn(s.t, lt, 0.2, 30); });
+scene('control', (r, s) => {
+  s.h = head(r, 'Start <span class="grad">Game Boost</span><br>from your phone', 150, 80);
+  s.p = phone(r, P('sm-boost-phone'), { x: 340, y: 450, w: 400 });
+  s.c = chip(r, '🔒 Only your own Wi-Fi · securely paired', 1350, 38);
+}, (s, lt, D) => { fadeIn(s.h, lt, 0.05); fadeIn(s.p, lt, 0.2, 40); chipIn(s.c, lt, D * 0.5); });
+productCta({ name: 'Slim', grad: 'Manager', icon: P('icon-sm'), app: P('sm-hero-app'), color: 'linear-gradient(90deg,#7c4dff,#3b6cff)' });
+start({ captionTop: 1790 });
+</script>
+</body>
+</html>

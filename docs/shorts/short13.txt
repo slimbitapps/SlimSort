@@ -1,0 +1,11 @@
+You paid for a 144 hertz monitor. But it might only be running at 60.
+
+Windows doesn't always switch it on by itself. Here's how to check in ten seconds.
+
+Right-click your desktop, and open Display settings.
+
+Scroll down, and click Advanced display.
+
+Under refresh rate, pick the highest number.
+
+That's it. Your games, and even your mouse, feel way smoother. Follow for more PC tips.

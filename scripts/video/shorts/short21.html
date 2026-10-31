@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="common.css" />
+<style>
+  .menu { position: absolute; width: 520px; border-radius: 20px; background: #1f232c; box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 1px #2e3440; padding: 12px; }
+  .menu div { padding: 18px 24px; border-radius: 12px; font-size: 36px; font-weight: 600; color: #dfe5f0; }
+  .tag { position: absolute; padding: 10px 22px; border-radius: 14px; font-size: 36px; font-weight: 900; }
+  .bar2 { position: absolute; height: 26px; border-radius: 13px; background: rgba(255,255,255,.1); overflow: hidden; }
+  .bar2 i { display: block; height: 100%; border-radius: 13px; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="../motion/core.js"></script>
+<script src="common.js"></script>
+<script src="month.js"></script>
+<script>
+// Werbung SlimManager: Game Boost
+const BALLAST = [['☁️', 'Cloud sync', '6 %'], ['🔄', 'Updater', '4 %'], ['💥', 'Crash reporter', '2 %'], ['📊', 'Telemetry', '3 %']];
+function procs(r, y) {
+  const b = el('div', 'win', r, '<div class="bar"><div class="dots"><i></i><i></i><i></i></div>Running in the background</div>');
+  css(b, { left: '70px', top: y + 'px', width: '940px' });
+  b.rows = BALLAST.map(([i, n, c]) => { const e = el('div', '', b, `<span>${i} ${n}</span><span class="v">${c} CPU</span>`); css(e, { display: 'flex', justifyContent: 'space-between', padding: '22px 30px', fontSize: '40px', fontWeight: 600 }); return e; });
+  return b;
+}
+scene('hook', (r, s) => {
+  s.h = head(r, 'Before you game,<br>your PC is <span style="color:#ff6b6b">busy</span> 😤', 160, 84);
+  s.l = procs(r, 560);
+}, (s, lt) => { fadeIn(s.h, lt, 0.05); fadeIn(s.l, lt, 0.2, 30); s.l.rows.forEach((e, i) => (e.style.opacity = p(lt, 0.4 + i * 0.3, 0.2))); });
+scene('boost', (r, s) => {
+  s.h = head(r, 'Game <span class="grad">Boost</span>: one click', 160, 90);
+  s.btn = el('div', 'abs', r, '⚡ Start boost');
+  css(s.btn, { left: '240px', width: '600px', top: '700px', textAlign: 'center', padding: '40px 0', borderRadius: '40px', fontSize: '70px', fontWeight: 900, background: 'linear-gradient(90deg,#7c4dff,#3b6cff)', boxShadow: '0 20px 70px rgba(124,77,255,.6)' });
+  s.c = cursor(r);
+}, (s, lt, D) => {
+  fadeIn(s.h, lt, 0.05);
+  moveCursor(s.c, lt, [[0, 900, 1400], [D * 0.45, 600, 790], [D * 0.62, 600, 790], [D, 820, 900]]);
+  const press = lt > D * 0.5 && lt < D * 0.5 + 0.2;
+  s.btn.style.transform = `scale(${press ? 0.92 : 1 + 0.03 * Math.sin(lt * 5)})`;
+});
+scenes[scenes.length - 1].sfx = (D) => [{ t: D * 0.5, type: 'click' }];
+scene('freeze', (r, s) => {
+  s.h = head(r, 'Clutter: <span style="color:#7cc8ff">frozen ❄️</span><br>Game: <span class="grad">priority</span>', 140, 76);
+  s.l = procs(r, 480);
+  s.a = shot(r, P('sm-boost-app'), { x: 90, y: 1060, w: 900, h: 505, radius: 22 });
+}, (s, lt, D) => {
+  fadeIn(s.h, lt, 0.05);
+  s.l.rows.forEach((e, i) => { const f = lt > 0.4 + i * 0.25; e.querySelector('.v').innerHTML = f ? '<span style="color:#7cc8ff">❄️ frozen</span>' : BALLAST[i][2] + ' CPU'; e.style.opacity = f ? 0.6 : 1; });
+  fadeIn(s.a, lt, D * 0.45, 30);
+});
+scenes[scenes.length - 1].sfx = () => [0, 1, 2, 3].map((i) => ({ t: 0.4 + i * 0.25, type: 'pop' }));
+scene('keep', (r, s) => {
+  s.h = head(r, 'What you need <span class="grad">keeps running</span>', 160, 76);
+  s.l = el('div', 'abs', r);
+  css(s.l, { left: '140px', right: '140px', top: '440px', fontSize: '54px', fontWeight: 800, lineHeight: 2 });
+  s.l.innerHTML = ['🎧 Headset software', '💬 Discord', '🎵 Music', '🎥 OBS'].map((x) => `<div style="display:flex;justify-content:space-between;opacity:0"><span>${x}</span><span style="color:#3ee089">✓</span></div>`).join('');
+  s.a = shot(r, P('sm-keep-app'), { x: 90, y: 1060, w: 900, h: 505, radius: 22 });
+}, (s, lt, D) => { fadeIn(s.h, lt, 0.05); [...s.l.children].forEach((e, i) => fadeIn(e, lt, 0.3 + i * 0.3, 20)); fadeIn(s.a, lt, D * 0.5, 30); });
+scene('restore', (r, s) => {
+  s.h = big(r, '↺', 520, 260);
+  s.t = head(r, 'After the game:<br><span class="grad">everything back to normal</span>', 900, 80);
+  s.s = sub(r, 'even after a crash', 1170, 56);
+}, (s, lt, D) => { s.h.style.transform = `rotate(${-360 * E.io(p(lt, 0.1, 1))}deg)`; fadeIn(s.t, lt, 0.3); fadeIn(s.s, lt, D * 0.5); });
+productCta({ name: 'Slim', grad: 'Manager', icon: P('icon-sm'), app: P('sm-boost-app'), color: 'linear-gradient(90deg,#7c4dff,#3b6cff)' });
+start({ captionTop: 1790 });
+</script>
+</body>
+</html>

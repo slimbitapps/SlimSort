@@ -1,81 +1,165 @@
-Four sorting algorithms. Same speed. Pick your winner.
+You paid for a 144 hertz monitor. But it might only be running at 60.
 
-Three, two, one, go!
+Windows doesn't always switch it on by itself. Here's how to check in ten seconds.
 
-Merge sort is done first. Quick sort right behind.
+Right-click your desktop, and open Display settings.
 
-Insertion sort is almost there. And bubble sort? Still going.
+Scroll down, and click Advanced display.
 
-Merge sort wins. Did you pick it? Tell me in the comments.
+Under refresh rate, pick the highest number.
 
-Next video.
-
-My photo app just got AI. SlimSort two point oh. Five new things in thirty seconds.
-
-One. Just ask. Show me my beach photos, and there they are.
-
-Two. It learns your folders, and suggests where each photo goes.
-
-Three. It remembers your pets, your people, and your things.
-
-Four. Every AI step can be undone, with one click.
-
-Five. Two screens. The photo on one, all your folders on the other.
-
-The AI is still in beta. It can be wrong, but you stay in control. And it runs only on your computer.
-
-SlimSort is free for Windows and Mac. Link in my profile.
+That's it. Your games, and even your mouse, feel way smoother. Follow for more PC tips.
 
 Next video.
 
-Find the odd one out. Three levels. Five seconds each.
+Windows Task Manager looks like it's from twenty ten. So I built my own.
 
-Level one. Find the panda.
+SlimManager. A live dashboard in your style. Gauges, graphs and big numbers, wherever you want them.
 
-Level two. Find the monkey covering its mouth.
+Pick a skin. Neon, glass, retro, terminal, or your own background.
 
-Level three. The hard one. Find the different smiley.
+Tap any tile, and see exactly which app is slowing you down.
 
-So, how many did you find? One, two, or three? Comment your score.
+And it's featherweight. In the background it uses about half a percent of one CPU core.
 
-Next video.
-
-Let's zoom into this photo of a cat. Closer. And closer.
-
-See those squares? Those are pixels.
-
-And each one is just three numbers. Red, green, and blue.
-
-A normal phone photo has twelve million of them.
-
-That's thirty-six million numbers, for one photo. And your gallery has thousands.
-
-Too many photos? SlimSort sorts them for free.
+SlimManager is free for Windows and Mac. Link in my profile.
 
 Next video.
 
-I told my photo app one sentence, and it found my cat in two thousand photos.
+You bought a one terabyte drive. Windows says nine hundred thirty one gigabytes. Where did the rest go?
 
-This is Chelsea, my cat.
+Nothing is missing. It's just math.
 
-SlimSort remembers her, and checks every single photo. Forty-seven photos of Chelsea.
+Drive makers count in thousands. One terabyte is one trillion bytes.
 
-One click, and they are all in the pets folder.
+But Windows counts in steps of one thousand twenty four.
 
-It works for family and things too. And it all runs on your own computer.
+One trillion, divided by one thousand twenty four, three times, is nine hundred thirty one.
 
-SlimSort is free for Windows and Mac. Link in my profile.
+Same space, different units. A Mac even shows the full terabyte, because it counts in thousands. Follow for more tech facts.
 
 Next video.
 
-This photo is black and white. But your brain is about to color it.
+Stop renaming files one by one. Windows can rename a hundred at once.
 
-Stare at the red dot. Don't move your eyes, and don't blink.
+Select all the files with Control A.
 
-Keep staring. Just a few more seconds.
+Press F2, and type one name. For example, Holiday.
 
-Now keep looking at the dot.
+Press Enter. Done. Holiday one, Holiday two, all the way to a hundred.
 
-It's in color, right?
+On a Mac, select them, right-click, and choose Rename.
 
-It's actually one hundred percent black and white. Did it work for you? Tell me below.
+Follow for more tips that save you time.
+
+Next video.
+
+My phone shows what my PC is doing. Live.
+
+Open SlimManager, and scan the QR code. No app to install.
+
+Now CPU, graphics card, memory and network are right in your hand.
+
+Got a tablet? It becomes the perfect second screen next to your keyboard.
+
+You can even start Game Boost, or close a frozen app, right from your phone. Only in your own Wi-Fi, and securely paired.
+
+SlimManager is free for Windows and Mac. Link in my profile.
+
+Next video.
+
+Five Windows shortcuts that feel like cheat codes.
+
+Windows plus V. Your clipboard history. Everything you copied, not just the last thing. The first time, just turn it on.
+
+Windows plus Shift plus S. A screenshot of just the part you need.
+
+Windows plus period. Emojis, anywhere you type.
+
+Control plus Shift plus T. Reopens the browser tab you just closed.
+
+And Windows plus Control plus D. A brand new, empty desktop. Which one did you not know? Follow for more.
+
+Next video.
+
+Every January, I copy my folders for the new year. But without the files inside.
+
+Photos twenty twenty-five, with all its subfolders, becomes an empty Photos twenty twenty-six.
+
+With SlimKit, that's one right-click. Copy folder structure.
+
+It even replaces the year in every folder name by itself.
+
+It can also rename files, shrink photos for WhatsApp, or send files to your phone with a QR code. And every change can be undone.
+
+SlimKit is free for Windows and Mac. Link in my profile.
+
+Next video.
+
+How does your keyboard know which key you pressed?
+
+Under the keys, there's a grid of wires. Rows, and columns.
+
+Every key sits where one row crosses one column.
+
+A tiny chip checks the grid, row by row, hundreds of times every second.
+
+When a row and a column connect, it knows. That's the letter G.
+
+That's why some keyboards get confused when you press lots of keys at once. Follow for more tech facts.
+
+Next video.
+
+Before you start a game, your PC is busy with stuff you don't need. Updaters, cloud sync, crash reporters.
+
+SlimManager's Game Boost fixes that with one click.
+
+Background clutter gets frozen. Your game gets priority, and free CPU cores.
+
+Your headset software, Discord and music keep running. You choose what's never touched.
+
+After the game, everything goes back to normal. Even after a crash.
+
+SlimManager is free for Windows and Mac. Link in my profile.
+
+Next video.
+
+Your RAM might be running way slower than what you paid for.
+
+Check it. Open Task Manager with Control, Shift, Escape.
+
+Go to Performance, then Memory, and look at the speed.
+
+Bought thirty-two hundred, but it says twenty-one thirty-three? Then XMP is off.
+
+Turn on XMP, or EXPO on AMD, in your BIOS. One switch, and you get the speed on the box.
+
+Check your motherboard manual first. Follow for more gaming tips.
+
+Next video.
+
+Presenting at school tomorrow? Your phone is your clicker.
+
+Open SlimClick on your laptop, and scan the QR code. No app on your phone.
+
+Tap for the next slide. PowerPoint, Keynote, Google Slides, or a PDF.
+
+Point at the slide with a laser pointer, right from your phone.
+
+And a silent timer flashes on your phone before your time runs out.
+
+SlimClick is free for Windows and Mac. Link in my profile.
+
+Next video.
+
+Why does 144 frames per second feel so much smoother than 60?
+
+At 60, a new picture shows up every 16.7 milliseconds.
+
+At 144, every 6.9 milliseconds. More than twice as often.
+
+So moving things jump less between frames. Your aim feels smoother, and the picture reacts faster.
+
+But only if your monitor can show it. A 60 hertz screen just throws the extra frames away.
+
+So check your refresh rate in Display settings. Follow for more gaming tips.

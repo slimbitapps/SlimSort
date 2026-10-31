@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="common.css" />
+<style>
+  .menu { position: absolute; width: 520px; border-radius: 20px; background: #1f232c; box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 1px #2e3440; padding: 12px; }
+  .menu div { padding: 18px 24px; border-radius: 12px; font-size: 36px; font-weight: 600; color: #dfe5f0; }
+  .tag { position: absolute; padding: 10px 22px; border-radius: 14px; font-size: 36px; font-weight: 900; }
+  .bar2 { position: absolute; height: 26px; border-radius: 13px; background: rgba(255,255,255,.1); overflow: hidden; }
+  .bar2 i { display: block; height: 100%; border-radius: 13px; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="../motion/core.js"></script>
+<script src="common.js"></script>
+<script src="month.js"></script>
+<script>
+// Tipp: 144-Hz-Monitor läuft vielleicht nur mit 60 Hz – so prüfst du es
+scene('hook', (r, s) => {
+  s.mon = shot(r, P('city-1'), { x: 90, y: 560, w: 900, h: 540, radius: 18 });
+  s.hz = big(r, '', 1160, 200);
+  s.h = head(r, 'You paid for <span class="grad">144 Hz</span>…', 200, 92);
+  s.h2 = sub(r, '…but it’s running at 60 😬', 330, 64);
+}, (s, lt, D) => {
+  fadeIn(s.h, lt, 0.05);
+  fadeIn(s.h2, lt, D * 0.45);
+  fadeIn(s.mon, lt, 0.1, 20);
+  const k = E.io(p(lt, D * 0.45, 0.8));
+  const n = Math.round(lerp(144, 60, k));
+  s.hz.innerHTML = `<span style="color:${k > 0.5 ? '#ff6b6b' : '#3ee089'}">${n} Hz</span>`;
+});
+scene('check', (r, s) => {
+  s.h = head(r, 'Check it in<br><span class="grad">10 seconds</span> ⏱️', 600, 110);
+}, (s, lt) => popIn(s.h, lt, 0.05, ''));
+scene('desktop', (r, s) => {
+  s.d = shot(r, P('aurora-1'), { x: 40, y: 380, w: 1000, h: 1100, radius: 26 });
+  s.m = el('div', 'menu', r, '<div>View</div><div>Sort by</div><div>Refresh</div><div class="hl">🖥️ Display settings</div><div>Personalize</div>');
+  css(s.m, { left: '330px', top: '760px' });
+  s.c = cursor(r);
+  s.h = head(r, 'Right-click the desktop', 170, 76);
+}, (s, lt, D) => {
+  fadeIn(s.h, lt, 0.05);
+  moveCursor(s.c, lt, [[0, 700, 1400], [0.8, 330, 700], [D, 330, 700]]);
+  s.m.style.opacity = p(lt, 0.9, 0.15);
+  highlight(s.m.querySelector('.hl'), lt > 1.4, lt);
+});
+scene('display', (r, s) => {
+  s.h = head(r, 'Scroll down →<br><span class="grad">Advanced display</span>', 150, 76);
+  s.w = settingsWin(r, 'Display', [['Brightness', '80 %'], ['Night light', 'Off'], ['Scale', '150 %'], ['Resolution', '2560 × 1440'], ['Advanced display', '›']], { y: 560 });
+}, (s, lt, D) => {
+  fadeIn(s.h, lt, 0.05);
+  fadeIn(s.w, lt, 0.15, 30);
+  s.w.rows.forEach((e, i) => highlight(e, i === 4 && lt > D * 0.4, lt));
+});
+scene('rate', (r, s) => {
+  s.h = head(r, 'Refresh rate:<br>pick the <span class="grad">highest</span>', 150, 80);
+  s.w = settingsWin(r, 'Advanced display', [['60 Hz', ''], ['120 Hz', ''], ['144 Hz', '✓']], { y: 600 });
+}, (s, lt, D) => {
+  fadeIn(s.h, lt, 0.05);
+  fadeIn(s.w, lt, 0.15, 30);
+  const pick = lt > D * 0.5;
+  s.w.rows.forEach((e, i) => { highlight(e, pick ? i === 2 : i === 0, lt); e.querySelector('.v').textContent = (pick ? i === 2 : i === 0) ? '✓' : ''; });
+});
+followScene('more PC tips');
+start({ captionTop: 1790 });
+</script>
+</body>
+</html>

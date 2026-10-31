@@ -1,0 +1,84 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="common.css" />
+<style>
+  .menu { position: absolute; width: 520px; border-radius: 20px; background: #1f232c; box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 1px #2e3440; padding: 12px; }
+  .menu div { padding: 18px 24px; border-radius: 12px; font-size: 36px; font-weight: 600; color: #dfe5f0; }
+  .tag { position: absolute; padding: 10px 22px; border-radius: 14px; font-size: 36px; font-weight: 900; }
+  .bar2 { position: absolute; height: 26px; border-radius: 13px; background: rgba(255,255,255,.1); overflow: hidden; }
+  .bar2 i { display: block; height: 100%; border-radius: 13px; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="../motion/core.js"></script>
+<script src="common.js"></script>
+<script src="month.js"></script>
+<script>
+// Info: Warum eine 1-TB-Platte nur 931 GB zeigt
+const drive = (r, label, val, y) => {
+  const b = el('div', 'abs', r, `<div style="font-size:40px;font-weight:700;color:#c7d0e2">${label}</div><div class="v" style="font-size:120px;font-weight:900;letter-spacing:-3px"></div>`);
+  css(b, { left: '90px', right: '90px', top: y + 'px', padding: '30px 40px', borderRadius: '30px', background: 'rgba(16,20,30,.92)', border: '2px solid rgba(255,255,255,.08)' });
+  return b;
+};
+scene('hook', (r, s) => {
+  s.h = head(r, 'Where did <span style="color:#ff6b6b">69 GB</span> go? 🤔', 170, 88);
+  s.a = drive(r, '📦 On the box', '', 520);
+  s.b = drive(r, '💻 Windows says', '', 900);
+}, (s, lt, D) => {
+  fadeIn(s.h, lt, D * 0.6);
+  fadeIn(s.a, lt, 0.05, 30);
+  fadeIn(s.b, lt, D * 0.35, 30);
+  s.a.querySelector('.v').innerHTML = '<span class="grad">1 TB</span>';
+  s.b.querySelector('.v').innerHTML = `<span style="color:#ff6b6b">${Math.round(lerp(1000, 931, E.io(p(lt, D * 0.4, 1))))} GB</span>`;
+});
+scene('math', (r, s) => {
+  s.h = big(r, 'Nothing is missing.<br><span class="grad">It’s just math.</span>', 650, 100);
+}, (s, lt) => popIn(s.h, lt, 0.05, ''));
+scene('thousand', (r, s) => {
+  s.h = head(r, 'Drive makers count in <span class="grad">1000s</span>', 170, 80);
+  s.n = big(r, '', 560, 96);
+  s.s = sub(r, '1 TB = 1,000,000,000,000 bytes', 1120, 50);
+}, (s, lt) => {
+  fadeIn(s.h, lt, 0.05);
+  const steps = ['1 KB = 1,000 B', '1 MB = 1,000 KB', '1 GB = 1,000 MB', '1 TB = 1,000 GB'];
+  s.n.innerHTML = steps.map((x, i) => `<div style="opacity:${p(lt, 0.3 + i * 0.35, 0.3)}">${x}</div>`).join('');
+  fadeIn(s.s, lt, 1.8);
+});
+scene('1024', (r, s) => {
+  s.h = head(r, 'Windows counts in <span style="color:#ffb43a">1024s</span>', 170, 80);
+  s.n = big(r, '', 560, 96);
+}, (s, lt) => {
+  fadeIn(s.h, lt, 0.05);
+  const steps = ['1 KB = 1,024 B', '1 MB = 1,024 KB', '1 GB = 1,024 MB'];
+  s.n.innerHTML = steps.map((x, i) => `<div style="opacity:${p(lt, 0.3 + i * 0.35, 0.3)}">${x}</div>`).join('');
+});
+scene('calc', (r, s) => {
+  s.h = head(r, 'So…', 170, 80);
+  s.n = big(r, '', 500, 76);
+}, (s, lt, D) => {
+  fadeIn(s.h, lt, 0.05);
+  const r1 = '1,000,000,000,000', a = '÷ 1024 ÷ 1024 ÷ 1024';
+  const k = E.out(p(lt, D * 0.55, 0.6));
+  s.n.innerHTML = `<div style="opacity:${p(lt, 0.2, 0.3)}">${r1}</div><div style="opacity:${p(lt, D * 0.25, 0.3)};color:#ffb43a">${a}</div>` +
+    `<div style="opacity:${k};transform:scale(${0.7 + 0.3 * k});font-size:180px;margin-top:40px"><span class="grad">= 931</span></div>`;
+});
+scene('end', (r, s) => {
+  s.h = big(r, 'Same space.<br><span class="grad">Different units.</span>', 480, 100);
+  s.m = chip(r, '🍎 A Mac shows the full 1 TB', 900, 44);
+  s.i = el('img', 'abs', r);
+  s.i.src = P('icon-slimbit');
+  css(s.i, { left: '465px', top: '1150px', width: '150px', height: '150px', borderRadius: '36px' });
+  s.f = sub(r, 'Follow @slimbitapps for more tech facts', 1340, 46);
+}, (s, lt, D) => {
+  popIn(s.h, lt, 0.05, '');
+  chipIn(s.m, lt, D * 0.25);
+  s.i.style.transform = `scale(${E.back(p(lt, D * 0.6, 0.5))})`;
+  fadeIn(s.f, lt, D * 0.65);
+});
+start({ captionTop: 1790 });
+</script>
+</body>
+</html>

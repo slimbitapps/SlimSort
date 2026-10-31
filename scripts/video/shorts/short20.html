@@ -1,0 +1,106 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="common.css" />
+<style>
+  .menu { position: absolute; width: 520px; border-radius: 20px; background: #1f232c; box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 1px #2e3440; padding: 12px; }
+  .menu div { padding: 18px 24px; border-radius: 12px; font-size: 36px; font-weight: 600; color: #dfe5f0; }
+  .tag { position: absolute; padding: 10px 22px; border-radius: 14px; font-size: 36px; font-weight: 900; }
+  .bar2 { position: absolute; height: 26px; border-radius: 13px; background: rgba(255,255,255,.1); overflow: hidden; }
+  .bar2 i { display: block; height: 100%; border-radius: 13px; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="../motion/core.js"></script>
+<script src="common.js"></script>
+<script src="month.js"></script>
+<script>
+// Info: Wie die Tastatur weiß, welche Taste gedrückt wurde (Tasten-Matrix)
+const ROWS = ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'];
+const KX = 70, KY = 640, KS = 94;   // Raster
+function board(r) {
+  const b = el('div', 'abs', r);
+  css(b, { left: 0, top: 0, width: '1080px', height: '1920px' });
+  b.keys = [];
+  ROWS.forEach((row, ri) => [...row].forEach((ch, ci) => {
+    const k = el('div', 'abs', b, ch);
+    css(k, { left: KX + ri * 40 + ci * KS + 'px', top: KY + ri * 150 + 'px', width: '80px', height: '80px', borderRadius: '14px', background: '#e9ecf2', color: '#111',
+      font: '800 40px Inter, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 0 #9aa3b5' });
+    k.ri = ri; k.ci = ci; b.keys.push(k);
+  }));
+  b.rowW = ROWS.map((_, ri) => { const w = el('div', 'abs', b); css(w, { left: '40px', width: '1000px', height: '8px', top: KY + ri * 150 + 36 + 'px', background: '#3b8bff', borderRadius: '4px' }); return w; });
+  b.colW = Array.from({ length: 10 }, (_, ci) => { const w = el('div', 'abs', b); css(w, { top: KY - 40 + 'px', height: '480px', width: '8px', left: KX + ci * KS + 36 + 'px', background: '#3ee089', borderRadius: '4px' }); return w; });
+  b.rowW.concat(b.colW).forEach((w) => (w.style.zIndex = 0));
+  b.keys.forEach((k) => (k.style.zIndex = 1));
+  return b;
+}
+scene('hook', (r, s) => {
+  s.h = head(r, 'How does your keyboard<br>know which key you pressed? ⌨️', 170, 76);
+  s.b = board(r);
+}, (s, lt) => {
+  fadeIn(s.h, lt, 0.05);
+  s.b.rowW.concat(s.b.colW).forEach((w) => (w.style.opacity = 0));
+  s.b.keys.forEach((k, i) => { const kk = E.back(p(lt, 0.3 + i * 0.03, 0.3)); k.style.opacity = p(lt, 0.3 + i * 0.03, 0.1); k.style.transform = `scale(${kk})`; });
+});
+scene('grid', (r, s) => {
+  s.h = head(r, 'Under the keys: a grid of wires', 170, 72);
+  s.l = sub(r, '<span style="color:#3b8bff">rows</span> + <span style="color:#3ee089">columns</span>', 290, 60);
+  s.b = board(r);
+}, (s, lt, D) => {
+  fadeIn(s.h, lt, 0.05); fadeIn(s.l, lt, 0.4);
+  const keyFade = 1 - 0.75 * p(lt, 0.3, 0.6);
+  s.b.keys.forEach((k) => (k.style.opacity = keyFade));
+  s.b.rowW.forEach((w, i) => (w.style.opacity = p(lt, 0.6 + i * 0.2, 0.3)));
+  s.b.colW.forEach((w, i) => (w.style.opacity = p(lt, D * 0.45 + i * 0.06, 0.2)));
+});
+scene('cross', (r, s) => {
+  s.h = head(r, 'Each key sits where<br>a row <span class="grad">crosses</span> a column', 160, 76);
+  s.b = board(r);
+}, (s, lt, D) => {
+  fadeIn(s.h, lt, 0.05);
+  s.b.keys.forEach((k) => (k.style.opacity = k.ri === 1 && k.ci === 4 ? 1 : 0.25));
+  s.b.rowW.forEach((w, i) => (w.style.opacity = i === 1 ? 1 : 0.25));
+  s.b.colW.forEach((w, i) => (w.style.opacity = i === 4 ? 1 : 0.25));
+});
+scene('scan', (r, s) => {
+  s.h = head(r, 'A chip checks row by row –<br><span class="grad">hundreds of times a second</span>', 160, 70);
+  s.b = board(r);
+}, (s, lt) => {
+  fadeIn(s.h, lt, 0.05);
+  const cur = Math.floor(lt * 6) % 3;
+  s.b.keys.forEach((k) => (k.style.opacity = 0.3));
+  s.b.rowW.forEach((w, i) => { w.style.opacity = i === cur ? 1 : 0.2; w.style.boxShadow = i === cur ? '0 0 30px #3b8bff' : 'none'; });
+  s.b.colW.forEach((w) => (w.style.opacity = 0.35));
+});
+scene('press', (r, s) => {
+  s.h = head(r, 'Row + column connect →', 160, 76);
+  s.b = board(r);
+  s.g = big(r, '', 1180, 260);
+}, (s, lt, D) => {
+  fadeIn(s.h, lt, 0.05);
+  const down = lt > D * 0.3;
+  s.b.keys.forEach((k) => {
+    const g = k.ri === 1 && k.ci === 4;
+    k.style.opacity = g ? 1 : 0.25;
+    k.style.transform = g && down ? 'translateY(8px)' : 'none';
+    k.style.boxShadow = g && down ? '0 0 0 #9aa3b5, 0 0 40px #3ee089' : '0 8px 0 #9aa3b5';
+  });
+  s.b.rowW.forEach((w, i) => (w.style.opacity = i === 1 && down ? 1 : 0.2));
+  s.b.colW.forEach((w, i) => (w.style.opacity = i === 4 && down ? 1 : 0.2));
+  s.g.innerHTML = down ? '<span class="grad">G</span>' : '';
+  s.g.style.transform = `scale(${0.6 + 0.4 * E.back(p(lt, D * 0.35, 0.4))})`;
+});
+scenes[scenes.length - 1].sfx = (D) => [{ t: D * 0.3, type: 'click' }, { t: D * 0.35, type: 'pop' }];
+scene('ghost', (r, s) => {
+  s.h = head(r, 'Too many keys at once?<br>Some keyboards get <span style="color:#ffb43a">confused</span> 😵', 400, 72);
+  s.i = el('img', 'abs', r);
+  s.i.src = P('icon-slimbit');
+  css(s.i, { left: '465px', top: '1000px', width: '150px', height: '150px', borderRadius: '36px' });
+  s.f = sub(r, 'Follow @slimbitapps for more tech facts', 1200, 46);
+}, (s, lt, D) => { fadeIn(s.h, lt, 0.05); s.i.style.transform = `scale(${E.back(p(lt, D * 0.55, 0.5))})`; fadeIn(s.f, lt, D * 0.6); });
+start({ captionTop: 1790 });
+</script>
+</body>
+</html>

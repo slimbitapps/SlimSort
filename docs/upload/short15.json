@@ -1,0 +1,20 @@
+{
+  "youtube": {
+    "title": "Why your 1TB drive only shows 931GB 🤔 #shorts",
+    "description": "Nothing is missing – it’s math. Drive makers count 1 TB = 1,000,000,000,000 bytes. Windows divides by 1024 three times → 931 “GB” (really GiB). A Mac counts in thousands and shows the full 1 TB.\n\nMore free tools: https://slimbitapps.github.io/\n\n#tech #pc #storage",
+    "tags": "1tb 931gb,why 1tb shows 931gb,hard drive capacity,ssd,storage,gb vs gib,bytes,tech explained,pc facts,computer science,windows,mac,tech facts,shorts",
+    "pinned": "Did you think your drive was broken? 😄",
+    "category": "SCIENCE_TECHNOLOGY"
+  },
+  "tiktok": {
+    "caption": "Why your 1TB drive only shows 931GB 🤔 #tech #pc #techtok #ssd",
+    "title": "Where did 69GB go? 🤔"
+  },
+  "instagram": {
+    "caption": "You bought 1 TB. Windows says 931 GB. Where did the rest go? 🤔\nNothing is missing – it’s just math.\n#tech #pc #techfacts #storage"
+  },
+  "hints": [
+    "Wird automatisch über Metricool veröffentlicht – nichts zu tun.",
+    "Musik und Stimme sind schon im Video."
+  ]
+}

@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="common.css" />
+<style>
+  .menu { position: absolute; width: 520px; border-radius: 20px; background: #1f232c; box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 1px #2e3440; padding: 12px; }
+  .menu div { padding: 18px 24px; border-radius: 12px; font-size: 36px; font-weight: 600; color: #dfe5f0; }
+  .tag { position: absolute; padding: 10px 22px; border-radius: 14px; font-size: 36px; font-weight: 900; }
+  .bar2 { position: absolute; height: 26px; border-radius: 13px; background: rgba(255,255,255,.1); overflow: hidden; }
+  .bar2 i { display: block; height: 100%; border-radius: 13px; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="../motion/core.js"></script>
+<script src="common.js"></script>
+<script src="month.js"></script>
+<script>
+// Werbung SlimClick: Handy als Präsentations-Fernbedienung
+scene('hook', (r, s) => {
+  s.h = head(r, 'Presenting at school<br>tomorrow? 😬', 170, 90);
+  s.s = sub(r, 'Your phone is your <span class="grad">clicker</span>', 430, 64);
+  s.p = phone(r, P('sc-20-phone-remote'), { x: 340, y: 580, w: 400 });
+}, (s, lt, D) => { fadeIn(s.h, lt, 0.05); fadeIn(s.s, lt, D * 0.45); fadeIn(s.p, lt, D * 0.4, 60); });
+scene('qr', (r, s) => {
+  s.h = head(r, 'Scan the QR code', 160, 84);
+  s.s = sub(r, 'No app on your phone', 280, 56);
+  s.a = laptop(r, P('sc-10-home-qr'), 900, 900);
+}, (s, lt) => { fadeIn(s.h, lt, 0.05); fadeIn(s.s, lt, 0.4); const k = E.out(p(lt, 0.2, 0.7)); place(s.a, { s: 0.92 + 0.08 * k, y: 30 * (1 - k) }); });
+scene('next', (r, s) => {
+  s.h = head(r, 'Tap → <span class="grad">next slide</span>', 150, 84);
+  s.sl = ['mountains-1', 'beach-2', 'city-1'].map((n) => shot(r, P(n), { x: 140, y: 400, w: 800, h: 450, radius: 18 }));
+  s.p = phone(r, P('sc-20-phone-remote'), { x: 360, y: 930, w: 360 });
+  s.c = chip(r, 'PowerPoint · Keynote · Google Slides · PDF', 1730, 34);
+}, (s, lt, D) => {
+  fadeIn(s.h, lt, 0.05);
+  const idx = Math.min(2, Math.floor(lt / (D / 3)));
+  s.sl.forEach((e, i) => { e.style.opacity = i === idx ? 1 : 0; e.style.transform = `translateX(${(i - idx) * 80}px)`; });
+  fadeIn(s.p, lt, 0.1, 40);
+  chipIn(s.c, lt, D * 0.5);
+});
+scenes[scenes.length - 1].sfx = (D) => [{ t: D / 3, type: 'click' }, { t: (2 * D) / 3, type: 'click' }];
+scene('laser', (r, s) => {
+  s.h = head(r, 'Laser pointer – <span class="grad">from your phone</span>', 150, 76);
+  s.sl = shot(r, P('mountains-1'), { x: 140, y: 400, w: 800, h: 450, radius: 18 });
+  s.dot = el('div', 'abs', r);
+  css(s.dot, { width: '34px', height: '34px', borderRadius: '50%', background: '#ff2a2a', boxShadow: '0 0 30px #ff2a2a, 0 0 60px #ff2a2a' });
+  s.p = phone(r, P('sc-22-phone-laser'), { x: 360, y: 930, w: 360 });
+}, (s, lt) => {
+  fadeIn(s.h, lt, 0.05); fadeIn(s.p, lt, 0.1, 40);
+  css(s.dot, { left: 520 + 200 * Math.sin(lt * 1.6) + 'px', top: 600 + 90 * Math.sin(lt * 2.3) + 'px', opacity: p(lt, 0.5, 0.2) });
+});
+scene('timer', (r, s) => {
+  s.h = head(r, 'A <span class="grad">silent timer</span> on your phone', 150, 80);
+  s.p = phone(r, P('sc-24-phone-timer'), { x: 340, y: 440, w: 400 });
+  s.c = chip(r, '⏱️ flashes at 5, 2 and 1 minute left', 1350, 38);
+}, (s, lt, D) => { fadeIn(s.h, lt, 0.05); fadeIn(s.p, lt, 0.2, 40); s.p.style.boxShadow = `0 40px 100px rgba(0,0,0,.7), 0 0 0 ${6 * (0.5 + 0.5 * Math.sin(lt * 8)) * p(lt, D * 0.4, 0.2)}px #ffd34d`; chipIn(s.c, lt, D * 0.4); });
+productCta({ name: 'Slim', grad: 'Click', icon: P('icon-sc'), app: P('sc-10-home-qr'), color: 'linear-gradient(90deg,#ff5a5f,#ff8a3d)' });
+start({ captionTop: 1790 });
+</script>
+</body>
+</html>
