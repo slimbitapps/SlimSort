@@ -62,3 +62,13 @@ den Ordner `scripts/video/` übernehmen; nur die Szenen (HTML) und die Aufnahme-
   `render.cjs` baut daraus mit `motion/tones.py` die Tonspur (z. B. Sortier-Rennen: ein Ton pro Schritt).
 - Echte App für das Ende: englische Bildschirmfotos über den E2E-Treiber (Sprache `en`, gemalte Bilder), als `frames/<name>/00001.jpg` (16:9).
 - Mischung: 4 Shorts ohne/kaum SlimSort (Sortier-Rennen, Nachbild-Illusion, Emoji-Suchbild, Pixel-Zoom), 2 zu SlimSort 2.0 (Überblick, KI findet die Katze).
+
+## Veröffentlichen (voll automatisch über Metricool)
+1. Fertige Videos + TikTok/Instagram-Cover auf den Ablage-Zweig `social-media` legen (eigener Zweig ohne App-Code, z. B. `runde3/`)
+   und pushen. Öffentlich erreichbar über `https://raw.githubusercontent.com/slimbitapps/SlimSort/social-media/<ordner>/<datei>`.
+   (Cloud-Sitzungen dürfen keine GitHub-Releases anlegen – darum dieser Weg.)
+2. Metricool (Marke „slimbitapps“, blogId 7756644, Zeitzone Europe/Berlin): je Video drei Posts mit eigenem Text aus `docs/upload/<id>.json`
+   – YouTube `type: short`, `madeForKids: false`, `videoCoverMilliseconds: 100` (Deckblatt), Kommentar = `pinned`;
+   Instagram `type: REEL` + `videoThumbnailUrl` (Cover); TikTok braucht `tiktokData.title` + `videoThumbnailUrl`.
+   Metricool kopiert die Dateien beim Einplanen in den eigenen Speicher.
+3. Abstand 3 Tage, 18:30 Uhr. Die Erlaubnis für Metricool-Posts steht in `.claude/settings.json` (Hauptzweig).
